@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Heart, Handshake, Search, Filter, MapPin, GraduationCap, Calendar, Eye, X } from "lucide-react";
-import Layout from "../components/Layout";
+
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import TermsDialog from "../components/TermsDialog";
@@ -201,6 +201,15 @@ const Dashboard = () => {
     });
   };
 
+  const handleAcceptTerms = () => {
+    setShowTermsDialog(false);
+    // Here you would typically update the user's terms acceptance status
+    toast({
+      title: "Terms accepted",
+      description: "You can now request introductions to candidates.",
+    });
+  };
+
   const clearFilters = () => {
     setSearchTerm('');
     setExperienceFilter('');
@@ -210,7 +219,13 @@ const Dashboard = () => {
   };
 
   return (
-    <Layout>
+    <>
+      <TermsDialog 
+        open={showTermsDialog} 
+        onAccept={handleAcceptTerms} 
+        onDecline={() => setShowTermsDialog(false)} 
+      />
+      
       <div className="flex-1 overflow-auto">
         <div className="p-6">
           {/* Header */}
@@ -493,12 +508,7 @@ const Dashboard = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Terms Dialog */}
-      <TermsDialog 
-        open={showTermsDialog} 
-        onOpenChange={setShowTermsDialog}
-      />
-    </Layout>
+    </>
   );
 };
 

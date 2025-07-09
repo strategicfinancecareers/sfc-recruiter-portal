@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import Layout from "../components/Layout";
+
 
 interface IntroductionRequest {
   id: string;
@@ -94,13 +94,12 @@ const Account = () => {
   };
 
   return (
-    <Layout>
-      <div className="flex-1 overflow-auto">
-        <div className="p-6">
-          <div className="mb-6">
-            <h1 className="text-3xl font-bold text-gray-900">Account Settings</h1>
-            <p className="text-gray-600">Manage your account and view introduction requests</p>
-          </div>
+    <div className="flex-1 overflow-auto">
+      <div className="p-6">
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold text-gray-900">Account Settings</h1>
+          <p className="text-gray-600">Manage your account and view introduction requests</p>
+        </div>
 
           <Tabs defaultValue="profile" className="space-y-6">
             <TabsList>
@@ -229,10 +228,9 @@ const Account = () => {
                 </CardContent>
               </Card>
             </TabsContent>
-          </Tabs>
-        </div>
+        </Tabs>
       </div>
-    </Layout>
+    </div>
   );
 };
 

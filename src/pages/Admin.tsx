@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Plus, Edit2, Trash2, Users, UserPlus, Eye, Settings, Mail } from "lucide-react";
-import Layout from "../components/Layout";
+
 import { useToast } from "@/hooks/use-toast";
 
 interface User {
@@ -271,13 +271,12 @@ const Admin = () => {
   };
 
   return (
-    <Layout>
-      <div className="flex-1 overflow-auto">
-        <div className="p-6">
-          <div className="mb-6">
-            <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
-            <p className="text-gray-600">Manage users, candidates, and system settings</p>
-          </div>
+    <div className="flex-1 overflow-auto">
+      <div className="p-6">
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
+          <p className="text-gray-600">Manage users, candidates, and system settings</p>
+        </div>
 
           <Tabs defaultValue="candidates" className="space-y-6">
             <TabsList className="grid w-full grid-cols-4">
@@ -708,7 +707,7 @@ TalentConnect Team"
           </Dialog>
         </div>
       </div>
-    </Layout>
+    </div>
   );
 };
 

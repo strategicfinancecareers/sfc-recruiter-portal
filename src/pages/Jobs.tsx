@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Edit2, Trash2, MapPin, DollarSign, Clock } from "lucide-react";
-import Layout from "../components/Layout";
+
 import { useToast } from "@/hooks/use-toast";
 
 interface Job {
@@ -181,14 +181,13 @@ const Jobs = () => {
   };
 
   return (
-    <Layout>
-      <div className="flex-1 overflow-auto">
-        <div className="p-6">
-          <div className="flex justify-between items-center mb-6">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">Job Opportunities</h1>
-              <p className="text-gray-600">Manage your current job postings</p>
-            </div>
+    <div className="flex-1 overflow-auto">
+      <div className="p-6">
+        <div className="flex justify-between items-center mb-6">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Job Opportunities</h1>
+            <p className="text-gray-600">Manage your current job postings</p>
+          </div>
             <Button onClick={() => handleOpenForm()}>
               <Plus className="mr-2 h-4 w-4" />
               Add Job
@@ -417,7 +416,7 @@ const Jobs = () => {
           </Dialog>
         </div>
       </div>
-    </Layout>
+    </div>
   );
 };
 

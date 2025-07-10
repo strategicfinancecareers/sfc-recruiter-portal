@@ -30,9 +30,9 @@ const Layout = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background flex">
+    <div className="h-screen bg-background flex">
       {/* Sidebar */}
-      <div className={`bg-card shadow-lg border-r transition-all duration-300 ${sidebarOpen ? 'w-64' : 'w-16'}`}>
+      <div className={`bg-card shadow-lg border-r transition-all duration-300 relative flex flex-col ${sidebarOpen ? 'w-64' : 'w-16'}`}>
         <div className="flex items-center justify-between p-4 border-b">
           {sidebarOpen && (
             <div className="flex items-center">
@@ -52,7 +52,7 @@ const Layout = () => {
           </Button>
         </div>
         
-        <nav className="mt-8">
+        <nav className="mt-8 flex-1 overflow-y-auto">
           <div className="px-2 space-y-1">
             {navigation.map((item) => {
               const isActive = location.pathname === item.href;
@@ -81,7 +81,7 @@ const Layout = () => {
           </div>
         </nav>
 
-        <div className={`absolute bottom-0 p-4 border-t border-border ${sidebarOpen ? 'w-64' : 'w-16'}`}>
+        <div className={`p-4 border-t border-border ${sidebarOpen ? 'w-64' : 'w-16'}`}>
           {sidebarOpen && (
             <div className="mb-4 pt-4">
               <p className="text-sm font-medium text-foreground">{user?.name}</p>

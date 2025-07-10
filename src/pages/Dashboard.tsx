@@ -111,12 +111,12 @@ const Dashboard = () => {
       );
     }
 
-    if (experienceFilter) {
+    if (experienceFilter && experienceFilter !== 'any') {
       const minExp = parseInt(experienceFilter);
       filtered = filtered.filter(candidate => candidate.experience >= minExp);
     }
 
-    if (educationFilter) {
+    if (educationFilter && educationFilter !== 'any') {
       filtered = filtered.filter(candidate => candidate.education === educationFilter);
     }
 
@@ -274,7 +274,7 @@ const Dashboard = () => {
                       <SelectValue placeholder="Any" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Any</SelectItem>
+                      <SelectItem value="any">Any</SelectItem>
                       <SelectItem value="1">1+ years</SelectItem>
                       <SelectItem value="3">3+ years</SelectItem>
                       <SelectItem value="5">5+ years</SelectItem>
@@ -289,7 +289,7 @@ const Dashboard = () => {
                       <SelectValue placeholder="Any" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Any</SelectItem>
+                      <SelectItem value="any">Any</SelectItem>
                       <SelectItem value="Bachelor's">Bachelor's</SelectItem>
                       <SelectItem value="Master's">Master's</SelectItem>
                       <SelectItem value="PhD">PhD</SelectItem>
@@ -419,26 +419,33 @@ const Dashboard = () => {
                     )}
                   </div>
 
-                  <div className="flex space-x-2 pt-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setSelectedCandidate(candidate)}
-                      className="flex-1"
-                    >
-                      <Eye className="mr-1 h-4 w-4" />
-                      View Resume
-                    </Button>
-                    <Button
-                      size="sm"
-                      onClick={() => handleIntroduceMe(candidate)}
-                      disabled={pendingIntroductions.includes(candidate.id)}
-                      className="flex-1"
-                    >
-                      <Handshake className="mr-1 h-4 w-4" />
-                      {pendingIntroductions.includes(candidate.id) ? 'Pending' : 'Introduce Me'}
-                    </Button>
-                  </div>
+                   {pendingIntroductions.includes(candidate.id) && (
+                     <Badge variant="secondary" className="mb-2 bg-yellow-100 text-yellow-800">
+                       Pending Introduction
+                     </Badge>
+                   )}
+
+                   <div className="flex space-x-2 pt-2">
+                     <Button
+                       variant="outline"
+                       size="sm"
+                       onClick={() => setSelectedCandidate(candidate)}
+                       className="flex-1"
+                     >
+                       <Eye className="mr-1 h-4 w-4" />
+                       View Resume
+                     </Button>
+                     <Button
+                       size="sm"
+                       onClick={() => handleIntroduceMe(candidate)}
+                       disabled={pendingIntroductions.includes(candidate.id)}
+                       variant={pendingIntroductions.includes(candidate.id) ? "secondary" : "default"}
+                       className="flex-1"
+                     >
+                       <Handshake className="mr-1 h-4 w-4" />
+                       {pendingIntroductions.includes(candidate.id) ? 'Introduction Sent' : 'Introduce Me'}
+                     </Button>
+                   </div>
                 </CardContent>
               </Card>
             ))}

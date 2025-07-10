@@ -414,7 +414,6 @@ const Jobs = () => {
               </DialogFooter>
             </DialogContent>
           </Dialog>
-        </div>
       </div>
     </div>
   );

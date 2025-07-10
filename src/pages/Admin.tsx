@@ -705,7 +705,7 @@ TalentConnect Team"
               </div>
             </DialogContent>
           </Dialog>
-        </div>
+        </Tabs>
       </div>
     </div>
   );

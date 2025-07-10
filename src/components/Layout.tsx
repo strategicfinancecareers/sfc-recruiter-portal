@@ -32,7 +32,7 @@ const Layout = () => {
   return (
     <div className="h-screen bg-background flex">
       {/* Sidebar */}
-      <div className={`bg-gradient-card shadow-glow border-r transition-all duration-300 ease-out relative flex flex-col ${sidebarOpen ? 'w-64' : 'w-16'}`}>
+      <div className={`bg-gradient-card border-r transition-all duration-300 ease-out relative flex flex-col ${sidebarOpen ? 'w-64' : 'w-16'}`}>
         <div className="flex items-center justify-between p-4 border-b backdrop-blur-sm">
           {sidebarOpen && (
             <div className="flex items-center">

@@ -10,6 +10,7 @@ import Login from "./pages/Login";
 import SignUp from "./pages/SignUp";
 import ForgotPassword from "./pages/ForgotPassword";
 import Dashboard from "./pages/Dashboard";
+import CandidateSearch from "./pages/CandidateSearch";
 import Account from "./pages/Account";
 import Jobs from "./pages/Jobs";
 import Favorites from "./pages/Favorites";
@@ -39,6 +40,7 @@ const App = () => (
               </ProtectedRoute>
             }>
               <Route path="dashboard" element={<Dashboard />} />
+              <Route path="browse" element={<CandidateSearch />} />
               <Route path="account" element={<Account />} />
               <Route path="jobs" element={<Jobs />} />
               <Route path="introductions" element={<IntroductionRequests />} />

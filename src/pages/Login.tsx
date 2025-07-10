@@ -35,11 +35,11 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-primary flex items-center justify-center p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
-            <Briefcase className="h-10 w-10 text-blue-600" />
+            <Briefcase className="h-10 w-10 text-primary" />
           </div>
           <CardTitle className="text-2xl">Welcome Back</CardTitle>
           <CardDescription>Sign in to your recruiter account</CardDescription>
@@ -88,16 +88,16 @@ const Login = () => {
                 Google
               </Button>
               <Button variant="outline" className="w-full">
-                <div className="mr-2 h-4 w-4 bg-blue-600 rounded-sm"></div>
+                <div className="mr-2 h-4 w-4 bg-primary rounded-sm"></div>
                 Microsoft
               </Button>
             </div>
           </div>
           
-          <div className="mt-4 p-3 bg-blue-50 rounded-lg">
+          <div className="mt-4 p-3 bg-accent rounded-lg">
             <div className="flex items-start space-x-2">
-              <AlertCircle className="h-4 w-4 text-blue-600 mt-0.5" />
-              <div className="text-sm text-blue-700">
+              <AlertCircle className="h-4 w-4 text-primary mt-0.5" />
+              <div className="text-sm text-accent-foreground">
                 <p className="font-medium">Demo Accounts:</p>
                 <p>Recruiter: recruiter@example.com / password</p>
                 <p>Admin: admin@example.com / password</p>
@@ -106,12 +106,12 @@ const Login = () => {
           </div>
         </CardContent>
         <CardFooter className="flex flex-col space-y-2">
-          <Link to="/forgot-password" className="text-sm text-blue-600 hover:underline">
+          <Link to="/forgot-password" className="text-sm text-primary hover:underline">
             Forgot your password?
           </Link>
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-muted-foreground">
             Don't have an account?{" "}
-            <Link to="/signup" className="text-blue-600 hover:underline">
+            <Link to="/signup" className="text-primary hover:underline">
               Sign up
             </Link>
           </p>

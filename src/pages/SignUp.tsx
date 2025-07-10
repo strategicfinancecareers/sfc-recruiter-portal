@@ -47,11 +47,11 @@ const SignUp = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-primary flex items-center justify-center p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
-            <Briefcase className="h-10 w-10 text-blue-600" />
+            <Briefcase className="h-10 w-10 text-primary" />
           </div>
           <CardTitle className="text-2xl">Create Account</CardTitle>
           <CardDescription>Start recruiting top talent today</CardDescription>
@@ -122,16 +122,16 @@ const SignUp = () => {
                 Google
               </Button>
               <Button variant="outline" className="w-full">
-                <div className="mr-2 h-4 w-4 bg-blue-600 rounded-sm"></div>
+                <div className="mr-2 h-4 w-4 bg-primary rounded-sm"></div>
                 Microsoft
               </Button>
             </div>
           </div>
         </CardContent>
         <CardFooter>
-          <p className="text-sm text-gray-600 text-center w-full">
+          <p className="text-sm text-muted-foreground text-center w-full">
             Already have an account?{" "}
-            <Link to="/login" className="text-blue-600 hover:underline">
+            <Link to="/login" className="text-primary hover:underline">
               Sign in
             </Link>
           </p>

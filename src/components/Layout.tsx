@@ -1,7 +1,7 @@
 
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
-import { Briefcase, Users, Heart, Settings, LogOut, Gauge, Menu } from "lucide-react";
+import { Briefcase, Users, Heart, Settings, LogOut, Gauge, Menu, Handshake } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { useState } from 'react';
 
@@ -13,8 +13,9 @@ const Layout = () => {
 
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: Gauge },
+    { name: 'Browse Candidates', href: '/browse', icon: Users },
     { name: 'Jobs', href: '/jobs', icon: Briefcase },
-    { name: 'Introduction Requests', href: '/introductions', icon: Users },
+    { name: 'Introduction Requests', href: '/introductions', icon: Handshake },
     { name: 'Favorites', href: '/favorites', icon: Heart },
     { name: 'Account', href: '/account', icon: Settings },
   ];
@@ -29,9 +30,9 @@ const Layout = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
+    <div className="min-h-screen bg-background flex">
       {/* Sidebar */}
-      <div className={`bg-white shadow-lg transition-all duration-300 ${sidebarOpen ? 'w-64' : 'w-16'}`}>
+      <div className={`bg-card shadow-lg border-r transition-all duration-300 ${sidebarOpen ? 'w-64' : 'w-16'}`}>
         <div className="flex items-center justify-between p-4 border-b">
           {sidebarOpen && (
             <div className="flex items-center">
@@ -62,15 +63,15 @@ const Layout = () => {
                   className={`
                     group flex items-center px-2 py-2 text-sm font-medium rounded-md transition-colors
                     ${isActive 
-                      ? 'bg-green-100 text-green-700' 
-                      : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                      ? 'bg-primary/10 text-primary border-r-2 border-primary' 
+                      : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
                     }
                   `}
                 >
                   <item.icon
                     className={`
                       ${sidebarOpen ? 'mr-3' : 'mx-auto'} h-5 w-5
-                      ${isActive ? 'text-green-500' : 'text-gray-400 group-hover:text-gray-500'}
+                      ${isActive ? 'text-primary' : 'text-muted-foreground group-hover:text-accent-foreground'}
                     `}
                   />
                   {sidebarOpen && item.name}
@@ -83,14 +84,14 @@ const Layout = () => {
         <div className="absolute bottom-0 w-full p-4 border-t">
           {sidebarOpen && (
             <div className="mb-4">
-              <p className="text-sm font-medium text-gray-900">{user?.name}</p>
-              <p className="text-xs text-gray-500 capitalize">{user?.role}</p>
+              <p className="text-sm font-medium text-foreground">{user?.name}</p>
+              <p className="text-xs text-muted-foreground capitalize">{user?.role}</p>
             </div>
           )}
           <Button
             variant="ghost"
             onClick={handleLogout}
-            className={`${sidebarOpen ? 'w-full justify-start' : 'w-10 h-10 p-0'} text-gray-600 hover:text-gray-900`}
+            className={`${sidebarOpen ? 'w-full justify-start' : 'w-10 h-10 p-0'} text-muted-foreground hover:text-foreground`}
           >
             <LogOut className={`h-5 w-5 ${sidebarOpen ? 'mr-2' : ''}`} />
             {sidebarOpen && 'Sign Out'}

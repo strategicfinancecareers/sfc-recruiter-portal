@@ -30,11 +30,11 @@ const ForgotPassword = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-primary flex items-center justify-center p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
-            <Briefcase className="h-10 w-10 text-blue-600" />
+            <Briefcase className="h-10 w-10 text-primary" />
           </div>
           <CardTitle className="text-2xl">Reset Password</CardTitle>
           <CardDescription>
@@ -81,7 +81,7 @@ const ForgotPassword = () => {
           )}
         </CardContent>
         <CardFooter>
-          <Link to="/login" className="flex items-center text-sm text-blue-600 hover:underline mx-auto">
+          <Link to="/login" className="flex items-center text-sm text-primary hover:underline mx-auto">
             <ArrowLeft className="mr-1 h-4 w-4" />
             Back to Sign In
           </Link>

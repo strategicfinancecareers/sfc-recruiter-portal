@@ -278,7 +278,7 @@ const Admin = () => {
           <p className="text-gray-600">Manage users, candidates, and system settings</p>
         </div>
 
-          <Tabs defaultValue="candidates" className="space-y-6">
+        <Tabs defaultValue="candidates" className="space-y-6">
             <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="candidates">Candidates</TabsTrigger>
               <TabsTrigger value="users">Users</TabsTrigger>
@@ -705,10 +705,9 @@ TalentConnect Team"
               </div>
             </DialogContent>
           </Dialog>
-        </Tabs>
+        </div>
       </div>
-    </div>
-  );
+    );
 };
 
 export default Admin;

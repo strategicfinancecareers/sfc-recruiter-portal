@@ -222,8 +222,12 @@ const Dashboard = () => {
     <>
       <TermsDialog 
         open={showTermsDialog} 
-        onAccept={handleAcceptTerms} 
-        onDecline={() => setShowTermsDialog(false)} 
+        onOpenChange={(open) => {
+          setShowTermsDialog(open);
+          if (!open) {
+            // Handle when dialog is closed without accepting
+          }
+        }}
       />
       
       <div className="flex-1 overflow-auto">

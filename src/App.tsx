@@ -14,6 +14,7 @@ import Account from "./pages/Account";
 import Jobs from "./pages/Jobs";
 import Favorites from "./pages/Favorites";
 import Admin from "./pages/Admin";
+import IntroductionRequests from "./pages/IntroductionRequests";
 import Layout from "./components/Layout";
 import ProtectedRoute from "./components/ProtectedRoute";
 import NotFound from "./pages/NotFound";
@@ -40,6 +41,7 @@ const App = () => (
               <Route path="dashboard" element={<Dashboard />} />
               <Route path="account" element={<Account />} />
               <Route path="jobs" element={<Jobs />} />
+              <Route path="introductions" element={<IntroductionRequests />} />
               <Route path="favorites" element={<Favorites />} />
               <Route path="admin" element={
                 <ProtectedRoute requireAdmin>

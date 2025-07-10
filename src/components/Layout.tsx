@@ -14,6 +14,7 @@ const Layout = () => {
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: Gauge },
     { name: 'Jobs', href: '/jobs', icon: Briefcase },
+    { name: 'Introduction Requests', href: '/introductions', icon: Users },
     { name: 'Favorites', href: '/favorites', icon: Heart },
     { name: 'Account', href: '/account', icon: Settings },
   ];

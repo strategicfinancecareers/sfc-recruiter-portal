@@ -21,6 +21,7 @@ export default {
 			fontFamily: {
 				'sans': ['Inter', 'ui-sans-serif', 'system-ui'],
 				'heading': ['Poppins', 'ui-sans-serif', 'system-ui'],
+				'serif': ['DM Serif Display', 'ui-serif', 'Georgia'],
 			},
 			colors: {
 				border: 'hsl(var(--border))',

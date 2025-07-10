@@ -14,6 +14,7 @@ import TermsDialog from "../components/TermsDialog";
 interface Candidate {
   id: string;
   name: string;
+  displayName: string;
   label: string;
   description: string;
   location: string;
@@ -22,13 +23,29 @@ interface Candidate {
   skills: string[];
   isFavorite: boolean;
   isSelected: boolean;
+  uniqueIdentifier: string;
 }
+
+// Generate anonymous candidate names based on their qualifications
+const generateDisplayName = (candidate: any, index: number) => {
+  const seniorityMap: { [key: number]: string } = {
+    1: "Junior", 2: "Junior", 3: "Mid-level", 4: "Mid-level", 
+    5: "Senior", 6: "Senior", 7: "Lead", 8: "Lead"
+  };
+  
+  const seniority = seniorityMap[Math.min(candidate.experience, 8)] || "Senior";
+  const primarySkill = candidate.skills[0] || "Tech";
+  const locationCode = candidate.location.split(',')[1]?.trim().substring(0, 2) || candidate.location.substring(0, 2);
+  
+  return `${seniority} ${primarySkill} Professional (${locationCode})`;
+};
 
 // This would typically come from a global state or API
 const mockFavoriteCandidates: Candidate[] = [
   {
     id: '1',
     name: 'Sarah Johnson',
+    displayName: '',
     label: 'Senior Full Stack Developer',
     description: 'Experienced developer specializing in React and Node.js with a passion for creating scalable web applications.',
     location: 'San Francisco, CA',
@@ -37,10 +54,12 @@ const mockFavoriteCandidates: Candidate[] = [
     skills: ['React', 'Node.js', 'TypeScript', 'AWS'],
     isFavorite: true,
     isSelected: false,
+    uniqueIdentifier: 'SR-REACT-SF-5Y'
   },
   {
     id: '3',
     name: 'Emily Rodriguez',
+    displayName: '',
     label: 'UX/UI Designer',
     description: 'Creative designer focused on user-centered design principles and modern interface development.',
     location: 'Austin, TX',
@@ -49,8 +68,12 @@ const mockFavoriteCandidates: Candidate[] = [
     skills: ['Figma', 'Adobe Creative Suite', 'Prototyping', 'User Research'],
     isFavorite: true,
     isSelected: false,
+    uniqueIdentifier: 'ML-FIGMA-TX-4Y'
   },
-];
+].map((candidate, index) => ({
+  ...candidate,
+  displayName: generateDisplayName(candidate, index)
+}));
 
 const Favorites = () => {
   const { user } = useAuth();
@@ -77,7 +100,7 @@ const Favorites = () => {
     if (candidate) {
       toast({
         title: "Removed from favorites",
-        description: `${candidate.name} removed from your favorites.`,
+        description: `${candidate.displayName} removed from your favorites.`,
       });
     }
   };
@@ -158,8 +181,8 @@ const Favorites = () => {
           {/* Header */}
           <div className="flex justify-between items-center mb-6">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Favorite Candidates</h1>
-              <p className="text-gray-600">Your saved candidates for future consideration</p>
+              <h1 className="text-3xl font-bold font-heading text-foreground">Favorite Candidates</h1>
+              <p className="text-muted-foreground">Your saved candidates for future consideration</p>
             </div>
           </div>
 
@@ -210,7 +233,7 @@ const Favorites = () => {
                 <p className="text-gray-600 mb-4">
                   Start browsing candidates and add them to your favorites for easy access.
                 </p>
-                <Button onClick={() => window.location.href = '/dashboard'}>
+                <Button onClick={() => window.location.href = '/candidate-search'}>
                   Browse Candidates
                 </Button>
               </CardContent>
@@ -220,17 +243,23 @@ const Favorites = () => {
               {candidates.map((candidate) => (
                 <Card
                   key={candidate.id}
-                  className={`transition-all duration-200 hover:shadow-lg ring-2 ring-blue-200 bg-blue-50 ${
-                    pendingIntroductions.includes(candidate.id) ? 'opacity-75 bg-gray-50' : ''
+                  className={`transition-all duration-200 hover:shadow-lg ring-2 ring-primary/20 bg-accent/50 ${
+                    pendingIntroductions.includes(candidate.id) ? 'opacity-75 bg-muted/50' : ''
                   }`}
                 >
                   <CardHeader className="pb-3">
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
-                        <CardTitle className="text-lg">{candidate.name}</CardTitle>
-                        <CardDescription className="text-blue-600 font-medium">
+                        <CardTitle className="text-lg font-heading">{candidate.displayName}</CardTitle>
+                        {user?.role === 'admin' && (
+                          <p className="text-sm text-muted-foreground">{candidate.name}</p>
+                        )}
+                        <CardDescription className="text-primary font-medium">
                           {candidate.label}
                         </CardDescription>
+                        <Badge variant="outline" className="mt-1 text-xs">
+                          ID: {candidate.uniqueIdentifier}
+                        </Badge>
                       </div>
                       <div className="flex items-center space-x-2">
                         {selectMode && (
@@ -280,9 +309,15 @@ const Favorites = () => {
                           +{candidate.skills.length - 3} more
                         </Badge>
                       )}
-                    </div>
+                     </div>
 
-                    <div className="flex space-x-2 pt-2">
+                     {pendingIntroductions.includes(candidate.id) && (
+                       <Badge variant="secondary" className="mb-2 bg-warning/10 text-warning border-warning/20">
+                         Pending Introduction
+                       </Badge>
+                     )}
+
+                     <div className="flex space-x-2 pt-2">
                       <Button
                         variant="outline"
                         size="sm"
@@ -290,16 +325,17 @@ const Favorites = () => {
                         className="flex-1"
                       >
                         <Eye className="mr-1 h-4 w-4" />
-                        View Resume
+                        View Profile
                       </Button>
                       <Button
                         size="sm"
                         onClick={() => handleIntroduceMe(candidate)}
                         disabled={pendingIntroductions.includes(candidate.id)}
+                        variant={pendingIntroductions.includes(candidate.id) ? "secondary" : "default"}
                         className="flex-1"
                       >
                         <Handshake className="mr-1 h-4 w-4" />
-                        {pendingIntroductions.includes(candidate.id) ? 'Pending' : 'Introduce Me'}
+                        {pendingIntroductions.includes(candidate.id) ? 'Introduction Sent' : 'Introduce Me'}
                       </Button>
                     </div>
                   </CardContent>
@@ -316,8 +352,14 @@ const Favorites = () => {
           <DialogHeader>
             <div className="flex items-center justify-between">
               <div>
-                <DialogTitle>{selectedCandidate?.name}</DialogTitle>
+                <DialogTitle className="font-heading">{selectedCandidate?.displayName}</DialogTitle>
+                {user?.role === 'admin' && (
+                  <p className="text-sm text-muted-foreground">{selectedCandidate?.name}</p>
+                )}
                 <DialogDescription>{selectedCandidate?.label}</DialogDescription>
+                <Badge variant="outline" className="mt-1 text-xs">
+                  ID: {selectedCandidate?.uniqueIdentifier}
+                </Badge>
               </div>
               <Button
                 variant="ghost"
@@ -357,9 +399,9 @@ const Favorites = () => {
                 </div>
               </div>
             </div>
-            <div className="bg-yellow-50 p-4 rounded-lg">
-              <p className="text-sm text-yellow-800">
-                <strong>Note:</strong> This is a redacted resume preview. Full contact information and detailed work history will be shared upon successful introduction.
+            <div className="bg-warning/10 border border-warning/20 p-4 rounded-lg">
+              <p className="text-sm text-warning-foreground">
+                <strong>Note:</strong> This is a redacted profile preview. Full contact information and detailed work history will be shared upon successful introduction.
               </p>
             </div>
           </div>

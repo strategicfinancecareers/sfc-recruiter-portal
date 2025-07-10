@@ -384,15 +384,18 @@ const CandidateSearch = () => {
               >
                 <CardHeader className="pb-3">
                   <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <CardTitle className="text-lg font-heading">{candidate.displayName}</CardTitle>
-                      <CardDescription className="text-primary font-medium">
-                        {candidate.label}
-                      </CardDescription>
-                      <Badge variant="outline" className="mt-1 text-xs">
-                        ID: {candidate.uniqueIdentifier}
-                      </Badge>
-                    </div>
+                      <div className="flex-1">
+                        <CardTitle className="text-lg font-heading">{candidate.displayName}</CardTitle>
+                        {user?.role === 'admin' && (
+                          <p className="text-sm text-muted-foreground">{candidate.name}</p>
+                        )}
+                        <CardDescription className="text-primary font-medium">
+                          {candidate.label}
+                        </CardDescription>
+                        <Badge variant="outline" className="mt-1 text-xs">
+                          ID: {candidate.uniqueIdentifier}
+                        </Badge>
+                      </div>
                     <div className="flex items-center space-x-2">
                       {selectMode && (
                         <Checkbox
@@ -494,6 +497,9 @@ const CandidateSearch = () => {
             <div className="flex items-center justify-between">
               <div>
                 <DialogTitle className="font-heading">{selectedCandidate?.displayName}</DialogTitle>
+                {user?.role === 'admin' && (
+                  <p className="text-sm text-muted-foreground">{selectedCandidate?.name}</p>
+                )}
                 <DialogDescription>{selectedCandidate?.label}</DialogDescription>
                 <Badge variant="outline" className="mt-1 text-xs">
                   ID: {selectedCandidate?.uniqueIdentifier}

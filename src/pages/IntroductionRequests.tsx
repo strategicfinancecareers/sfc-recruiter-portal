@@ -6,9 +6,11 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CheckCircle, XCircle, Clock, Mail, Phone, MapPin } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "../contexts/AuthContext";
 
 const IntroductionRequests = () => {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [requests, setRequests] = useState([
     {
       id: 1,
@@ -20,6 +22,7 @@ const IntroductionRequests = () => {
       position: "Senior Financial Analyst",
       requesterName: "Mark Johnson",
       requesterEmail: "mark@techcorp.com",
+      requesterId: "1",
       requestDate: "2024-01-10",
       status: "pending",
       avatar: "/api/placeholder/100/100"
@@ -34,6 +37,7 @@ const IntroductionRequests = () => {
       position: "Investment Banking Associate",
       requesterName: "Lisa Zhang",
       requesterEmail: "lisa@financeplus.com",
+      requesterId: "1",
       requestDate: "2024-01-08",
       status: "pending",
       avatar: "/api/placeholder/100/100"
@@ -48,25 +52,34 @@ const IntroductionRequests = () => {
       position: "Financial Manager",
       requesterName: "Robert Kim",
       requesterEmail: "robert@capitalsol.com",
+      requesterId: "2",
       requestDate: "2024-01-05",
       status: "approved",
       avatar: "/api/placeholder/100/100"
     }
   ]);
 
-  const handleRequestAction = (requestId: number, action: 'approve' | 'reject') => {
-    setRequests(prev => 
-      prev.map(req => 
-        req.id === requestId 
-          ? { ...req, status: action === 'approve' ? 'approved' : 'rejected' }
-          : req
-      )
-    );
-    
-    toast({
-      title: `Request ${action === 'approve' ? 'Approved' : 'Rejected'}`,
-      description: `Introduction request has been ${action === 'approve' ? 'approved' : 'rejected'}.`,
-    });
+  const handleRequestAction = (requestId: number, action: 'approve' | 'reject' | 'cancel') => {
+    if (action === 'cancel') {
+      setRequests(prev => prev.filter(req => req.id !== requestId));
+      toast({
+        title: "Request Cancelled",
+        description: "Introduction request has been cancelled.",
+      });
+    } else {
+      setRequests(prev => 
+        prev.map(req => 
+          req.id === requestId 
+            ? { ...req, status: action === 'approve' ? 'approved' : 'rejected' }
+            : req
+        )
+      );
+      
+      toast({
+        title: `Request ${action === 'approve' ? 'Approved' : 'Rejected'}`,
+        description: `Introduction request has been ${action === 'approve' ? 'approved' : 'rejected'}.`,
+      });
+    }
   };
 
   const getStatusBadge = (status: string) => {
@@ -83,24 +96,31 @@ const IntroductionRequests = () => {
   };
 
   const filterRequests = (status: string) => {
-    return status === 'all' ? requests : requests.filter(req => req.status === status);
+    let filtered = status === 'all' ? requests : requests.filter(req => req.status === status);
+    
+    // Recruiters can only see their own requests
+    if (user?.role === 'recruiter') {
+      filtered = filtered.filter(req => req.requesterId === user.id);
+    }
+    
+    return filtered;
   };
 
   return (
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-900">Introduction Requests</h1>
-        <div className="text-sm text-gray-500">
-          {requests.filter(r => r.status === 'pending').length} pending requests
+        <h1 className="text-3xl font-bold font-heading text-foreground">Introduction Requests</h1>
+        <div className="text-sm text-muted-foreground">
+          {filterRequests('pending').length} pending requests
         </div>
       </div>
 
       <Tabs defaultValue="all" className="w-full">
         <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="all">All ({requests.length})</TabsTrigger>
-          <TabsTrigger value="pending">Pending ({requests.filter(r => r.status === 'pending').length})</TabsTrigger>
-          <TabsTrigger value="approved">Approved ({requests.filter(r => r.status === 'approved').length})</TabsTrigger>
-          <TabsTrigger value="rejected">Rejected ({requests.filter(r => r.status === 'rejected').length})</TabsTrigger>
+          <TabsTrigger value="all">All ({filterRequests('all').length})</TabsTrigger>
+          <TabsTrigger value="pending">Pending ({filterRequests('pending').length})</TabsTrigger>
+          <TabsTrigger value="approved">Approved ({filterRequests('approved').length})</TabsTrigger>
+          <TabsTrigger value="rejected">Rejected ({filterRequests('rejected').length})</TabsTrigger>
         </TabsList>
 
         {['all', 'pending', 'approved', 'rejected'].map(status => (
@@ -150,23 +170,37 @@ const IntroductionRequests = () => {
                     
                     {request.status === 'pending' && (
                       <div className="flex space-x-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleRequestAction(request.id, 'reject')}
-                          className="border-red-200 text-red-700 hover:bg-red-50"
-                        >
-                          <XCircle className="w-4 h-4 mr-1" />
-                          Reject
-                        </Button>
-                        <Button
-                          size="sm"
-                          onClick={() => handleRequestAction(request.id, 'approve')}
-                          className="bg-green-600 hover:bg-green-700"
-                        >
-                          <CheckCircle className="w-4 h-4 mr-1" />
-                          Approve
-                        </Button>
+                        {user?.role === 'admin' ? (
+                          <>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleRequestAction(request.id, 'reject')}
+                              className="border-red-200 text-red-700 hover:bg-red-50"
+                            >
+                              <XCircle className="w-4 h-4 mr-1" />
+                              Reject
+                            </Button>
+                            <Button
+                              size="sm"
+                              onClick={() => handleRequestAction(request.id, 'approve')}
+                              className="bg-green-600 hover:bg-green-700"
+                            >
+                              <CheckCircle className="w-4 h-4 mr-1" />
+                              Approve
+                            </Button>
+                          </>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleRequestAction(request.id, 'cancel')}
+                            className="border-red-200 text-red-700 hover:bg-red-50"
+                          >
+                            <XCircle className="w-4 h-4 mr-1" />
+                            Cancel
+                          </Button>
+                        )}
                       </div>
                     )}
                   </div>

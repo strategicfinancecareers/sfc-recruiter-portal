@@ -303,10 +303,20 @@ const Admin = () => {
                         <div className="flex justify-between items-start">
                           <div className="flex-1">
                             <CardTitle className="text-lg">{candidate.name}</CardTitle>
-                            <CardDescription className="text-blue-600 font-medium">
+                            <p className="text-sm text-muted-foreground">ID: {(() => {
+                              const seniorityMap: { [key: number]: string } = {
+                                1: "Junior", 2: "Junior", 3: "Mid-level", 4: "Mid-level", 
+                                5: "Senior", 6: "Senior", 7: "Lead", 8: "Lead"
+                              };
+                              const seniority = seniorityMap[Math.min(candidate.experience, 8)] || "Senior";
+                              const primarySkill = candidate.skills[0] || "Tech";
+                              const locationCode = candidate.location.split(',')[1]?.trim().substring(0, 2) || candidate.location.substring(0, 2);
+                              return `${seniority} ${primarySkill} Professional (${locationCode})`;
+                            })()}</p>
+                            <CardDescription className="text-primary font-medium">
                               {candidate.label}
                             </CardDescription>
-                            <p className="text-sm text-gray-500 mt-1">{candidate.email}</p>
+                            <p className="text-sm text-muted-foreground mt-1">{candidate.email}</p>
                           </div>
                           <div className="flex items-center space-x-2">
                             <Badge className={getStatusColor(candidate.openToOpportunities ? 'active' : 'inactive')}>

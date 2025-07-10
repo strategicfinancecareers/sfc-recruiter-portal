@@ -492,61 +492,70 @@ const CandidateSearch = () => {
 
       {/* Profile Preview Dialog */}
       <Dialog open={!!selectedCandidate} onOpenChange={() => setSelectedCandidate(null)}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <DialogTitle className="font-heading">{selectedCandidate?.displayName}</DialogTitle>
-                {user?.role === 'admin' && (
-                  <p className="text-sm text-muted-foreground">{selectedCandidate?.name}</p>
-                )}
-                <DialogDescription>{selectedCandidate?.label}</DialogDescription>
-                <Badge variant="outline" className="mt-1 text-xs">
-                  ID: {selectedCandidate?.uniqueIdentifier}
-                </Badge>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setSelectedCandidate(null)}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
+            <DialogTitle className="font-heading">{selectedCandidate?.displayName}</DialogTitle>
+            {user?.role === 'admin' && (
+              <p className="text-sm text-muted-foreground">{selectedCandidate?.name}</p>
+            )}
+            <DialogDescription>{selectedCandidate?.label}</DialogDescription>
+            <Badge variant="outline" className="mt-1 text-xs w-fit">
+              ID: {selectedCandidate?.uniqueIdentifier}
+            </Badge>
           </DialogHeader>
-          <div className="mt-4 space-y-4">
-            <div className="bg-muted p-4 rounded-lg">
-              <h4 className="font-medium mb-2">Professional Summary</h4>
-              <p className="text-sm text-muted-foreground">{selectedCandidate?.description}</p>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <h4 className="font-medium mb-2">Location</h4>
-                <p className="text-sm text-muted-foreground">{selectedCandidate?.location}</p>
+          <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Left Column - Profile Details */}
+            <div className="space-y-4">
+              <div className="bg-muted p-4 rounded-lg">
+                <h4 className="font-medium mb-2">Professional Summary</h4>
+                <p className="text-sm text-muted-foreground">{selectedCandidate?.description}</p>
               </div>
-              <div>
-                <h4 className="font-medium mb-2">Experience</h4>
-                <p className="text-sm text-muted-foreground">{selectedCandidate?.experience} years</p>
-              </div>
-              <div>
-                <h4 className="font-medium mb-2">Education</h4>
-                <p className="text-sm text-muted-foreground">{selectedCandidate?.education}</p>
-              </div>
-              <div>
-                <h4 className="font-medium mb-2">Skills</h4>
-                <div className="flex flex-wrap gap-1">
-                  {selectedCandidate?.skills.map((skill) => (
-                    <Badge key={skill} variant="secondary" className="text-xs">
-                      {skill}
-                    </Badge>
-                  ))}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <h4 className="font-medium mb-2">Location</h4>
+                  <p className="text-sm text-muted-foreground">{selectedCandidate?.location}</p>
+                </div>
+                <div>
+                  <h4 className="font-medium mb-2">Experience</h4>
+                  <p className="text-sm text-muted-foreground">{selectedCandidate?.experience} years</p>
+                </div>
+                <div>
+                  <h4 className="font-medium mb-2">Education</h4>
+                  <p className="text-sm text-muted-foreground">{selectedCandidate?.education}</p>
+                </div>
+                <div>
+                  <h4 className="font-medium mb-2">Skills</h4>
+                  <div className="flex flex-wrap gap-1">
+                    {selectedCandidate?.skills.map((skill) => (
+                      <Badge key={skill} variant="secondary" className="text-xs">
+                        {skill}
+                      </Badge>
+                    ))}
+                  </div>
                 </div>
               </div>
+              <div className="bg-warning/10 border border-warning/20 p-4 rounded-lg">
+                <p className="text-sm text-warning-foreground">
+                  <strong>Note:</strong> This is a redacted profile preview. Full contact information and detailed work history will be shared upon successful introduction.
+                </p>
+              </div>
             </div>
-            <div className="bg-warning/10 border border-warning/20 p-4 rounded-lg">
-              <p className="text-sm text-warning-foreground">
-                <strong>Note:</strong> This is a redacted profile preview. Full contact information and detailed work history will be shared upon successful introduction.
-              </p>
+            
+            {/* Right Column - PDF Resume */}
+            <div className="space-y-4">
+              <div>
+                <h4 className="font-medium mb-2">Resume</h4>
+                <div className="border rounded-lg h-96 bg-muted/30 overflow-hidden">
+                  <iframe
+                    src="/lovable-uploads/sample-resume.pdf"
+                    className="w-full h-full"
+                    title={`Resume for ${selectedCandidate?.displayName}`}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Resume preview - Full version available after successful introduction
+                </p>
+              </div>
             </div>
           </div>
         </DialogContent>

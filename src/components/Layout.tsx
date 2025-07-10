@@ -81,9 +81,10 @@ const Layout = () => {
           </div>
         </nav>
 
-        <div className="absolute bottom-0 w-full p-4 border-t">
+        <div className={`absolute bottom-0 p-4 border-t ${sidebarOpen ? 'w-64' : 'w-16'}`}>
           {sidebarOpen && (
             <div className="mb-4">
+              <div className="border-t border-border mb-4 -mx-4"></div>
               <p className="text-sm font-medium text-foreground">{user?.name}</p>
               <p className="text-xs text-muted-foreground capitalize">{user?.role}</p>
             </div>
@@ -91,7 +92,7 @@ const Layout = () => {
           <Button
             variant="ghost"
             onClick={handleLogout}
-            className={`${sidebarOpen ? 'w-full justify-start' : 'w-10 h-10 p-0'} text-muted-foreground hover:text-foreground`}
+            className={`${sidebarOpen ? 'w-full justify-start' : 'w-10 h-10 p-0'} text-muted-foreground hover:text-foreground hover:bg-accent`}
           >
             <LogOut className={`h-5 w-5 ${sidebarOpen ? 'mr-2' : ''}`} />
             {sidebarOpen && 'Sign Out'}

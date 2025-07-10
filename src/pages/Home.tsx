@@ -34,7 +34,7 @@ const Home = () => {
         <div className="text-center">
           <h1 className="text-6xl font-medium font-sans text-gray-900 mb-6 leading-tight">
             Get introductions and hire top finance talent in{" "}
-            <span className="font-serif italic underline text-green-600">days</span>, not months
+            <span className="font-serif italic underline">days</span>, not months
           </h1>
           <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">
             Connect with pre-screened candidates who are actively looking for new opportunities. 

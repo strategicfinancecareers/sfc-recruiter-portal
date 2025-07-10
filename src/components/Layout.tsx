@@ -32,8 +32,8 @@ const Layout = () => {
   return (
     <div className="h-screen bg-background flex">
       {/* Sidebar */}
-      <div className={`bg-gradient-card border-r transition-all duration-300 ease-out relative flex flex-col ${sidebarOpen ? 'w-64' : 'w-16'}`}>
-        <div className="flex items-center justify-between p-4 border-b backdrop-blur-sm">
+      <div className={`bg-card shadow-lg border-r transition-all duration-300 relative flex flex-col ${sidebarOpen ? 'w-64' : 'w-16'}`}>
+        <div className="flex items-center justify-between p-4 border-b">
           {sidebarOpen && (
             <div className="flex items-center">
               <img 
@@ -47,7 +47,6 @@ const Layout = () => {
             variant="ghost"
             size="sm"
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="hover:bg-gradient-primary-soft hover:scale-105 transition-all duration-200"
           >
             <Menu className="h-5 w-5" />
           </Button>
@@ -62,21 +61,20 @@ const Layout = () => {
                   key={item.name}
                   to={item.href}
                   className={`
-                    group flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 ease-out
-                    hover:scale-[1.02] hover:shadow-soft
+                    group flex items-center px-2 py-2 text-sm font-medium rounded-md transition-colors
                     ${isActive 
-                      ? 'bg-gradient-primary text-primary-foreground shadow-glow scale-[1.02]' 
-                      : 'text-muted-foreground hover:bg-gradient-primary-soft hover:text-foreground'
+                      ? 'bg-primary/10 text-primary border-r-2 border-primary' 
+                      : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
                     }
                   `}
                 >
                   <item.icon
                     className={`
-                      ${sidebarOpen ? 'mr-3' : 'mx-auto'} h-5 w-5 transition-all duration-200
-                      ${isActive ? 'text-primary-foreground scale-110' : 'text-muted-foreground group-hover:text-foreground group-hover:scale-110'}
+                      ${sidebarOpen ? 'mr-3' : 'mx-auto'} h-5 w-5
+                      ${isActive ? 'text-primary' : 'text-muted-foreground group-hover:text-accent-foreground'}
                     `}
                   />
-                  {sidebarOpen && <span className="transition-all duration-200">{item.name}</span>}
+                  {sidebarOpen && item.name}
                 </Link>
               );
             })}
@@ -93,10 +91,10 @@ const Layout = () => {
           <Button
             variant="ghost"
             onClick={handleLogout}
-            className={`${sidebarOpen ? 'w-full justify-start' : 'w-10 h-10 p-0'} text-muted-foreground hover:text-foreground hover:bg-gradient-primary-soft hover:scale-105 transition-all duration-200`}
+            className={`${sidebarOpen ? 'w-full justify-start' : 'w-10 h-10 p-0'} text-muted-foreground hover:text-foreground hover:bg-accent`}
           >
-            <LogOut className={`h-5 w-5 ${sidebarOpen ? 'mr-2' : ''} transition-transform duration-200 group-hover:scale-110`} />
-            {sidebarOpen && <span className="transition-all duration-200">Sign Out</span>}
+            <LogOut className={`h-5 w-5 ${sidebarOpen ? 'mr-2' : ''}`} />
+            {sidebarOpen && 'Sign Out'}
           </Button>
         </div>
       </div>

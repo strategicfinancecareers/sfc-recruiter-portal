@@ -81,10 +81,9 @@ const Layout = () => {
           </div>
         </nav>
 
-        <div className={`absolute bottom-0 p-4 border-t ${sidebarOpen ? 'w-64' : 'w-16'}`}>
+        <div className={`absolute bottom-0 p-4 border-t border-border ${sidebarOpen ? 'w-64' : 'w-16'}`}>
           {sidebarOpen && (
-            <div className="mb-4">
-              <div className="border-t border-border mb-4 -mx-4"></div>
+            <div className="mb-4 pt-4">
               <p className="text-sm font-medium text-foreground">{user?.name}</p>
               <p className="text-xs text-muted-foreground capitalize">{user?.role}</p>
             </div>

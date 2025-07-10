@@ -11,6 +11,7 @@ import { Heart, Handshake, Search, Filter, MapPin, GraduationCap, Calendar, Eye,
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import TermsDialog from "../components/TermsDialog";
+import RedactedResume from "../components/RedactedResume";
 
 interface Candidate {
   id: string;
@@ -541,20 +542,24 @@ const CandidateSearch = () => {
               </div>
             </div>
             
-            {/* Right Column - PDF Resume */}
+            {/* Right Column - Redacted Resume */}
             <div className="space-y-4">
               <div>
-                <h4 className="font-medium mb-2">Resume</h4>
-                <div className="border rounded-lg h-96 bg-muted/30 overflow-hidden">
-                  <iframe
-                    src="/lovable-uploads/sample-resume.pdf"
-                    className="w-full h-full"
-                    title={`Resume for ${selectedCandidate?.displayName}`}
-                  />
+                <h4 className="font-medium mb-2">Resume Preview</h4>
+                <div className="border rounded-lg max-h-96 overflow-y-auto bg-background">
+                  {selectedCandidate && (
+                    <RedactedResume 
+                      candidate={{
+                        displayName: selectedCandidate.displayName,
+                        label: selectedCandidate.label,
+                        location: selectedCandidate.location,
+                        experience: selectedCandidate.experience,
+                        education: selectedCandidate.education,
+                        skills: selectedCandidate.skills
+                      }} 
+                    />
+                  )}
                 </div>
-                <p className="text-xs text-muted-foreground mt-2">
-                  Resume preview - Full version available after successful introduction
-                </p>
               </div>
             </div>
           </div>

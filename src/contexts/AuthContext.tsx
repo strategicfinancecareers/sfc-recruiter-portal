@@ -7,7 +7,8 @@ import { useToast } from '@/hooks/use-toast';
 interface Profile {
   id: string;
   email: string;
-  name?: string;
+  first_name?: string;
+  last_name?: string;
   role: 'recruiter' | 'admin' | 'candidate';
   has_accepted_terms?: boolean;
   created_at: string;
@@ -18,7 +19,7 @@ interface AuthContextType {
   user: Profile | null;
   session: Session | null;
   login: (email: string, password: string) => Promise<boolean>;
-  signup: (email: string, password: string, name: string) => Promise<boolean>;
+  signup: (email: string, password: string, firstName: string, lastName: string) => Promise<boolean>;
   logout: () => void;
   acceptTerms: () => void;
   isLoading: boolean;
@@ -117,7 +118,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const signup = async (email: string, password: string, name: string): Promise<boolean> => {
+  const signup = async (email: string, password: string, firstName: string, lastName: string): Promise<boolean> => {
     setIsLoading(true);
     try {
       const { error } = await supabase.auth.signUp({
@@ -125,7 +126,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         password,
         options: {
           data: {
-            name,
+            first_name: firstName,
+            last_name: lastName,
           },
         },
       });

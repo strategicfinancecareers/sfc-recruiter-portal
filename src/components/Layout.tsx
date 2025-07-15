@@ -85,7 +85,7 @@ const Layout = () => {
             <div className="mb-4 pt-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-foreground">{user?.name}</p>
+                  <p className="text-sm font-medium text-foreground">{user?.first_name} {user?.last_name}</p>
                   <p className="text-xs text-muted-foreground capitalize">{user?.role}</p>
                 </div>
                 <Link to="/account">

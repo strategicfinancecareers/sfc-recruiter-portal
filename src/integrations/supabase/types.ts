@@ -18,27 +18,30 @@ export type Database = {
         Row: {
           created_at: string | null
           email: string
+          first_name: string | null
           has_accepted_terms: boolean | null
           id: string
-          name: string | null
+          last_name: string | null
           role_id: string
           updated_at: string | null
         }
         Insert: {
           created_at?: string | null
           email: string
+          first_name?: string | null
           has_accepted_terms?: boolean | null
           id: string
-          name?: string | null
+          last_name?: string | null
           role_id: string
           updated_at?: string | null
         }
         Update: {
           created_at?: string | null
           email?: string
+          first_name?: string | null
           has_accepted_terms?: boolean | null
           id?: string
-          name?: string | null
+          last_name?: string | null
           role_id?: string
           updated_at?: string | null
         }

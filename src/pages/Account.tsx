@@ -61,9 +61,15 @@ const Account = () => {
                 <CardDescription>Your account details</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div>
-                  <Label>Name</Label>
-                  <Input value={user?.name || ''} disabled />
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>First Name</Label>
+                    <Input value={user?.first_name || ''} disabled />
+                  </div>
+                  <div>
+                    <Label>Last Name</Label>
+                    <Input value={user?.last_name || ''} disabled />
+                  </div>
                 </div>
                 <div>
                   <Label>Email</Label>

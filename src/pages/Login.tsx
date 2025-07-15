@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,34 +12,49 @@ import { useToast } from "@/hooks/use-toast";
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const { login, signInWithGoogle, signInWithMicrosoft, isLoading } = useAuth();
+  const [localLoading, setLocalLoading] = useState(false);
+  const { login, signInWithGoogle, signInWithMicrosoft, isLoading, user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  // Redirect if already logged in
+  useEffect(() => {
+    if (user) {
+      navigate('/dashboard');
+    }
+  }, [user, navigate]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const success = await login(email, password);
-    if (success) {
-      toast({
-        title: "Welcome back!",
-        description: "You have successfully logged in.",
-      });
-      navigate('/dashboard');
-    } else {
-      toast({
-        title: "Login failed",
-        description: "Invalid email or password. Please check your credentials and try again.",
-        variant: "destructive",
-      });
+    setLocalLoading(true);
+    try {
+      const success = await login(email, password);
+      if (success) {
+        // Navigation will be handled by the useEffect above
+      }
+    } finally {
+      setLocalLoading(false);
     }
   };
 
   const handleGoogleSignIn = async () => {
-    await signInWithGoogle();
+    setLocalLoading(true);
+    try {
+      await signInWithGoogle();
+      // Navigation will be handled by the useEffect above
+    } finally {
+      setLocalLoading(false);
+    }
   };
 
   const handleMicrosoftSignIn = async () => {
-    await signInWithMicrosoft();
+    setLocalLoading(true);
+    try {
+      await signInWithMicrosoft();
+      // Navigation will be handled by the useEffect above
+    } finally {
+      setLocalLoading(false);
+    }
   };
 
   return (
@@ -76,8 +91,8 @@ const Login = () => {
                 required
               />
             </div>
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? "Signing in..." : "Sign In"}
+            <Button type="submit" className="w-full" disabled={localLoading || isLoading}>
+              {localLoading ? "Signing in..." : "Sign In"}
             </Button>
           </form>
           
@@ -95,7 +110,7 @@ const Login = () => {
                 variant="outline" 
                 className="w-full"
                 onClick={handleGoogleSignIn}
-                disabled={isLoading}
+                disabled={localLoading || isLoading}
                 type="button"
               >
                 <Chrome className="mr-2 h-4 w-4" />

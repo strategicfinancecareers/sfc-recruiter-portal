@@ -103,13 +103,12 @@ const Login = () => {
               </Button>
               <Button 
                 variant="outline" 
-                className="w-full"
-                onClick={handleMicrosoftSignIn}
-                disabled={isLoading}
+                className="w-full opacity-50 cursor-not-allowed"
+                disabled={true}
                 type="button"
               >
-                <div className="mr-2 h-4 w-4 bg-primary rounded-sm"></div>
-                Microsoft
+                <div className="mr-2 h-4 w-4 bg-muted rounded-sm"></div>
+                Microsoft (Coming Soon)
               </Button>
             </div>
           </div>

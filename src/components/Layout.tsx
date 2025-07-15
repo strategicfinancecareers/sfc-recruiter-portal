@@ -17,7 +17,6 @@ const Layout = () => {
     { name: 'Jobs', href: '/jobs', icon: Briefcase },
     { name: 'Introduction Requests', href: '/introductions', icon: Handshake },
     { name: 'Favorites', href: '/favorites', icon: Heart },
-    { name: 'Account', href: '/account', icon: Settings },
   ];
 
   if (user?.role === 'admin') {
@@ -84,8 +83,21 @@ const Layout = () => {
         <div className={`p-4 border-t border-border ${sidebarOpen ? 'w-64' : 'w-16'}`}>
           {sidebarOpen && (
             <div className="mb-4 pt-4">
-              <p className="text-sm font-medium text-foreground">{user?.name}</p>
-              <p className="text-xs text-muted-foreground capitalize">{user?.role}</p>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-foreground">{user?.name}</p>
+                  <p className="text-xs text-muted-foreground capitalize">{user?.role}</p>
+                </div>
+                <Link to="/account">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-muted-foreground hover:text-foreground hover:bg-accent"
+                  >
+                    <Settings className="h-4 w-4" />
+                  </Button>
+                </Link>
+              </div>
             </div>
           )}
           <Button

@@ -60,19 +60,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   useEffect(() => {
+    let mounted = true;
+    
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!mounted) return;
+      
       setSession(session);
       if (session?.user) {
-        fetchProfile(session.user.id).then(setUser);
+        fetchProfile(session.user.id).then((profile) => {
+          if (mounted) {
+            setUser(profile);
+            setIsLoading(false);
+          }
+        });
+      } else {
+        setIsLoading(false);
       }
-      setIsLoading(false);
     });
 
     // Listen for auth changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!mounted) return;
+      
       setSession(session);
       if (session?.user) {
         const profile = await fetchProfile(session.user.id);
@@ -83,7 +95,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const login = async (email: string, password: string): Promise<boolean> => {

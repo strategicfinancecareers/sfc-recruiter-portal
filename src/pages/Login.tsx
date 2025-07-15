@@ -12,7 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const { login, isLoading } = useAuth();
+  const { login, signInWithGoogle, signInWithMicrosoft, isLoading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -32,6 +32,14 @@ const Login = () => {
         variant: "destructive",
       });
     }
+  };
+
+  const handleGoogleSignIn = async () => {
+    await signInWithGoogle();
+  };
+
+  const handleMicrosoftSignIn = async () => {
+    await signInWithMicrosoft();
   };
 
   return (
@@ -83,11 +91,23 @@ const Login = () => {
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4 mt-6">
-              <Button variant="outline" className="w-full">
+              <Button 
+                variant="outline" 
+                className="w-full"
+                onClick={handleGoogleSignIn}
+                disabled={isLoading}
+                type="button"
+              >
                 <Chrome className="mr-2 h-4 w-4" />
                 Google
               </Button>
-              <Button variant="outline" className="w-full">
+              <Button 
+                variant="outline" 
+                className="w-full"
+                onClick={handleMicrosoftSignIn}
+                disabled={isLoading}
+                type="button"
+              >
                 <div className="mr-2 h-4 w-4 bg-primary rounded-sm"></div>
                 Microsoft
               </Button>

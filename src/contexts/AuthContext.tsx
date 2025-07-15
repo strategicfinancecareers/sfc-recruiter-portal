@@ -1,16 +1,22 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { User as SupabaseUser, Session } from '@supabase/supabase-js';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
-interface User {
+interface Profile {
   id: string;
   email: string;
-  name: string;
-  role: 'recruiter' | 'admin';
-  hasAcceptedTerms?: boolean;
+  name?: string;
+  role: 'recruiter' | 'admin' | 'candidate';
+  has_accepted_terms?: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 interface AuthContextType {
-  user: User | null;
+  user: Profile | null;
+  session: Session | null;
   login: (email: string, password: string) => Promise<boolean>;
   signup: (email: string, password: string, name: string) => Promise<boolean>;
   logout: () => void;
@@ -29,36 +35,82 @@ export const useAuth = () => {
 };
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<Profile | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const { toast } = useToast();
+
+  const fetchProfile = async (userId: string) => {
+    try {
+      const { data, error } = await (supabase as any)
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('Error fetching profile:', error);
+      return null;
+    }
+  };
 
   useEffect(() => {
-    // Check for existing session
-    const storedUser = localStorage.getItem('user');
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
-    setIsLoading(false);
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      if (session?.user) {
+        fetchProfile(session.user.id).then(setUser);
+      }
+      setIsLoading(false);
+    });
+
+    // Listen for auth changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      setSession(session);
+      if (session?.user) {
+        const profile = await fetchProfile(session.user.id);
+        setUser(profile);
+      } else {
+        setUser(null);
+      }
+      setIsLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   const login = async (email: string, password: string): Promise<boolean> => {
     setIsLoading(true);
     try {
-      // Mock login - in real app, this would call your authentication API
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Mock users for demo
-      const mockUsers = [
-        { id: '1', email: 'recruiter@example.com', name: 'John Recruiter', role: 'recruiter' as const, hasAcceptedTerms: false },
-        { id: '2', email: 'admin@example.com', name: 'Admin User', role: 'admin' as const, hasAcceptedTerms: true },
-      ];
-      
-      const foundUser = mockUsers.find(u => u.email === email);
-      if (foundUser && password === 'password') {
-        setUser(foundUser);
-        localStorage.setItem('user', JSON.stringify(foundUser));
-        return true;
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        toast({
+          title: "Login failed",
+          description: error.message,
+          variant: "destructive",
+        });
+        return false;
       }
+
+      toast({
+        title: "Welcome back!",
+        description: "You have successfully logged in.",
+      });
+      return true;
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
       return false;
     } finally {
       setIsLoading(false);
@@ -68,38 +120,83 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signup = async (email: string, password: string, name: string): Promise<boolean> => {
     setIsLoading(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      const newUser = {
-        id: Date.now().toString(),
+      const { error } = await supabase.auth.signUp({
         email,
-        name,
-        role: 'recruiter' as const,
-        hasAcceptedTerms: false
-      };
-      setUser(newUser);
-      localStorage.setItem('user', JSON.stringify(newUser));
+        password,
+        options: {
+          data: {
+            name,
+          },
+        },
+      });
+
+      if (error) {
+        toast({
+          title: "Signup failed",
+          description: error.message,
+          variant: "destructive",
+        });
+        return false;
+      }
+
+      toast({
+        title: "Account created!",
+        description: "Please check your email to verify your account.",
+      });
       return true;
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+      return false;
     } finally {
       setIsLoading(false);
     }
   };
 
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem('user');
+  const logout = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      
+      toast({
+        title: "Signed out",
+        description: "You have been successfully signed out.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
   };
 
-  const acceptTerms = () => {
+  const acceptTerms = async () => {
     if (user) {
-      const updatedUser = { ...user, hasAcceptedTerms: true };
-      setUser(updatedUser);
-      localStorage.setItem('user', JSON.stringify(updatedUser));
+      try {
+        const { error } = await (supabase as any)
+          .from('profiles')
+          .update({ has_accepted_terms: true, updated_at: new Date().toISOString() })
+          .eq('id', user.id);
+
+        if (error) throw error;
+
+        // Update local state
+        const updatedUser = { ...user, has_accepted_terms: true, updated_at: new Date().toISOString() };
+        setUser(updatedUser);
+      } catch (error) {
+        console.error('Error accepting terms:', error);
+      }
     }
   };
 
   return (
     <AuthContext.Provider value={{
       user,
+      session,
       login,
       signup,
       logout,

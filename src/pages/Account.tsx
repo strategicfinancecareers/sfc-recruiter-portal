@@ -76,8 +76,8 @@ const Account = () => {
                 <div>
                   <Label>Terms Status</Label>
                   <div className="mt-1">
-                    <Badge variant={user?.hasAcceptedTerms ? "default" : "secondary"}>
-                      {user?.hasAcceptedTerms ? "Accepted" : "Not Accepted"}
+                    <Badge variant={user?.has_accepted_terms ? "default" : "secondary"}>
+                      {user?.has_accepted_terms ? "Accepted" : "Not Accepted"}
                     </Badge>
                   </div>
                 </div>

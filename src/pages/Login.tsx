@@ -28,7 +28,7 @@ const Login = () => {
     } else {
       toast({
         title: "Login failed",
-        description: "Invalid email or password. Try recruiter@example.com / password",
+        description: "Invalid email or password. Please check your credentials and try again.",
         variant: "destructive",
       });
     }
@@ -94,16 +94,6 @@ const Login = () => {
             </div>
           </div>
           
-          <div className="mt-4 p-3 bg-accent rounded-lg">
-            <div className="flex items-start space-x-2">
-              <AlertCircle className="h-4 w-4 text-primary mt-0.5" />
-              <div className="text-sm text-accent-foreground">
-                <p className="font-medium">Demo Accounts:</p>
-                <p>Recruiter: recruiter@example.com / password</p>
-                <p>Admin: admin@example.com / password</p>
-              </div>
-            </div>
-          </div>
         </CardContent>
         <CardFooter className="flex flex-col space-y-2">
           <Link to="/forgot-password" className="text-sm text-primary hover:underline">

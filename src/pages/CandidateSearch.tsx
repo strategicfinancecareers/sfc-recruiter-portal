@@ -198,7 +198,7 @@ const CandidateSearch = () => {
   };
 
   const handleIntroduceMe = (candidate: Candidate) => {
-    if (!user?.hasAcceptedTerms) {
+    if (!user?.has_accepted_terms) {
       setShowTermsDialog(true);
       return;
     }
@@ -216,7 +216,7 @@ const CandidateSearch = () => {
     const selectedCandidates = candidates.filter(c => c.isSelected);
     if (selectedCandidates.length === 0) return;
 
-    if (!user?.hasAcceptedTerms) {
+    if (!user?.has_accepted_terms) {
       setShowTermsDialog(true);
       return;
     }

@@ -14,9 +14,9 @@ const Layout = () => {
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: Gauge },
     { name: 'Browse Candidates', href: '/browse', icon: Users },
+    { name: 'Favorites', href: '/favorites', icon: Heart },
     { name: 'Jobs', href: '/jobs', icon: Briefcase },
     { name: 'Introduction Requests', href: '/introductions', icon: Handshake },
-    { name: 'Favorites', href: '/favorites', icon: Heart },
   ];
 
   if (user?.role === 'admin') {

@@ -21,7 +21,6 @@ export type Database = {
           has_accepted_terms: boolean | null
           id: string
           name: string | null
-          role: string | null
           updated_at: string | null
         }
         Insert: {
@@ -30,7 +29,6 @@ export type Database = {
           has_accepted_terms?: boolean | null
           id: string
           name?: string | null
-          role?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -39,8 +37,28 @@ export type Database = {
           has_accepted_terms?: boolean | null
           id?: string
           name?: string | null
-          role?: string | null
           updated_at?: string | null
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string | null
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
         }
         Relationships: []
       }
@@ -49,10 +67,20 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_current_user_roles: {
+        Args: Record<PropertyKey, never>
+        Returns: Database["public"]["Enums"]["app_role"][]
+      }
+      has_role: {
+        Args: {
+          _user_id: string
+          _role: Database["public"]["Enums"]["app_role"]
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "recruiter" | "admin" | "candidate"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -179,6 +207,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["recruiter", "admin", "candidate"],
+    },
   },
 } as const

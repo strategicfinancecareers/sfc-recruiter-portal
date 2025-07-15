@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,9 +15,17 @@ const SignUp = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const { signup, signInWithGoogle, signInWithMicrosoft, isLoading } = useAuth();
+  const [localLoading, setLocalLoading] = useState(false);
+  const { signup, signInWithGoogle, signInWithMicrosoft, user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (user) {
+      navigate('/dashboard');
+    }
+  }, [user, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,28 +39,35 @@ const SignUp = () => {
       return;
     }
 
-    const success = await signup(email, password, firstName, lastName);
-    if (success) {
-      toast({
-        title: "Account created!",
-        description: "Welcome to TalentConnect. Let's get you started.",
-      });
-      navigate('/dashboard');
-    } else {
-      toast({
-        title: "Signup failed",
-        description: "Something went wrong. Please try again.",
-        variant: "destructive",
-      });
+    setLocalLoading(true);
+    try {
+      const success = await signup(email, password, firstName, lastName);
+      if (success) {
+        // Navigation will be handled by the useEffect above
+      }
+    } finally {
+      setLocalLoading(false);
     }
   };
 
   const handleGoogleSignIn = async () => {
-    await signInWithGoogle();
+    setLocalLoading(true);
+    try {
+      await signInWithGoogle();
+      // Navigation will be handled by the useEffect above
+    } finally {
+      setLocalLoading(false);
+    }
   };
 
   const handleMicrosoftSignIn = async () => {
-    await signInWithMicrosoft();
+    setLocalLoading(true);
+    try {
+      await signInWithMicrosoft();
+      // Navigation will be handled by the useEffect above
+    } finally {
+      setLocalLoading(false);
+    }
   };
 
   return (
@@ -124,8 +139,8 @@ const SignUp = () => {
                 required
               />
             </div>
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? "Creating account..." : "Create Account"}
+            <Button type="submit" className="w-full" disabled={localLoading}>
+              {localLoading ? "Creating account..." : "Create Account"}
             </Button>
           </form>
           
@@ -143,7 +158,7 @@ const SignUp = () => {
                 variant="outline" 
                 className="w-full" 
                 onClick={handleGoogleSignIn}
-                disabled={isLoading}
+                disabled={localLoading}
                 type="button"
               >
                 <Chrome className="mr-2 h-4 w-4" />

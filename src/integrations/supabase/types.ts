@@ -21,7 +21,7 @@ export type Database = {
           has_accepted_terms: boolean | null
           id: string
           name: string | null
-          role: Database["public"]["Enums"]["app_role"]
+          role_id: string
           updated_at: string | null
         }
         Insert: {
@@ -30,7 +30,7 @@ export type Database = {
           has_accepted_terms?: boolean | null
           id: string
           name?: string | null
-          role?: Database["public"]["Enums"]["app_role"]
+          role_id: string
           updated_at?: string | null
         }
         Update: {
@@ -39,8 +39,37 @@ export type Database = {
           has_accepted_terms?: boolean | null
           id?: string
           name?: string | null
-          role?: Database["public"]["Enums"]["app_role"]
+          role_id?: string
           updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profiles_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "roles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      roles: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          name?: string
         }
         Relationships: []
       }
@@ -49,10 +78,13 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      is_current_user_admin: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
     }
     Enums: {
-      app_role: "recruiter" | "admin" | "candidate"
+      [_ in never]: never
     }
     CompositeTypes: {
       [_ in never]: never
@@ -179,8 +211,6 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {
-      app_role: ["recruiter", "admin", "candidate"],
-    },
+    Enums: {},
   },
 } as const

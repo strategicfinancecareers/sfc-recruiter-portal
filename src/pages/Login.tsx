@@ -26,25 +26,13 @@ const Login = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('Attempting login with:', email);
     setLocalLoading(true);
-    try {
-      const success = await login(email, password);
-      console.log('Login result:', success);
-      if (success) {
-        console.log('Login successful, redirecting to dashboard...');
-        // Wait a moment for auth state to update, then redirect manually
-        setTimeout(() => {
-          navigate('/dashboard');
-        }, 1000);
-      } else {
-        console.log('Login failed');
-      }
-    } catch (error) {
-      console.error('Login error:', error);
-    } finally {
-      setLocalLoading(false);
+    
+    const success = await login(email, password);
+    if (success) {
+      // Navigation will be handled by useEffect when user state changes
     }
+    setLocalLoading(false);
   };
 
   const handleGoogleSignIn = async () => {

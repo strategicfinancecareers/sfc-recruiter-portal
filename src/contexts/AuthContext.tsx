@@ -60,19 +60,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   useEffect(() => {
-    let mounted = true;
-    
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!mounted) return;
-      
       setSession(session);
       if (session?.user) {
         fetchProfile(session.user.id).then((profile) => {
-          if (mounted) {
-            setUser(profile);
-            setIsLoading(false);
-          }
+          setUser(profile);
+          setIsLoading(false);
         });
       } else {
         setIsLoading(false);
@@ -83,8 +77,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (!mounted) return;
-      
+      console.log('Auth state change:', event, !!session);
       setSession(session);
       if (session?.user) {
         const profile = await fetchProfile(session.user.id);
@@ -96,50 +89,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
     return () => {
-      mounted = false;
       subscription.unsubscribe();
     };
   }, []);
 
   const login = async (email: string, password: string): Promise<boolean> => {
-    console.log('AuthContext login called with:', email);
-    setIsLoading(true);
     try {
-      console.log('Calling supabase.auth.signInWithPassword...');
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
-      console.log('Supabase auth response:', { data, error });
-
       if (error) {
-        console.log('Login error:', error.message);
         toast({
           title: "Login failed",
           description: error.message,
           variant: "destructive",
         });
-        setIsLoading(false);
         return false;
       }
 
-      console.log('Login successful!');
       toast({
         title: "Welcome back!",
         description: "You have successfully logged in.",
       });
       
-      // Don't set isLoading to false here - let the auth state change handle it
       return true;
     } catch (error: any) {
-      console.log('Login catch error:', error);
       toast({
         title: "Error",
         description: error.message || "Login failed",
         variant: "destructive",
       });
-      setIsLoading(false);
       return false;
     }
   };

@@ -4,17 +4,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Briefcase, Chrome, AlertCircle, UserPlus } from "lucide-react";
+import { Briefcase, Chrome, AlertCircle } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { createDemoUsers } from "@/utils/createDemoUsers";
 
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [localLoading, setLocalLoading] = useState(false);
-  const { login, signInWithGoogle, signInWithMicrosoft, isLoading, user } = useAuth();
+  const { login, signInWithGoogle, signInWithMicrosoft, user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -28,14 +27,12 @@ const Login = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLocalLoading(true);
-    try {
-      const success = await login(email, password);
-      if (success) {
-        // Navigation will be handled by the useEffect above
-      }
-    } finally {
-      setLocalLoading(false);
+    
+    const success = await login(email, password);
+    if (success) {
+      // Navigation will be handled by useEffect when user state changes
     }
+    setLocalLoading(false);
   };
 
   const handleGoogleSignIn = async () => {
@@ -58,32 +55,6 @@ const Login = () => {
     }
   };
 
-  const handleCreateDemoUsers = async () => {
-    setLocalLoading(true);
-    try {
-      const success = await createDemoUsers();
-      if (success) {
-        toast({
-          title: "Demo users created!",
-          description: "You can now use the demo credentials to login.",
-        });
-      } else {
-        toast({
-          title: "Error",
-          description: "Failed to create demo users. They might already exist.",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to create demo users.",
-        variant: "destructive",
-      });
-    } finally {
-      setLocalLoading(false);
-    }
-  };
 
   return (
     <div className="min-h-screen bg-gradient-primary flex items-center justify-center p-4">
@@ -98,22 +69,10 @@ const Login = () => {
         <CardContent>
           {/* Demo Credentials */}
           <div className="mb-6 p-4 bg-muted rounded-lg">
-            <div className="flex items-center justify-between mb-2">
-              <h4 className="text-sm font-medium flex items-center">
-                <AlertCircle className="h-4 w-4 mr-2" />
-                Demo Credentials
-              </h4>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={handleCreateDemoUsers}
-                disabled={localLoading}
-                className="text-xs"
-              >
-                <UserPlus className="h-3 w-3 mr-1" />
-                Create Demo Users
-              </Button>
-            </div>
+            <h4 className="text-sm font-medium mb-2 flex items-center">
+              <AlertCircle className="h-4 w-4 mr-2" />
+              Demo Credentials
+            </h4>
             <div className="text-xs space-y-1">
               <div><strong>Admin:</strong> admin@demo.com / admin123</div>
               <div><strong>Recruiter:</strong> recruiter@demo.com / recruiter123</div>
@@ -142,7 +101,7 @@ const Login = () => {
                 required
               />
             </div>
-            <Button type="submit" className="w-full" disabled={localLoading || isLoading}>
+            <Button type="submit" className="w-full" disabled={localLoading}>
               {localLoading ? "Signing in..." : "Sign In"}
             </Button>
           </form>
@@ -161,7 +120,7 @@ const Login = () => {
                 variant="outline" 
                 className="w-full"
                 onClick={handleGoogleSignIn}
-                disabled={localLoading || isLoading}
+                disabled={localLoading}
                 type="button"
               >
                 <Chrome className="mr-2 h-4 w-4" />

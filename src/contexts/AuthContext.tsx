@@ -104,50 +104,62 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = async (email: string, password: string): Promise<boolean> => {
     console.log('AuthContext login called with:', email);
     setIsLoading(true);
-    try {
-      console.log('Calling supabase.auth.signInWithPassword...');
+    
+    return new Promise((resolve) => {
+      let loginResolved = false;
       
-      // Add a timeout to prevent hanging
-      const authResult = await Promise.race([
-        supabase.auth.signInWithPassword({
-          email,
-          password,
-        }),
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Login timeout')), 10000)
-        )
-      ]) as any;
-
-      console.log('Supabase auth response:', authResult);
-
-      if (authResult.error) {
-        console.log('Login error:', authResult.error.message);
-        toast({
-          title: "Login failed",
-          description: authResult.error.message,
-          variant: "destructive",
-        });
-        return false;
-      }
-
-      console.log('Login successful!');
-      toast({
-        title: "Welcome back!",
-        description: "You have successfully logged in.",
+      // Set up a one-time listener for auth state change
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(
+        (event, session) => {
+          if (!loginResolved && event === 'SIGNED_IN' && session) {
+            loginResolved = true;
+            subscription.unsubscribe();
+            setIsLoading(false);
+            console.log('Login successful via auth state change!');
+            toast({
+              title: "Welcome back!",
+              description: "You have successfully logged in.",
+            });
+            resolve(true);
+          }
+        }
+      );
+      
+      // Start the login process
+      supabase.auth.signInWithPassword({
+        email,
+        password,
+      }).catch((error) => {
+        if (!loginResolved) {
+          loginResolved = true;
+          subscription.unsubscribe();
+          setIsLoading(false);
+          console.log('Login error:', error);
+          toast({
+            title: "Login failed",
+            description: error.message,
+            variant: "destructive",
+          });
+          resolve(false);
+        }
       });
-      return true;
-    } catch (error: any) {
-      console.log('Login catch error:', error);
-      toast({
-        title: "Error",
-        description: error.message || "Login failed",
-        variant: "destructive",
-      });
-      return false;
-    } finally {
-      console.log('Login finally block - setting isLoading to false');
-      setIsLoading(false);
-    }
+      
+      // Timeout after 15 seconds
+      setTimeout(() => {
+        if (!loginResolved) {
+          loginResolved = true;
+          subscription.unsubscribe();
+          setIsLoading(false);
+          console.log('Login timeout');
+          toast({
+            title: "Login timeout",
+            description: "Please try again.",
+            variant: "destructive",
+          });
+          resolve(false);
+        }
+      }, 15000);
+    });
   };
 
   const signup = async (email: string, password: string, firstName: string, lastName: string): Promise<boolean> => {

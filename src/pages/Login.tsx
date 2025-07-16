@@ -68,6 +68,19 @@ const Login = () => {
           <CardDescription>Sign in to your recruiter account</CardDescription>
         </CardHeader>
         <CardContent>
+          <div className="mb-4 p-3 bg-muted/50 rounded-lg border">
+            <h4 className="text-sm font-medium mb-2 text-center">Demo Credentials</h4>
+            <div className="space-y-2 text-xs">
+              <div>
+                <p className="font-medium">Admin Account:</p>
+                <p className="text-muted-foreground">admin@demo.com / admin123</p>
+              </div>
+              <div>
+                <p className="font-medium">Recruiter Account:</p>
+                <p className="text-muted-foreground">recruiter@demo.com / recruiter123</p>
+              </div>
+            </div>
+          </div>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
@@ -129,31 +142,16 @@ const Login = () => {
           </div>
           
         </CardContent>
-        <CardFooter className="flex flex-col space-y-4">
-          <div className="w-full p-3 bg-muted/50 rounded-lg border">
-            <h4 className="text-sm font-medium mb-2 text-center">Demo Credentials</h4>
-            <div className="space-y-2 text-xs">
-              <div>
-                <p className="font-medium">Admin Account:</p>
-                <p className="text-muted-foreground">admin@demo.com / admin123</p>
-              </div>
-              <div>
-                <p className="font-medium">Recruiter Account:</p>
-                <p className="text-muted-foreground">recruiter@demo.com / recruiter123</p>
-              </div>
-            </div>
-          </div>
-          <div className="flex flex-col space-y-2">
-            <Link to="/forgot-password" className="text-sm text-primary hover:underline">
-              Forgot your password?
+        <CardFooter className="flex flex-col space-y-2">
+          <Link to="/forgot-password" className="text-sm text-primary hover:underline">
+            Forgot your password?
+          </Link>
+          <p className="text-sm text-muted-foreground">
+            Don't have an account?{" "}
+            <Link to="/signup" className="text-primary hover:underline">
+              Sign up
             </Link>
-            <p className="text-sm text-muted-foreground">
-              Don't have an account?{" "}
-              <Link to="/signup" className="text-primary hover:underline">
-                Sign up
-              </Link>
-            </p>
-          </div>
+          </p>
         </CardFooter>
       </Card>
     </div>

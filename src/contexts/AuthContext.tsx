@@ -89,32 +89,52 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     console.log('AuthProvider useEffect mounting...');
     
+    let mounted = true;
+    
     // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      console.log('Initial session check:', !!session);
+    const initializeAuth = async () => {
+      console.log('Starting auth initialization...');
+      const { data: { session }, error } = await supabase.auth.getSession();
+      console.log('Initial session check:', !!session, error);
+      
+      if (!mounted) return;
+      
       setSession(session);
       if (session?.user) {
-        fetchProfile(session.user.id).then((profile) => {
+        console.log('Found session, fetching profile...');
+        try {
+          const profile = await fetchProfile(session.user.id);
           console.log('Initial profile fetch completed:', !!profile);
-          setUser(profile);
-          setIsLoading(false);
-        }).catch((error) => {
+          if (mounted) {
+            setUser(profile);
+            setIsLoading(false);
+          }
+        } catch (error) {
           console.error('Initial profile fetch failed:', error);
-          setIsLoading(false);
-        });
+          if (mounted) {
+            setIsLoading(false);
+          }
+        }
       } else {
         console.log('No initial session, setting loading to false');
-        setIsLoading(false);
+        if (mounted) {
+          setIsLoading(false);
+        }
       }
-    });
+    };
+
+    initializeAuth();
 
     // Listen for auth changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('Auth state change:', event, !!session);
+      if (!mounted) return;
+      
       setSession(session);
       if (session?.user) {
+        console.log('Auth change - fetching profile...');
         try {
           const profile = await fetchProfile(session.user.id);
           console.log('Auth change profile fetch completed:', !!profile);
@@ -132,6 +152,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     return () => {
       console.log('AuthProvider cleanup');
+      mounted = false;
       subscription.unsubscribe();
     };
   }, []);

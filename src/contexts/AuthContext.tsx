@@ -102,14 +102,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const login = async (email: string, password: string): Promise<boolean> => {
+    console.log('AuthContext login called with:', email);
     setIsLoading(true);
     try {
+      console.log('Calling supabase.auth.signInWithPassword...');
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
+      console.log('Supabase auth response:', { error });
+
       if (error) {
+        console.log('Login error:', error.message);
         toast({
           title: "Login failed",
           description: error.message,
@@ -118,12 +123,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return false;
       }
 
+      console.log('Login successful!');
       toast({
         title: "Welcome back!",
         description: "You have successfully logged in.",
       });
       return true;
     } catch (error: any) {
+      console.log('Login catch error:', error);
       toast({
         title: "Error",
         description: error.message,
@@ -131,6 +138,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
       return false;
     } finally {
+      console.log('Login finally block - setting isLoading to false');
       setIsLoading(false);
     }
   };

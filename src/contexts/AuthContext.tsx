@@ -97,9 +97,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (profile) {
           setUser(profile);
         } else {
-          // No profile exists - sign out to clear the invalid session
-          console.log('No profile found, signing out to clear session');
-          await supabase.auth.signOut();
+          // Profile fetch failed, but keep user logged in - they may have a valid session
+          console.warn('Profile fetch failed, but keeping user session');
           setUser(null);
         }
       } else {

@@ -106,18 +106,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(true);
     try {
       console.log('Calling supabase.auth.signInWithPassword...');
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      
+      // Add a timeout to prevent hanging
+      const authResult = await Promise.race([
+        supabase.auth.signInWithPassword({
+          email,
+          password,
+        }),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Login timeout')), 10000)
+        )
+      ]) as any;
 
-      console.log('Supabase auth response:', { error });
+      console.log('Supabase auth response:', authResult);
 
-      if (error) {
-        console.log('Login error:', error.message);
+      if (authResult.error) {
+        console.log('Login error:', authResult.error.message);
         toast({
           title: "Login failed",
-          description: error.message,
+          description: authResult.error.message,
           variant: "destructive",
         });
         return false;
@@ -133,7 +140,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.log('Login catch error:', error);
       toast({
         title: "Error",
-        description: error.message,
+        description: error.message || "Login failed",
         variant: "destructive",
       });
       return false;

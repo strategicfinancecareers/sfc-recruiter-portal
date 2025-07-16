@@ -45,14 +45,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const fetchProfile = async (userId: string) => {
     try {
-      const { data, error } = await (supabase as any)
+      const { data, error } = await supabase
         .from('profiles')
-        .select('*')
+        .select(`
+          *,
+          roles:role_id (
+            name
+          )
+        `)
         .eq('id', userId)
         .single();
 
       if (error) throw error;
-      return data;
+      
+      // Transform the data to include role name
+      const profile = {
+        ...data,
+        role: (data.roles?.name || 'recruiter') as 'recruiter' | 'admin' | 'candidate'
+      };
+      
+      console.log('Fetched profile:', profile);
+      return profile;
     } catch (error) {
       console.error('Error fetching profile:', error);
       return null;

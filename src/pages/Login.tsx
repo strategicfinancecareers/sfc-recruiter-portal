@@ -14,6 +14,9 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const [localLoading, setLocalLoading] = useState(false);
   const { login, signInWithGoogle, signInWithMicrosoft, isLoading, user } = useAuth();
+  
+  // Debug loading states
+  console.log('Login page - localLoading:', localLoading, 'isLoading:', isLoading, 'combined:', localLoading || isLoading);
   const navigate = useNavigate();
   const { toast } = useToast();
 

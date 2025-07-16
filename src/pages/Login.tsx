@@ -13,7 +13,7 @@ const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [localLoading, setLocalLoading] = useState(false);
-  const { login, signInWithGoogle, signInWithMicrosoft, isLoading, user } = useAuth();
+  const { login, signInWithGoogle, signInWithMicrosoft, user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -103,7 +103,7 @@ const Login = () => {
                 required
               />
             </div>
-            <Button type="submit" className="w-full" disabled={localLoading || isLoading}>
+            <Button type="submit" className="w-full" disabled={localLoading}>
               {localLoading ? "Signing in..." : "Sign In"}
             </Button>
           </form>
@@ -122,7 +122,7 @@ const Login = () => {
                 variant="outline" 
                 className="w-full"
                 onClick={handleGoogleSignIn}
-                disabled={localLoading || isLoading}
+                disabled={localLoading}
                 type="button"
               >
                 <Chrome className="mr-2 h-4 w-4" />

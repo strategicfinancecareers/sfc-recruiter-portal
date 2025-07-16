@@ -46,31 +46,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const fetchProfile = async (userId: string) => {
     try {
       console.log('Fetching profile for user ID:', userId);
-      const { data, error } = await supabase
+      
+      // First, try to get the profile
+      const { data: profileData, error: profileError } = await supabase
         .from('profiles')
-        .select(`
-          *,
-          roles:role_id (
-            name
-          )
-        `)
+        .select('*')
         .eq('id', userId)
         .single();
 
-      console.log('Profile query result:', { data, error });
+      console.log('Profile data:', profileData);
+      console.log('Profile error:', profileError);
 
-      if (error) {
-        console.error('Profile fetch error:', error);
-        throw error;
+      if (profileError) {
+        console.error('Profile fetch error:', profileError);
+        throw profileError;
       }
+
+      // Then get the role name
+      const { data: roleData, error: roleError } = await supabase
+        .from('roles')
+        .select('name')
+        .eq('id', profileData.role_id)
+        .single();
+
+      console.log('Role data:', roleData);
+      console.log('Role error:', roleError);
       
       // Transform the data to include role name
       const profile = {
-        ...data,
-        role: (data.roles?.name || 'recruiter') as 'recruiter' | 'admin' | 'candidate'
+        ...profileData,
+        role: (roleData?.name || 'recruiter') as 'recruiter' | 'admin' | 'candidate'
       };
       
-      console.log('Transformed profile:', profile);
+      console.log('Final transformed profile:', profile);
       return profile;
     } catch (error) {
       console.error('Error fetching profile:', error);

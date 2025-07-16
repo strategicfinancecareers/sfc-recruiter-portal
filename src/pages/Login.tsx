@@ -13,7 +13,7 @@ const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [localLoading, setLocalLoading] = useState(false);
-  const { login, signInWithGoogle, signInWithMicrosoft, user } = useAuth();
+  const { login, signInWithGoogle, signInWithMicrosoft, isLoading, user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -27,12 +27,14 @@ const Login = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLocalLoading(true);
-    
-    const success = await login(email, password);
-    if (success) {
-      // Navigation will be handled by useEffect when user state changes
+    try {
+      const success = await login(email, password);
+      if (success) {
+        // Navigation will be handled by the useEffect above
+      }
+    } finally {
+      setLocalLoading(false);
     }
-    setLocalLoading(false);
   };
 
   const handleGoogleSignIn = async () => {
@@ -55,7 +57,6 @@ const Login = () => {
     }
   };
 
-
   return (
     <div className="min-h-screen bg-gradient-primary flex items-center justify-center p-4">
       <Card className="w-full max-w-md">
@@ -67,17 +68,6 @@ const Login = () => {
           <CardDescription>Sign in to your recruiter account</CardDescription>
         </CardHeader>
         <CardContent>
-          {/* Demo Credentials */}
-          <div className="mb-6 p-4 bg-muted rounded-lg">
-            <h4 className="text-sm font-medium mb-2 flex items-center">
-              <AlertCircle className="h-4 w-4 mr-2" />
-              Demo Credentials
-            </h4>
-            <div className="text-xs space-y-1">
-              <div><strong>Admin:</strong> admin@demo.com / admin123</div>
-              <div><strong>Recruiter:</strong> recruiter@demo.com / recruiter123</div>
-            </div>
-          </div>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
@@ -101,7 +91,7 @@ const Login = () => {
                 required
               />
             </div>
-            <Button type="submit" className="w-full" disabled={localLoading}>
+            <Button type="submit" className="w-full" disabled={localLoading || isLoading}>
               {localLoading ? "Signing in..." : "Sign In"}
             </Button>
           </form>
@@ -120,7 +110,7 @@ const Login = () => {
                 variant="outline" 
                 className="w-full"
                 onClick={handleGoogleSignIn}
-                disabled={localLoading}
+                disabled={localLoading || isLoading}
                 type="button"
               >
                 <Chrome className="mr-2 h-4 w-4" />

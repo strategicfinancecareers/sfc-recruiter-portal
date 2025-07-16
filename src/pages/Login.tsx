@@ -105,7 +105,7 @@ const Login = () => {
               />
             </div>
             <Button type="submit" className="w-full" disabled={localLoading || isLoading}>
-              {localLoading ? "Signing in..." : "Sign In"}
+              {(localLoading || isLoading) ? "Signing in..." : "Sign In"}
             </Button>
           </form>
           

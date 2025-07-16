@@ -45,6 +45,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const fetchProfile = async (userId: string) => {
     try {
+      console.log('Fetching profile for user ID:', userId);
       const { data, error } = await supabase
         .from('profiles')
         .select(`
@@ -56,7 +57,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .eq('id', userId)
         .single();
 
-      if (error) throw error;
+      console.log('Profile query result:', { data, error });
+
+      if (error) {
+        console.error('Profile fetch error:', error);
+        throw error;
+      }
       
       // Transform the data to include role name
       const profile = {
@@ -64,7 +70,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         role: (data.roles?.name || 'recruiter') as 'recruiter' | 'admin' | 'candidate'
       };
       
-      console.log('Fetched profile:', profile);
+      console.log('Transformed profile:', profile);
       return profile;
     } catch (error) {
       console.error('Error fetching profile:', error);
@@ -73,15 +79,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   useEffect(() => {
+    console.log('AuthProvider useEffect mounting...');
+    
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log('Initial session check:', !!session);
       setSession(session);
       if (session?.user) {
         fetchProfile(session.user.id).then((profile) => {
+          console.log('Initial profile fetch completed:', !!profile);
           setUser(profile);
+          setIsLoading(false);
+        }).catch((error) => {
+          console.error('Initial profile fetch failed:', error);
           setIsLoading(false);
         });
       } else {
+        console.log('No initial session, setting loading to false');
         setIsLoading(false);
       }
     });
@@ -93,15 +107,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.log('Auth state change:', event, !!session);
       setSession(session);
       if (session?.user) {
-        const profile = await fetchProfile(session.user.id);
-        setUser(profile);
+        try {
+          const profile = await fetchProfile(session.user.id);
+          console.log('Auth change profile fetch completed:', !!profile);
+          setUser(profile);
+        } catch (error) {
+          console.error('Auth change profile fetch failed:', error);
+          setUser(null);
+        }
       } else {
         setUser(null);
       }
+      console.log('Setting isLoading to false after auth state change');
       setIsLoading(false);
     });
 
     return () => {
+      console.log('AuthProvider cleanup');
       subscription.unsubscribe();
     };
   }, []);

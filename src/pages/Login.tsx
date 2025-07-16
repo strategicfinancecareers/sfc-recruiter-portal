@@ -32,8 +32,11 @@ const Login = () => {
       const success = await login(email, password);
       console.log('Login result:', success);
       if (success) {
-        console.log('Login successful, navigation should happen automatically');
-        // Navigation will be handled by the useEffect above
+        console.log('Login successful, redirecting to dashboard...');
+        // Wait a moment for auth state to update, then redirect manually
+        setTimeout(() => {
+          navigate('/dashboard');
+        }, 1000);
       } else {
         console.log('Login failed');
       }

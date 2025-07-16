@@ -1,9 +1,12 @@
 
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Users, Briefcase, Star } from "lucide-react";
+import { ArrowRight, Users, Briefcase, Star, LogOut } from "lucide-react";
 import { Link } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 
 const Home = () => {
+  const { user, logout } = useAuth();
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100">
       {/* Header */}
@@ -18,12 +21,29 @@ const Home = () => {
               />
             </div>
             <div className="flex space-x-4">
-              <Link to="/login">
-                <Button variant="ghost">Log In</Button>
-              </Link>
-              <Link to="/signup">
-                <Button>Get Started</Button>
-              </Link>
+              {user ? (
+                <>
+                  <Link to="/dashboard">
+                    <Button variant="ghost">
+                      Go to Dashboard
+                      <ArrowRight className="ml-2 h-4 w-4" />
+                    </Button>
+                  </Link>
+                  <Button variant="outline" onClick={logout}>
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Log Out
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Link to="/login">
+                    <Button variant="ghost">Log In</Button>
+                  </Link>
+                  <Link to="/signup">
+                    <Button>Get Started</Button>
+                  </Link>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -41,17 +61,28 @@ const Home = () => {
             Our platform streamlines the recruitment process with intelligent matching and seamless introductions.
           </p>
           <div className="flex justify-center space-x-4">
-            <Link to="/signup">
-              <Button size="lg" className="bg-green-600 hover:bg-green-700">
-                Start Recruiting
-                <ArrowRight className="ml-2 h-5 w-5" />
-              </Button>
-            </Link>
-            <Link to="/login">
-              <Button size="lg" variant="outline">
-                Sign In
-              </Button>
-            </Link>
+            {user ? (
+              <Link to="/dashboard">
+                <Button size="lg" className="bg-green-600 hover:bg-green-700">
+                  Go to Dashboard
+                  <ArrowRight className="ml-2 h-5 w-5" />
+                </Button>
+              </Link>
+            ) : (
+              <>
+                <Link to="/signup">
+                  <Button size="lg" className="bg-green-600 hover:bg-green-700">
+                    Start Recruiting
+                    <ArrowRight className="ml-2 h-5 w-5" />
+                  </Button>
+                </Link>
+                <Link to="/login">
+                  <Button size="lg" variant="outline">
+                    Sign In
+                  </Button>
+                </Link>
+              </>
+            )}
           </div>
         </div>
 

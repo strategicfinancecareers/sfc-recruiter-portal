@@ -94,7 +94,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (session?.user) {
         const profile = await fetchProfile(session.user.id);
-        setUser(profile);
+        if (profile) {
+          setUser(profile);
+        } else {
+          // No profile exists - sign out to clear the invalid session
+          console.log('No profile found, signing out to clear session');
+          await supabase.auth.signOut();
+          setUser(null);
+        }
       } else {
         setUser(null);
       }

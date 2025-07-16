@@ -26,12 +26,19 @@ const Login = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log('Attempting login with:', email);
     setLocalLoading(true);
     try {
       const success = await login(email, password);
+      console.log('Login result:', success);
       if (success) {
+        console.log('Login successful, navigation should happen automatically');
         // Navigation will be handled by the useEffect above
+      } else {
+        console.log('Login failed');
       }
+    } catch (error) {
+      console.error('Login error:', error);
     } finally {
       setLocalLoading(false);
     }

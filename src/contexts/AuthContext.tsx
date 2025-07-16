@@ -52,14 +52,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .from('profiles')
         .select('*')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
 
       console.log('Profile data:', profileData);
       console.log('Profile error:', profileError);
 
       if (profileError) {
         console.error('Profile fetch error:', profileError);
-        throw profileError;
+        return null;
+      }
+
+      if (!profileData) {
+        console.log('No profile found for user');
+        return null;
       }
 
       // Then get the role name
@@ -67,7 +72,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .from('roles')
         .select('name')
         .eq('id', profileData.role_id)
-        .single();
+        .maybeSingle();
 
       console.log('Role data:', roleData);
       console.log('Role error:', roleError);

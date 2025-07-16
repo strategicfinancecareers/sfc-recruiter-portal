@@ -68,6 +68,17 @@ const Login = () => {
           <CardDescription>Sign in to your recruiter account</CardDescription>
         </CardHeader>
         <CardContent>
+          {/* Demo Credentials */}
+          <div className="mb-6 p-4 bg-muted rounded-lg">
+            <h4 className="text-sm font-medium mb-2 flex items-center">
+              <AlertCircle className="h-4 w-4 mr-2" />
+              Demo Credentials
+            </h4>
+            <div className="text-xs space-y-1">
+              <div><strong>Admin:</strong> admin@demo.com / admin123</div>
+              <div><strong>Recruiter:</strong> recruiter@demo.com / recruiter123</div>
+            </div>
+          </div>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>

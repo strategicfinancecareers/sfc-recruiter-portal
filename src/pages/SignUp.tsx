@@ -24,6 +24,8 @@ const SignUp = () => {
   useEffect(() => {
     if (user) {
       navigate('/dashboard');
+    } else {
+      console.log("not logged in!")
     }
   }, [user, navigate]);
 

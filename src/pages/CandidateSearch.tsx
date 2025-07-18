@@ -6,126 +6,26 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Heart, Handshake, Search, Filter, MapPin, GraduationCap, Calendar, Eye, X } from "lucide-react";
+import { Heart, Handshake, Search, Filter, MapPin, GraduationCap, Calendar, Eye, Loader2 } from "lucide-react";
 
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import TermsDialog from "../components/TermsDialog";
 import RedactedResume from "../components/RedactedResume";
+import { useCandidates, type Candidate } from "../hooks/useCandidates";
 
-interface Candidate {
-  id: string;
-  name: string;
-  displayName: string;
-  label: string;
-  description: string;
-  location: string;
-  experience: number;
-  education: string;
-  skills: string[];
-  isFavorite: boolean;
-  isSelected: boolean;
-  openToOpportunities: boolean;
-  uniqueIdentifier: string;
-}
-
-// Generate anonymous candidate names based on their qualifications
-const generateDisplayName = (candidate: any, index: number) => {
-  const seniorityMap: { [key: number]: string } = {
-    1: "Junior",
-    2: "Junior",
-    3: "Mid-level",
-    4: "Mid-level", 
-    5: "Senior",
-    6: "Senior",
-    7: "Lead",
-    8: "Lead"
-  };
-  
-  const seniority = seniorityMap[Math.min(candidate.experience, 8)] || "Senior";
-  const primarySkill = candidate.skills[0] || "Tech";
-  const locationCode = candidate.location.split(',')[1]?.trim().substring(0, 2) || candidate.location.substring(0, 2);
-  
-  return `${seniority} ${primarySkill} Professional (${locationCode})`;
-};
-
-const mockCandidates: Candidate[] = [
-  {
-    id: '1',
-    name: 'Sarah Johnson',
-    displayName: '',
-    label: 'Senior Full Stack Developer',
-    description: 'Experienced developer specializing in React and Node.js with a passion for creating scalable web applications.',
-    location: 'San Francisco, CA',
-    experience: 5,
-    education: 'Bachelor\'s',
-    skills: ['React', 'Node.js', 'TypeScript', 'AWS'],
-    isFavorite: false,
-    isSelected: false,
-    openToOpportunities: true,
-    uniqueIdentifier: 'SR-REACT-SF-5Y'
-  },
-  {
-    id: '2',
-    name: 'Michael Chen',
-    displayName: '',
-    label: 'DevOps Engineer',
-    description: 'Infrastructure expert with deep knowledge of cloud platforms and automation tools.',
-    location: 'Seattle, WA',
-    experience: 7,
-    education: 'Master\'s',
-    skills: ['Kubernetes', 'Docker', 'AWS', 'Terraform'],
-    isFavorite: false,
-    isSelected: false,
-    openToOpportunities: true,
-    uniqueIdentifier: 'LD-K8S-WA-7Y'
-  },
-  {
-    id: '3',
-    name: 'Emily Rodriguez',
-    displayName: '',
-    label: 'UX/UI Designer',
-    description: 'Creative designer focused on user-centered design principles and modern interface development.',
-    location: 'Austin, TX',
-    experience: 4,
-    education: 'Bachelor\'s',
-    skills: ['Figma', 'Adobe Creative Suite', 'Prototyping', 'User Research'],
-    isFavorite: false,
-    isSelected: false,
-    openToOpportunities: true,
-    uniqueIdentifier: 'ML-FIGMA-TX-4Y'
-  },
-  {
-    id: '4',
-    name: 'David Kim',
-    displayName: '',
-    label: 'Data Scientist',
-    description: 'Analytics expert with expertise in machine learning and statistical modeling for business insights.',
-    location: 'New York, NY',
-    experience: 6,
-    education: 'PhD',
-    skills: ['Python', 'Machine Learning', 'SQL', 'Tableau'],
-    isFavorite: false,
-    isSelected: false,
-    openToOpportunities: true,
-    uniqueIdentifier: 'SR-PYTHON-NY-6Y'
-  },
-].map((candidate, index) => ({
-  ...candidate,
-  displayName: generateDisplayName(candidate, index)
-}));
-
-const CandidateSearch = () => {
+export default function CandidateSearch() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [candidates, setCandidates] = useState<Candidate[]>(mockCandidates);
-  const [filteredCandidates, setFilteredCandidates] = useState<Candidate[]>(mockCandidates);
+  const { candidates, loading, toggleFavorite } = useCandidates();
+  const [filteredCandidates, setFilteredCandidates] = useState<Candidate[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [selectMode, setSelectMode] = useState(false);
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
   const [showTermsDialog, setShowTermsDialog] = useState(false);
   const [pendingIntroductions, setPendingIntroductions] = useState<string[]>([]);
+  const [selectedCandidates, setSelectedCandidates] = useState<string[]>([]);
 
   // Filters
   const [experienceFilter, setExperienceFilter] = useState('');
@@ -134,14 +34,13 @@ const CandidateSearch = () => {
   const [skillsFilter, setSkillsFilter] = useState('');
 
   useEffect(() => {
-    let filtered = candidates.filter(candidate => candidate.openToOpportunities);
+    let filtered = candidates.filter(() => true); // All candidates are "open to opportunities"
 
     if (searchTerm) {
       filtered = filtered.filter(candidate =>
-        candidate.displayName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        candidate.display_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         candidate.label.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        candidate.skills.some(skill => skill.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        candidate.uniqueIdentifier.toLowerCase().includes(searchTerm.toLowerCase())
+        candidate.skills.some(skill => skill.name.toLowerCase().includes(searchTerm.toLowerCase()))
       );
     }
 
@@ -151,7 +50,7 @@ const CandidateSearch = () => {
     }
 
     if (educationFilter && educationFilter !== 'any') {
-      filtered = filtered.filter(candidate => candidate.education === educationFilter);
+      filtered = filtered.filter(candidate => candidate.education.includes(educationFilter));
     }
 
     if (locationFilter) {
@@ -162,39 +61,23 @@ const CandidateSearch = () => {
 
     if (skillsFilter) {
       filtered = filtered.filter(candidate =>
-        candidate.skills.some(skill => skill.toLowerCase().includes(skillsFilter.toLowerCase()))
+        candidate.skills.some(skill => skill.name.toLowerCase().includes(skillsFilter.toLowerCase()))
       );
     }
 
     setFilteredCandidates(filtered);
   }, [candidates, searchTerm, experienceFilter, educationFilter, locationFilter, skillsFilter]);
 
-  const toggleFavorite = (candidateId: string) => {
-    setCandidates(prev => prev.map(candidate =>
-      candidate.id === candidateId
-        ? { ...candidate, isFavorite: !candidate.isFavorite }
-        : candidate
-    ));
-    
-    const candidate = candidates.find(c => c.id === candidateId);
-    if (candidate) {
-      toast({
-        title: candidate.isFavorite ? "Removed from favorites" : "Added to favorites",
-        description: `${candidate.displayName} ${candidate.isFavorite ? 'removed from' : 'added to'} your favorites.`,
-      });
-    }
-  };
-
   const toggleSelect = (candidateId: string) => {
-    setCandidates(prev => prev.map(candidate =>
-      candidate.id === candidateId
-        ? { ...candidate, isSelected: !candidate.isSelected }
-        : candidate
-    ));
+    setSelectedCandidates(prev => 
+      prev.includes(candidateId)
+        ? prev.filter(id => id !== candidateId)
+        : [...prev, candidateId]
+    );
   };
 
   const getSelectedCount = () => {
-    return candidates.filter(c => c.isSelected).length;
+    return selectedCandidates.length;
   };
 
   const handleIntroduceMe = (candidate: Candidate) => {
@@ -213,7 +96,6 @@ const CandidateSearch = () => {
   };
 
   const handleBulkIntroduce = () => {
-    const selectedCandidates = candidates.filter(c => c.isSelected);
     if (selectedCandidates.length === 0) return;
 
     if (!user?.has_accepted_terms) {
@@ -221,12 +103,12 @@ const CandidateSearch = () => {
       return;
     }
 
-    selectedCandidates.forEach(candidate => {
-      setPendingIntroductions(prev => [...prev, candidate.id]);
+    selectedCandidates.forEach(candidateId => {
+      setPendingIntroductions(prev => [...prev, candidateId]);
     });
 
-    // Deselect all
-    setCandidates(prev => prev.map(candidate => ({ ...candidate, isSelected: false })));
+    // Clear selections
+    setSelectedCandidates([]);
     setSelectMode(false);
 
     toast({
@@ -242,6 +124,14 @@ const CandidateSearch = () => {
     setLocationFilter('');
     setSkillsFilter('');
   };
+
+  if (loading) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <>
@@ -266,7 +156,7 @@ const CandidateSearch = () => {
               <div className="flex-1 relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search candidates by role, skills, or identifier..."
+                  placeholder="Search candidates by role, skills..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10"
@@ -312,8 +202,8 @@ const CandidateSearch = () => {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="any">Any</SelectItem>
-                      <SelectItem value="Bachelor's">Bachelor's</SelectItem>
-                      <SelectItem value="Master's">Master's</SelectItem>
+                      <SelectItem value="Bachelor">Bachelor's</SelectItem>
+                      <SelectItem value="Master">Master's</SelectItem>
                       <SelectItem value="PhD">PhD</SelectItem>
                     </SelectContent>
                   </Select>
@@ -346,8 +236,7 @@ const CandidateSearch = () => {
                 onClick={() => {
                   setSelectMode(!selectMode);
                   if (!selectMode) {
-                    // Clear selections when entering select mode
-                    setCandidates(prev => prev.map(c => ({ ...c, isSelected: false })));
+                    setSelectedCandidates([]);
                   }
                 }}
               >
@@ -378,46 +267,45 @@ const CandidateSearch = () => {
               <Card
                 key={candidate.id}
                 className={`transition-all duration-200 hover:shadow-lg ${
-                  candidate.isFavorite ? 'ring-2 ring-primary/20 bg-accent/50' : ''
+                  candidate.is_favorite ? 'ring-2 ring-primary/20 bg-accent/50' : ''
                 } ${
                   pendingIntroductions.includes(candidate.id) ? 'opacity-75 bg-muted/50' : ''
                 }`}
               >
                 <CardHeader className="pb-3">
                   <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <CardTitle className="text-lg font-heading">{candidate.displayName}</CardTitle>
-                        {user?.role === 'admin' && (
-                          <p className="text-sm text-muted-foreground">{candidate.name}</p>
-                        )}
-                        <CardDescription className="text-primary font-medium">
-                          {candidate.label}
-                        </CardDescription>
-                        <Badge variant="outline" className="mt-1 text-xs">
-                          ID: {candidate.uniqueIdentifier}
-                        </Badge>
-                      </div>
+                    <div className="flex-1">
+                      <CardTitle className="text-lg font-heading">{candidate.display_name}</CardTitle>
+                      {user?.role === 'admin' && (
+                        <p className="text-sm text-muted-foreground">{candidate.name}</p>
+                      )}
+                      <CardDescription className="text-primary font-medium">
+                        {candidate.label}
+                      </CardDescription>
+                    </div>
                     <div className="flex items-center space-x-2">
                       {selectMode && (
                         <Checkbox
-                          checked={candidate.isSelected}
+                          checked={selectedCandidates.includes(candidate.id)}
                           onCheckedChange={() => toggleSelect(candidate.id)}
-                          disabled={!candidate.isSelected && getSelectedCount() >= 5}
+                          disabled={!selectedCandidates.includes(candidate.id) && getSelectedCount() >= 5}
                         />
                       )}
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => toggleFavorite(candidate.id)}
-                        className={candidate.isFavorite ? 'text-destructive' : 'text-muted-foreground'}
+                        className={candidate.is_favorite ? 'text-destructive' : 'text-muted-foreground'}
                       >
-                        <Heart className={`h-4 w-4 ${candidate.isFavorite ? 'fill-current' : ''}`} />
+                        <Heart className={`h-4 w-4 ${candidate.is_favorite ? 'fill-current' : ''}`} />
                       </Button>
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <p className="text-sm text-muted-foreground">{candidate.description}</p>
+                  {candidate.profile_description && (
+                    <p className="text-sm text-muted-foreground">{candidate.profile_description}</p>
+                  )}
                   
                   <div className="space-y-2">
                     <div className="flex items-center text-sm text-muted-foreground">
@@ -436,8 +324,8 @@ const CandidateSearch = () => {
 
                   <div className="flex flex-wrap gap-1">
                     {candidate.skills.slice(0, 3).map((skill) => (
-                      <Badge key={skill} variant="secondary" className="text-xs">
-                        {skill}
+                      <Badge key={skill.id} variant="secondary" className="text-xs">
+                        {skill.name}
                       </Badge>
                     ))}
                     {candidate.skills.length > 3 && (
@@ -447,33 +335,33 @@ const CandidateSearch = () => {
                     )}
                   </div>
 
-                   {pendingIntroductions.includes(candidate.id) && (
-                     <Badge variant="secondary" className="mb-2 bg-warning/10 text-warning border-warning/20">
-                       Pending Introduction
-                     </Badge>
-                   )}
+                  {pendingIntroductions.includes(candidate.id) && (
+                    <Badge variant="secondary" className="mb-2 bg-warning/10 text-warning border-warning/20">
+                      Pending Introduction
+                    </Badge>
+                  )}
 
-                   <div className="flex space-x-2 pt-2">
-                     <Button
-                       variant="outline"
-                       size="sm"
-                       onClick={() => setSelectedCandidate(candidate)}
-                       className="flex-1"
-                     >
-                       <Eye className="mr-1 h-4 w-4" />
-                       View Profile
-                     </Button>
-                     <Button
-                       size="sm"
-                       onClick={() => handleIntroduceMe(candidate)}
-                       disabled={pendingIntroductions.includes(candidate.id)}
-                       variant={pendingIntroductions.includes(candidate.id) ? "secondary" : "default"}
-                       className="flex-1"
-                     >
-                       <Handshake className="mr-1 h-4 w-4" />
-                       {pendingIntroductions.includes(candidate.id) ? 'Introduction Sent' : 'Introduce Me'}
-                     </Button>
-                   </div>
+                  <div className="flex space-x-2 pt-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setSelectedCandidate(candidate)}
+                      className="flex-1"
+                    >
+                      <Eye className="mr-1 h-4 w-4" />
+                      View Profile
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => handleIntroduceMe(candidate)}
+                      disabled={pendingIntroductions.includes(candidate.id)}
+                      variant={pendingIntroductions.includes(candidate.id) ? "secondary" : "default"}
+                      className="flex-1"
+                    >
+                      <Handshake className="mr-1 h-4 w-4" />
+                      {pendingIntroductions.includes(candidate.id) ? 'Introduction Sent' : 'Introduce Me'}
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             ))}
@@ -495,21 +383,18 @@ const CandidateSearch = () => {
       <Dialog open={!!selectedCandidate} onOpenChange={() => setSelectedCandidate(null)}>
         <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="font-heading">{selectedCandidate?.displayName}</DialogTitle>
+            <DialogTitle className="font-heading">{selectedCandidate?.display_name}</DialogTitle>
             {user?.role === 'admin' && (
               <p className="text-sm text-muted-foreground">{selectedCandidate?.name}</p>
             )}
             <DialogDescription>{selectedCandidate?.label}</DialogDescription>
-            <Badge variant="outline" className="mt-1 text-xs w-fit">
-              ID: {selectedCandidate?.uniqueIdentifier}
-            </Badge>
           </DialogHeader>
           <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Left Column - Profile Details */}
             <div className="space-y-4">
               <div className="bg-muted p-4 rounded-lg">
                 <h4 className="font-medium mb-2">Professional Summary</h4>
-                <p className="text-sm text-muted-foreground">{selectedCandidate?.description}</p>
+                <p className="text-sm text-muted-foreground">{selectedCandidate?.profile_description}</p>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
@@ -528,8 +413,8 @@ const CandidateSearch = () => {
                   <h4 className="font-medium mb-2">Skills</h4>
                   <div className="flex flex-wrap gap-1">
                     {selectedCandidate?.skills.map((skill) => (
-                      <Badge key={skill} variant="secondary" className="text-xs">
-                        {skill}
+                      <Badge key={skill.id} variant="secondary" className="text-xs">
+                        {skill.name}
                       </Badge>
                     ))}
                   </div>
@@ -550,12 +435,12 @@ const CandidateSearch = () => {
                   {selectedCandidate && (
                     <RedactedResume 
                       candidate={{
-                        displayName: selectedCandidate.displayName,
+                        displayName: selectedCandidate.display_name,
                         label: selectedCandidate.label,
                         location: selectedCandidate.location,
                         experience: selectedCandidate.experience,
                         education: selectedCandidate.education,
-                        skills: selectedCandidate.skills
+                        skills: selectedCandidate.skills.map(skill => skill.name)
                       }} 
                     />
                   )}
@@ -565,9 +450,6 @@ const CandidateSearch = () => {
           </div>
         </DialogContent>
       </Dialog>
-
     </>
   );
-};
-
-export default CandidateSearch;
+}

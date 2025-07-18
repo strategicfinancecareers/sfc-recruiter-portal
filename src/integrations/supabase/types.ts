@@ -14,6 +14,96 @@ export type Database = {
   }
   public: {
     Tables: {
+      candidate_skills: {
+        Row: {
+          candidate_id: string
+          created_at: string
+          id: string
+          skill_id: string
+        }
+        Insert: {
+          candidate_id: string
+          created_at?: string
+          id?: string
+          skill_id: string
+        }
+        Update: {
+          candidate_id?: string
+          created_at?: string
+          id?: string
+          skill_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "candidate_skills_candidate_id_fkey"
+            columns: ["candidate_id"]
+            isOneToOne: false
+            referencedRelation: "candidates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "candidate_skills_skill_id_fkey"
+            columns: ["skill_id"]
+            isOneToOne: false
+            referencedRelation: "skills"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      candidates: {
+        Row: {
+          created_at: string
+          display_name: string
+          education: string
+          email: string
+          experience: number
+          id: string
+          is_favorite: boolean
+          label: string
+          location: string
+          name: string
+          phone: string | null
+          profile_description: string | null
+          resume_full_url: string | null
+          resume_redacted_url: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          display_name: string
+          education: string
+          email: string
+          experience: number
+          id?: string
+          is_favorite?: boolean
+          label: string
+          location: string
+          name: string
+          phone?: string | null
+          profile_description?: string | null
+          resume_full_url?: string | null
+          resume_redacted_url?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string
+          education?: string
+          email?: string
+          experience?: number
+          id?: string
+          is_favorite?: boolean
+          label?: string
+          location?: string
+          name?: string
+          phone?: string | null
+          profile_description?: string | null
+          resume_full_url?: string | null
+          resume_redacted_url?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string | null
@@ -71,6 +161,24 @@ export type Database = {
         Update: {
           created_at?: string | null
           description?: string | null
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
+      skills: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string
           id?: string
           name?: string
         }

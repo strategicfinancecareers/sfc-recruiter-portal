@@ -47,7 +47,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       console.log('Fetching profile for user ID:', userId);
       const { data, error } = await supabase
-        .from('profiles')
+        .from('users')
         .select(`
           *,
           roles (
@@ -302,7 +302,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (user) {
       try {
         const { error } = await (supabase as any)
-          .from('profiles')
+          .from('users')
           .update({ has_accepted_terms: true, updated_at: new Date().toISOString() })
           .eq('id', user.id);
 

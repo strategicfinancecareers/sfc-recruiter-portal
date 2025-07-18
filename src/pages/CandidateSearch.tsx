@@ -40,7 +40,7 @@ export default function CandidateSearch() {
       filtered = filtered.filter(candidate =>
         candidate.display_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         candidate.label.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        candidate.skills.some(skill => skill.name.toLowerCase().includes(searchTerm.toLowerCase()))
+        candidate.skills.some(skill => skill.skill.toLowerCase().includes(searchTerm.toLowerCase()))
       );
     }
 
@@ -61,7 +61,7 @@ export default function CandidateSearch() {
 
     if (skillsFilter) {
       filtered = filtered.filter(candidate =>
-        candidate.skills.some(skill => skill.name.toLowerCase().includes(skillsFilter.toLowerCase()))
+        candidate.skills.some(skill => skill.skill.toLowerCase().includes(skillsFilter.toLowerCase()))
       );
     }
 
@@ -325,7 +325,7 @@ export default function CandidateSearch() {
                   <div className="flex flex-wrap gap-1">
                     {candidate.skills.slice(0, 3).map((skill) => (
                       <Badge key={skill.id} variant="secondary" className="text-xs">
-                        {skill.name}
+                        {skill.skill}
                       </Badge>
                     ))}
                     {candidate.skills.length > 3 && (
@@ -414,7 +414,7 @@ export default function CandidateSearch() {
                   <div className="flex flex-wrap gap-1">
                     {selectedCandidate?.skills.map((skill) => (
                       <Badge key={skill.id} variant="secondary" className="text-xs">
-                        {skill.name}
+                        {skill.skill}
                       </Badge>
                     ))}
                   </div>
@@ -440,7 +440,7 @@ export default function CandidateSearch() {
                         location: selectedCandidate.location,
                         experience: selectedCandidate.experience,
                         education: selectedCandidate.education,
-                        skills: selectedCandidate.skills.map(skill => skill.name)
+                        skills: selectedCandidate.skills.map(skill => skill.skill)
                       }} 
                     />
                   )}

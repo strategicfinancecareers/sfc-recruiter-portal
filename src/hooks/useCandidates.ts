@@ -13,10 +13,11 @@ export interface Candidate {
   education: string;
   label: string;
   profile_description?: string;
-  is_favorite: boolean;
+  open_to_opportunities?: boolean;
   resume_full_url?: string;
   resume_redacted_url?: string;
-  skills: Array<{ id: string; name: string }>;
+  skills: Array<{ id: string; skill: string }>;
+  is_favorite?: boolean; // This will be computed based on user_favorites table
 }
 
 export function useCandidates() {
@@ -34,20 +35,34 @@ export function useCandidates() {
             skill_id,
             skills!inner(
               id,
-              name
+              skill
             )
           )
         `);
 
       if (candidatesError) throw candidatesError;
 
+      // Get user favorites
+      const { data: { user } } = await supabase.auth.getUser();
+      let userFavorites: string[] = [];
+      
+      if (user) {
+        const { data: favoritesData } = await supabase
+          .from('user_favorites')
+          .select('candidate_id')
+          .eq('user_id', user.id);
+        
+        userFavorites = favoritesData?.map(f => f.candidate_id) || [];
+      }
+
       // Transform the data to group skills by candidate
       const transformedCandidates = candidatesData?.map(candidate => ({
         ...candidate,
         skills: candidate.candidate_skills?.map((cs: any) => ({
           id: cs.skills.id,
-          name: cs.skills.name
-        })) || []
+          skill: cs.skills.skill
+        })) || [],
+        is_favorite: userFavorites.includes(candidate.id)
       })) || [];
 
       setCandidates(transformedCandidates);
@@ -68,12 +83,36 @@ export function useCandidates() {
       const candidate = candidates.find(c => c.id === candidateId);
       if (!candidate) return;
 
-      const { error } = await supabase
-        .from('candidates')
-        .update({ is_favorite: !candidate.is_favorite })
-        .eq('id', candidateId);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast({
+          title: "Error",
+          description: "You must be logged in to favorite candidates",
+          variant: "destructive",
+        });
+        return;
+      }
 
-      if (error) throw error;
+      if (candidate.is_favorite) {
+        // Remove from favorites
+        const { error } = await supabase
+          .from('user_favorites')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('candidate_id', candidateId);
+
+        if (error) throw error;
+      } else {
+        // Add to favorites
+        const { error } = await supabase
+          .from('user_favorites')
+          .insert({
+            user_id: user.id,
+            candidate_id: candidateId
+          });
+
+        if (error) throw error;
+      }
 
       setCandidates(prev => 
         prev.map(c => 

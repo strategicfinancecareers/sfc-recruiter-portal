@@ -58,10 +58,10 @@ export type Database = {
           email: string
           experience: number
           id: string
-          is_favorite: boolean
           label: string
           location: string
           name: string
+          open_to_opportunities: boolean | null
           phone: string | null
           profile_description: string | null
           resume_full_url: string | null
@@ -75,10 +75,10 @@ export type Database = {
           email: string
           experience: number
           id?: string
-          is_favorite?: boolean
           label: string
           location: string
           name: string
+          open_to_opportunities?: boolean | null
           phone?: string | null
           profile_description?: string | null
           resume_full_url?: string | null
@@ -92,10 +92,10 @@ export type Database = {
           email?: string
           experience?: number
           id?: string
-          is_favorite?: boolean
           label?: string
           location?: string
           name?: string
+          open_to_opportunities?: boolean | null
           phone?: string | null
           profile_description?: string | null
           resume_full_url?: string | null
@@ -129,19 +129,48 @@ export type Database = {
         Row: {
           created_at: string
           id: string
-          name: string
+          skill: string
         }
         Insert: {
           created_at?: string
           id?: string
-          name: string
+          skill: string
         }
         Update: {
           created_at?: string
           id?: string
-          name?: string
+          skill?: string
         }
         Relationships: []
+      }
+      user_favorites: {
+        Row: {
+          candidate_id: string
+          created_at: string | null
+          id: string
+          user_id: string
+        }
+        Insert: {
+          candidate_id: string
+          created_at?: string | null
+          id?: string
+          user_id: string
+        }
+        Update: {
+          candidate_id?: string
+          created_at?: string | null
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_favorites_candidate_id_fkey"
+            columns: ["candidate_id"]
+            isOneToOne: false
+            referencedRelation: "candidates"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       users: {
         Row: {

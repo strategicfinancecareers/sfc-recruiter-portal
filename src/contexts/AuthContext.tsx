@@ -121,14 +121,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         fetchProfile(session.user.id).then((profile) => {
           if (mounted) {
             setUser(profile);
+            // START: REMOVE THIS BEFORE DEPLOYING
+            console.log("✅ here?");
+            // END: REMOVE THIS BEFORE DEPLOYING
           }
         }).finally(() => {
           if (mounted) {
+            // START: REMOVE THIS BEFORE DEPLOYING
+            console.log("✅ Finished checking session/profile1");
+            // END: REMOVE THIS BEFORE DEPLOYING
             initializing = false;
             setIsLoading(false);
           }
         });
       } else {
+        // START: REMOVE THIS BEFORE DEPLOYING
+        console.log("✅ Finished checking session/profile2");
+        // END: REMOVE THIS BEFORE DEPLOYING
         initializing = false;
         setIsLoading(false);
       }

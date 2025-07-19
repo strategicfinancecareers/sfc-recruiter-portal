@@ -8,7 +8,9 @@ const Home = () => {
 
   // Redirect to dashboard if already logged in
   const { session, loading } = useSupabaseSession();
-
+  // START: REMOVE THIS BEFORE DEPLOYING
+  console.log('Loading:', loading, 'Session:', session);
+  // END: REMOVE THIS BEFORE DEPLOYING
   if (!loading && session) return <Navigate to="/dashboard" replace />;
   // Can load spinner instead of this, but it's not needed for now
   if (loading) return null;

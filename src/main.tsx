@@ -2,7 +2,7 @@ import { createRoot } from 'react-dom/client'
 import App from './App.tsx'
 import './index.css'
 
-// REMOVE THIS BEFORE DEPLOYING
+// START: REMOVE THIS BEFORE DEPLOYING
 import { supabase } from '@/integrations/supabase/client';
 
 if (import.meta.env.DEV) {
@@ -10,6 +10,6 @@ if (import.meta.env.DEV) {
 }
 (window as any).supabase = supabase;
 console.log('✅ Supabase attached to window.supabase');
-// REMOVE THIS BEFORE DEPLOYING
+// END: REMOVE THIS BEFORE DEPLOYING
 
 createRoot(document.getElementById("root")!).render(<App />);

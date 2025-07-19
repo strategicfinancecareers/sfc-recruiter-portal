@@ -70,7 +70,7 @@ const Login = () => {
             <Briefcase className="h-10 w-10 text-primary" />
           </div>
           <CardTitle className="text-2xl">Welcome Back</CardTitle>
-          <CardDescription>Sign in to your recruiter account</CardDescription>
+          <CardDescription>Log in to your recruiter account</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="mb-4 p-3 bg-muted/50 rounded-lg border">
@@ -110,7 +110,7 @@ const Login = () => {
               />
             </div>
             <Button type="submit" className="w-full" disabled={localLoading || isLoading}>
-              {(localLoading || isLoading) ? "Signing in..." : "Sign In"}
+              {(localLoading || isLoading) ? "Logging in..." : "Log In"}
             </Button>
           </form>
           

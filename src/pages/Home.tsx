@@ -49,7 +49,7 @@ const Home = () => {
             </Link>
             <Link to="/login">
               <Button size="lg" variant="outline">
-                Sign In
+                Log In
               </Button>
             </Link>
           </div>

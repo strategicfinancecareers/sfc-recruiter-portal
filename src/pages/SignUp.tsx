@@ -182,7 +182,7 @@ const SignUp = () => {
           <p className="text-sm text-muted-foreground text-center w-full">
             Already have an account?{" "}
             <Link to="/login" className="text-primary hover:underline">
-              Sign in
+              Log in
             </Link>
           </p>
         </CardFooter>

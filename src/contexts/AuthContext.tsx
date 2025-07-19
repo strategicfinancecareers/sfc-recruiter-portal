@@ -113,6 +113,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
+      // START: REMOVE THIS BEFORE DEPLOYING
+      console.log("✅ are we making it to get session?");
+      // END: REMOVE THIS BEFORE DEPLOYING
       if (!mounted) return;
       
       console.log('Initial session check:', !!session);
@@ -121,14 +124,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         fetchProfile(session.user.id).then((profile) => {
           if (mounted) {
             setUser(profile);
+            // START: REMOVE THIS BEFORE DEPLOYING
+            console.log("✅ here?");
+            // END: REMOVE THIS BEFORE DEPLOYING
           }
         }).finally(() => {
           if (mounted) {
+            // START: REMOVE THIS BEFORE DEPLOYING
+            console.log("✅ Finished checking session/profile1");
+            // END: REMOVE THIS BEFORE DEPLOYING
             initializing = false;
             setIsLoading(false);
           }
         });
       } else {
+        // START: REMOVE THIS BEFORE DEPLOYING
+        console.log("✅ Finished checking session/profile2");
+        // END: REMOVE THIS BEFORE DEPLOYING
         initializing = false;
         setIsLoading(false);
       }

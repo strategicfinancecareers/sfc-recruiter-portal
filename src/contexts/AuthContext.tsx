@@ -113,6 +113,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
+      // START: REMOVE THIS BEFORE DEPLOYING
+      console.log("✅ are we making it to get session?");
+      // END: REMOVE THIS BEFORE DEPLOYING
       if (!mounted) return;
       
       console.log('Initial session check:', !!session);

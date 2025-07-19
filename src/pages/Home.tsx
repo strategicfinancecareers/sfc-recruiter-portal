@@ -1,9 +1,18 @@
 
+import { useSupabaseSession } from "@/integrations/supabase/hooks"; // Adjust based on your project
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Users, Briefcase, Star } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 
 const Home = () => {
+
+  // Redirect to dashboard if already logged in
+  const { session, loading } = useSupabaseSession();
+
+  if (!loading && session) return <Navigate to="/dashboard" replace />;
+  // Can load spinner instead of this, but it's not needed for now
+  if (loading) return null;
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100">
       {/* Header */}

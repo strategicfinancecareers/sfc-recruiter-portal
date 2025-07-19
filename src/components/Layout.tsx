@@ -106,7 +106,7 @@ const Layout = () => {
             className={`${sidebarOpen ? 'w-full justify-start' : 'w-10 h-10 p-0'} text-muted-foreground hover:text-foreground hover:bg-accent`}
           >
             <LogOut className={`h-5 w-5 ${sidebarOpen ? 'mr-2' : ''}`} />
-            {sidebarOpen && 'Sign Out'}
+            {sidebarOpen && 'Log Out'}
           </Button>
         </div>
       </div>

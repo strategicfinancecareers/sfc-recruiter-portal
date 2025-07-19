@@ -1,4 +1,6 @@
 
+import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { useSupabaseSession } from "@/integrations/supabase/hooks"; // Adjust based on your project
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Users, Briefcase, Star } from "lucide-react";
@@ -8,10 +10,18 @@ const Home = () => {
 
   // Redirect to dashboard if already logged in
   const { session, loading } = useSupabaseSession();
+  const navigate = useNavigate();
+
   // START: REMOVE THIS BEFORE DEPLOYING
   console.log('Loading:', loading, 'Session:', session);
   // END: REMOVE THIS BEFORE DEPLOYING
-  if (!loading && session) return <Navigate to="/dashboard" replace />;
+
+  useEffect(() => {
+    if (!loading && session) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [session, loading, navigate]);
+  
   // Can load spinner instead of this, but it's not needed for now
   if (loading) return null;
 

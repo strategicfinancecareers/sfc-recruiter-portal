@@ -10,6 +10,9 @@ interface ProtectedRouteProps {
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requireAdmin = false }) => {
   const { user, isLoading } = useAuth();
 
+  // prevent premature redirect
+  if (isLoading) return null;  
+  
   if (!user) {
     return <Navigate to="/login" replace />;
   }

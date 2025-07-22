@@ -26,6 +26,7 @@ interface User {
   role_id: string;
   created_at: string;
   has_accepted_terms: boolean;
+  is_active?: boolean;
 }
 
 interface Candidate {
@@ -96,6 +97,7 @@ const Admin = () => {
   const [loading, setLoading] = useState(true);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [showDeactivateConfirm, setShowDeactivateConfirm] = useState<User | null>(null);
+  const [showRoleChangeConfirm, setShowRoleChangeConfirm] = useState<boolean>(false);
   const [newRoleId, setNewRoleId] = useState<string>('');
 
   // Form state for candidate
@@ -184,6 +186,11 @@ const Admin = () => {
     fetchData();
   }, [toast]);
 
+  const handleRoleChangeRequest = () => {
+    if (!editingUser || !newRoleId || newRoleId === editingUser.role_id) return;
+    setShowRoleChangeConfirm(true);
+  };
+
   const updateUserRole = async () => {
     if (!editingUser || !newRoleId) return;
 
@@ -220,6 +227,7 @@ const Admin = () => {
     } finally {
       setEditingUser(null);
       setNewRoleId('');
+      setShowRoleChangeConfirm(false);
     }
   };
 
@@ -227,10 +235,23 @@ const Admin = () => {
     if (!showDeactivateConfirm) return;
 
     try {
-      // For now, we'll just show a toast as deactivation would require additional database setup
+      const { error } = await supabase
+        .from('users')
+        .update({ is_active: false })
+        .eq('id', showDeactivateConfirm.id);
+
+      if (error) throw error;
+
+      // Update local state to show user as deactivated
+      setUsers(prev => prev.map(user => 
+        user.id === showDeactivateConfirm.id 
+          ? { ...user, is_active: false }
+          : user
+      ));
+
       toast({
         title: "User deactivated",
-        description: `${showDeactivateConfirm.first_name} ${showDeactivateConfirm.last_name} has been deactivated.`,
+        description: `${showDeactivateConfirm.first_name} ${showDeactivateConfirm.last_name} has been deactivated and can no longer log in.`,
       });
     } catch (error) {
       console.error('Error deactivating user:', error);
@@ -496,8 +517,8 @@ const Admin = () => {
                             <Badge variant="secondary">
                               {userItem.role}
                             </Badge>
-                            <Badge className="bg-green-100 text-green-800">
-                              Active
+                            <Badge className={userItem.is_active === false ? "bg-red-100 text-red-800" : "bg-green-100 text-green-800"}>
+                              {userItem.is_active === false ? 'Inactive' : 'Active'}
                             </Badge>
                             <Settings className="h-4 w-4 text-muted-foreground" />
                           </div>
@@ -851,12 +872,31 @@ TalentConnect Team"
               <Button variant="outline" onClick={() => setEditingUser(null)}>
                 Cancel
               </Button>
-              <Button onClick={updateUserRole} disabled={!newRoleId || newRoleId === editingUser?.role_id}>
+              <Button onClick={handleRoleChangeRequest} disabled={!newRoleId || newRoleId === editingUser?.role_id}>
                 Update Role
               </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Role Change Confirmation Dialog */}
+        <AlertDialog open={showRoleChangeConfirm} onOpenChange={setShowRoleChangeConfirm}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Confirm Role Change</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to change {editingUser?.first_name} {editingUser?.last_name}'s role to "{roles.find(r => r.id === newRoleId)?.name}"?
+                This will immediately update their permissions in the system.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setShowRoleChangeConfirm(false)}>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={updateUserRole}>
+                Yes, Update Role
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         {/* Deactivate User Confirmation Dialog */}
         <AlertDialog open={!!showDeactivateConfirm} onOpenChange={() => setShowDeactivateConfirm(null)}>

@@ -64,6 +64,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (data) {
         console.log('Profile found:', data);
+        
+        // Check if user is active
+        if (data.is_active === false) {
+          console.log('User account is deactivated');
+          // Sign out the deactivated user
+          await supabase.auth.signOut();
+          toast({
+            title: "Account Deactivated",
+            description: "Your account has been deactivated. Please contact an administrator.",
+            variant: "destructive",
+          });
+          return null;
+        }
+        
         const role = data.roles?.name as 'recruiter' | 'admin' | 'candidate' || 'recruiter';
         return {
           ...data,

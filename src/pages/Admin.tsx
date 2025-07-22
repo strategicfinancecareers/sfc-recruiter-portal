@@ -582,16 +582,44 @@ const Admin = () => {
     setSkillInput('');
   };
 
-  const toggleCandidateOpportunities = (candidateId: string) => {
-    setCandidates(prev => prev.map(candidate =>
-      candidate.id === candidateId
-        ? { 
-            ...candidate, 
-            open_to_opportunities: !candidate.open_to_opportunities,
-            updated_at: new Date().toISOString()
-          }
-        : candidate
-    ));
+  const toggleCandidateOpportunities = async (candidateId: string) => {
+    try {
+      const candidate = candidates.find(c => c.id === candidateId);
+      if (!candidate) return;
+
+      const newStatus = !candidate.open_to_opportunities;
+
+      // Update in database
+      const { error } = await supabase
+        .from('candidates')
+        .update({ open_to_opportunities: newStatus })
+        .eq('id', candidateId);
+
+      if (error) throw error;
+
+      // Update local state
+      setCandidates(prev => prev.map(c =>
+        c.id === candidateId
+          ? { 
+              ...c, 
+              open_to_opportunities: newStatus,
+              updated_at: new Date().toISOString()
+            }
+          : c
+      ));
+
+      toast({
+        title: "Status updated",
+        description: `${candidate.name} is now ${newStatus ? 'open to opportunities' : 'not available'}.`,
+      });
+    } catch (error) {
+      console.error('Error updating candidate status:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update candidate status",
+        variant: "destructive",
+      });
+    }
   };
 
 

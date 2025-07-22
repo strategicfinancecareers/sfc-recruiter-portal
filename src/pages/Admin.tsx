@@ -98,6 +98,7 @@ const Admin = () => {
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [showDeactivateConfirm, setShowDeactivateConfirm] = useState<User | null>(null);
   const [showRoleChangeConfirm, setShowRoleChangeConfirm] = useState<boolean>(false);
+  const [showReactivateConfirm, setShowReactivateConfirm] = useState<User | null>(null);
   const [newRoleId, setNewRoleId] = useState<string>('');
 
   // Form state for candidate
@@ -262,6 +263,40 @@ const Admin = () => {
       });
     } finally {
       setShowDeactivateConfirm(null);
+    }
+  };
+
+  const reactivateUser = async () => {
+    if (!showReactivateConfirm) return;
+
+    try {
+      const { error } = await supabase
+        .from('users')
+        .update({ is_active: true })
+        .eq('id', showReactivateConfirm.id);
+
+      if (error) throw error;
+
+      // Update local state to show user as active
+      setUsers(prev => prev.map(user => 
+        user.id === showReactivateConfirm.id 
+          ? { ...user, is_active: true }
+          : user
+      ));
+
+      toast({
+        title: "User reactivated",
+        description: `${showReactivateConfirm.first_name} ${showReactivateConfirm.last_name} has been reactivated and can now log in.`,
+      });
+    } catch (error) {
+      console.error('Error reactivating user:', error);
+      toast({
+        title: "Error",
+        description: "Failed to reactivate user",
+        variant: "destructive",
+      });
+    } finally {
+      setShowReactivateConfirm(null);
     }
   };
 
@@ -487,45 +522,87 @@ const Admin = () => {
               <div className="space-y-6">
                 <h2 className="text-xl font-semibold">User Management</h2>
                 
-                <div className="grid grid-cols-1 gap-4">
-                  {users.map((userItem) => (
-                    <Card 
-                      key={userItem.id} 
-                      className={`cursor-pointer hover:shadow-md transition-shadow ${userItem.id === user?.id ? "border-primary bg-primary/5" : ""}`}
-                      onClick={() => handleUserEdit(userItem)}
-                    >
-                      <CardContent className="pt-6">
-                        <div className="flex justify-between items-center">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2">
-                              <h3 className="font-semibold">
-                                {userItem.first_name} {userItem.last_name}
-                              </h3>
-                              {userItem.id === user?.id && (
-                                <Badge variant="outline" className="text-xs">
-                                  You
+                {/* Current User Section */}
+                {user && (
+                  <div className="mb-6">
+                    <h3 className="text-lg font-medium mb-3 text-primary">Your Account</h3>
+                    {(() => {
+                      const currentUser = users.find(u => u.id === user.id);
+                      if (!currentUser) return null;
+                      
+                      return (
+                        <Card className="border-primary bg-primary/5">
+                          <CardContent className="pt-6">
+                            <div className="flex justify-between items-center">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2">
+                                  <h3 className="font-semibold">
+                                    {currentUser.first_name} {currentUser.last_name}
+                                  </h3>
+                                  <Badge variant="outline" className="text-xs">
+                                    You
+                                  </Badge>
+                                </div>
+                                <p className="text-sm text-gray-600">{currentUser.email}</p>
+                                <div className="flex items-center space-x-4 mt-2 text-sm text-gray-500">
+                                  <span>Joined: {new Date(currentUser.created_at).toLocaleDateString()}</span>
+                                  <span>Terms accepted: {currentUser.has_accepted_terms ? 'Yes' : 'No'}</span>
+                                </div>
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                <Badge variant="secondary">
+                                  {currentUser.role}
                                 </Badge>
-                              )}
+                                <Badge className={currentUser.is_active === false ? "bg-red-100 text-red-800" : "bg-green-100 text-green-800"}>
+                                  {currentUser.is_active === false ? 'Inactive' : 'Active'}
+                                </Badge>
+                              </div>
                             </div>
-                            <p className="text-sm text-gray-600">{userItem.email}</p>
-                            <div className="flex items-center space-x-4 mt-2 text-sm text-gray-500">
-                              <span>Joined: {new Date(userItem.created_at).toLocaleDateString()}</span>
-                              <span>Terms accepted: {userItem.has_accepted_terms ? 'Yes' : 'No'}</span>
+                          </CardContent>
+                        </Card>
+                      );
+                    })()}
+                  </div>
+                )}
+                
+                {/* Other Users Section */}
+                <div>
+                  <h3 className="text-lg font-medium mb-3">Other Users</h3>
+                  <div className="grid grid-cols-1 gap-4">
+                    {users.filter(userItem => userItem.id !== user?.id).map((userItem) => (
+                      <Card 
+                        key={userItem.id} 
+                        className="cursor-pointer hover:shadow-md transition-shadow"
+                        onClick={() => handleUserEdit(userItem)}
+                      >
+                        <CardContent className="pt-6">
+                          <div className="flex justify-between items-center">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <h3 className="font-semibold">
+                                  {userItem.first_name} {userItem.last_name}
+                                </h3>
+                              </div>
+                              <p className="text-sm text-gray-600">{userItem.email}</p>
+                              <div className="flex items-center space-x-4 mt-2 text-sm text-gray-500">
+                                <span>Joined: {new Date(userItem.created_at).toLocaleDateString()}</span>
+                                <span>Terms accepted: {userItem.has_accepted_terms ? 'Yes' : 'No'}</span>
+                              </div>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <Badge variant="secondary">
+                                {userItem.role}
+                              </Badge>
+                              <Badge className={userItem.is_active === false ? "bg-red-100 text-red-800" : "bg-green-100 text-green-800"}>
+                                {userItem.is_active === false ? 'Inactive' : 'Active'}
+                              </Badge>
+                              <Settings className="h-4 w-4 text-muted-foreground" />
                             </div>
                           </div>
-                          <div className="flex items-center space-x-2">
-                            <Badge variant="secondary">
-                              {userItem.role}
-                            </Badge>
-                            <Badge className={userItem.is_active === false ? "bg-red-100 text-red-800" : "bg-green-100 text-green-800"}>
-                              {userItem.is_active === false ? 'Inactive' : 'Active'}
-                            </Badge>
-                            <Settings className="h-4 w-4 text-muted-foreground" />
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
                 </div>
               </div>
             </TabsContent>
@@ -853,19 +930,36 @@ TalentConnect Team"
               <div className="border-t pt-4">
                 <Label className="text-destructive">Danger Zone</Label>
                 <p className="text-sm text-muted-foreground mb-4">
-                  This action will deactivate the user's account
+                  {editingUser?.is_active === false 
+                    ? "This user's account is currently deactivated"
+                    : "This action will deactivate the user's account"
+                  }
                 </p>
-                <Button 
-                  variant="destructive" 
-                  className="w-full"
-                  onClick={() => {
-                    setShowDeactivateConfirm(editingUser);
-                    setEditingUser(null);
-                  }}
-                >
-                  <UserX className="mr-2 h-4 w-4" />
-                  Deactivate User
-                </Button>
+                {editingUser?.is_active === false ? (
+                  <Button 
+                    variant="default" 
+                    className="w-full bg-green-600 hover:bg-green-700"
+                    onClick={() => {
+                      setShowReactivateConfirm(editingUser);
+                      setEditingUser(null);
+                    }}
+                  >
+                    <UserPlus className="mr-2 h-4 w-4" />
+                    Reactivate User
+                  </Button>
+                ) : (
+                  <Button 
+                    variant="destructive" 
+                    className="w-full"
+                    onClick={() => {
+                      setShowDeactivateConfirm(editingUser);
+                      setEditingUser(null);
+                    }}
+                  >
+                    <UserX className="mr-2 h-4 w-4" />
+                    Deactivate User
+                  </Button>
+                )}
               </div>
             </div>
             <DialogFooter>
@@ -915,6 +1009,28 @@ TalentConnect Team"
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               >
                 Yes, Deactivate User
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Reactivate User Confirmation Dialog */}
+        <AlertDialog open={!!showReactivateConfirm} onOpenChange={() => setShowReactivateConfirm(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="text-green-600">Reactivate User Account</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to reactivate {showReactivateConfirm?.first_name} {showReactivateConfirm?.last_name}'s account? 
+                This will allow them to access the system again.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction 
+                onClick={reactivateUser}
+                className="bg-green-600 text-white hover:bg-green-700"
+              >
+                Yes, Reactivate User
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

@@ -9,115 +9,53 @@ import { Heart, Handshake, MapPin, GraduationCap, Calendar, Eye, X } from "lucid
 
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { useCandidates } from "../hooks/useCandidates";
 import TermsDialog from "../components/TermsDialog";
 
-interface Candidate {
-  id: string;
-  name: string;
-  displayName: string;
-  label: string;
-  description: string;
-  location: string;
-  experience: number;
-  education: string;
-  skills: string[];
-  isFavorite: boolean;
+interface LocalCandidate {
   isSelected: boolean;
-  uniqueIdentifier: string;
 }
-
-// Generate anonymous candidate names based on their qualifications
-const generateDisplayName = (candidate: any, index: number) => {
-  const seniorityMap: { [key: number]: string } = {
-    1: "Junior", 2: "Junior", 3: "Mid-level", 4: "Mid-level", 
-    5: "Senior", 6: "Senior", 7: "Lead", 8: "Lead"
-  };
-  
-  const seniority = seniorityMap[Math.min(candidate.experience, 8)] || "Senior";
-  const primarySkill = candidate.skills[0] || "Tech";
-  const locationCode = candidate.location.split(',')[1]?.trim().substring(0, 2) || candidate.location.substring(0, 2);
-  
-  return `${seniority} ${primarySkill} Professional (${locationCode})`;
-};
-
-// This would typically come from a global state or API
-const mockFavoriteCandidates: Candidate[] = [
-  {
-    id: '1',
-    name: 'Sarah Johnson',
-    displayName: '',
-    label: 'Senior Full Stack Developer',
-    description: 'Experienced developer specializing in React and Node.js with a passion for creating scalable web applications.',
-    location: 'San Francisco, CA',
-    experience: 5,
-    education: 'Bachelor\'s',
-    skills: ['React', 'Node.js', 'TypeScript', 'AWS'],
-    isFavorite: true,
-    isSelected: false,
-    uniqueIdentifier: 'SR-REACT-SF-5Y'
-  },
-  {
-    id: '3',
-    name: 'Emily Rodriguez',
-    displayName: '',
-    label: 'UX/UI Designer',
-    description: 'Creative designer focused on user-centered design principles and modern interface development.',
-    location: 'Austin, TX',
-    experience: 4,
-    education: 'Bachelor\'s',
-    skills: ['Figma', 'Adobe Creative Suite', 'Prototyping', 'User Research'],
-    isFavorite: true,
-    isSelected: false,
-    uniqueIdentifier: 'ML-FIGMA-TX-4Y'
-  },
-].map((candidate, index) => ({
-  ...candidate,
-  displayName: generateDisplayName(candidate, index)
-}));
 
 const Favorites = () => {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [candidates, setCandidates] = useState<Candidate[]>(mockFavoriteCandidates);
+  const { candidates: allCandidates, loading, toggleFavorite: toggleCandidateFavorite } = useCandidates();
+  const [localState, setLocalState] = useState<Record<string, LocalCandidate>>({});
   const [selectMode, setSelectMode] = useState(false);
-  const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
+  const [selectedCandidate, setSelectedCandidate] = useState<any>(null);
   const [showTermsDialog, setShowTermsDialog] = useState(false);
   const [pendingIntroductions, setPendingIntroductions] = useState<string[]>([]);
 
-  const toggleFavorite = (candidateId: string) => {
-    setCandidates(prev => {
-      const updated = prev.map(candidate =>
-        candidate.id === candidateId
-          ? { ...candidate, isFavorite: !candidate.isFavorite }
-          : candidate
-      );
-      
-      // Remove from favorites list if unfavorited
-      return updated.filter(candidate => candidate.isFavorite);
-    });
+  // Filter to only show favorited candidates
+  const favoriteCandidates = allCandidates.filter(candidate => candidate.is_favorite);
+
+  const toggleFavorite = async (candidateId: string) => {
+    await toggleCandidateFavorite(candidateId);
     
-    const candidate = candidates.find(c => c.id === candidateId);
+    const candidate = favoriteCandidates.find(c => c.id === candidateId);
     if (candidate) {
       toast({
         title: "Removed from favorites",
-        description: `${candidate.displayName} removed from your favorites.`,
+        description: `${candidate.display_name} removed from your favorites.`,
       });
     }
   };
 
   const toggleSelect = (candidateId: string) => {
-    setCandidates(prev => prev.map(candidate =>
-      candidate.id === candidateId
-        ? { ...candidate, isSelected: !candidate.isSelected }
-        : candidate
-    ));
+    setLocalState(prev => ({
+      ...prev,
+      [candidateId]: {
+        ...prev[candidateId],
+        isSelected: !prev[candidateId]?.isSelected
+      }
+    }));
   };
 
   const getSelectedCount = () => {
-    return candidates.filter(c => c.isSelected).length;
+    return Object.values(localState).filter(state => state.isSelected).length;
   };
 
-  const handleIntroduceMe = (candidate: Candidate) => {
+  const handleIntroduceMe = (candidate: any) => {
     if (!user?.has_accepted_terms) {
       setShowTermsDialog(true);
       return;
@@ -133,25 +71,25 @@ const Favorites = () => {
   };
 
   const handleBulkIntroduce = () => {
-    const selectedCandidates = candidates.filter(c => c.isSelected);
-    if (selectedCandidates.length === 0) return;
+    const selectedCandidateIds = Object.keys(localState).filter(id => localState[id]?.isSelected);
+    if (selectedCandidateIds.length === 0) return;
 
     if (!user?.has_accepted_terms) {
       setShowTermsDialog(true);
       return;
     }
 
-    selectedCandidates.forEach(candidate => {
-      setPendingIntroductions(prev => [...prev, candidate.id]);
+    selectedCandidateIds.forEach(candidateId => {
+      setPendingIntroductions(prev => [...prev, candidateId]);
     });
 
     // Deselect all
-    setCandidates(prev => prev.map(candidate => ({ ...candidate, isSelected: false })));
+    setLocalState({});
     setSelectMode(false);
 
     toast({
       title: "Introduction requests sent",
-      description: `Sent introduction requests for ${selectedCandidates.length} candidates. You'll receive updates via email.`,
+      description: `Sent introduction requests for ${selectedCandidateIds.length} candidates. You'll receive updates via email.`,
     });
   };
 
@@ -186,8 +124,15 @@ const Favorites = () => {
             </div>
           </div>
 
+          {/* Loading State */}
+          {loading && (
+            <div className="flex justify-center items-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
+          )}
+
           {/* Selection Controls */}
-          {candidates.length > 0 && (
+          {!loading && favoriteCandidates.length > 0 && (
             <div className="flex justify-between items-center mb-6">
               <div className="flex items-center space-x-4">
                 <Button
@@ -196,7 +141,7 @@ const Favorites = () => {
                     setSelectMode(!selectMode);
                     if (!selectMode) {
                       // Clear selections when entering select mode
-                      setCandidates(prev => prev.map(c => ({ ...c, isSelected: false })));
+                      setLocalState({});
                     }
                   }}
                 >
@@ -217,30 +162,30 @@ const Favorites = () => {
                 )}
               </div>
               <div className="text-sm text-gray-600">
-                {candidates.length} favorite{candidates.length !== 1 ? 's' : ''}
+                {favoriteCandidates.length} favorite{favoriteCandidates.length !== 1 ? 's' : ''}
               </div>
             </div>
           )}
 
           {/* Candidates Grid */}
-          {candidates.length === 0 ? (
+          {!loading && favoriteCandidates.length === 0 ? (
             <Card>
               <CardContent className="text-center py-12">
                 <div className="text-gray-400 mb-4">
                   <Heart className="h-12 w-12 mx-auto" />
                 </div>
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No favorite candidates yet</h3>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">You have not favorited any candidates yet</h3>
                 <p className="text-gray-600 mb-4">
                   Start browsing candidates and add them to your favorites for easy access.
                 </p>
-                <Button onClick={() => window.location.href = '/candidate-search'}>
+                <Button onClick={() => window.location.href = '/browse'}>
                   Browse Candidates
                 </Button>
               </CardContent>
             </Card>
-          ) : (
+          ) : !loading ? (
             <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-              {candidates.map((candidate) => (
+              {favoriteCandidates.map((candidate) => (
                 <Card
                   key={candidate.id}
                   className={`transition-all duration-200 hover:shadow-lg ring-2 ring-primary/20 bg-accent/50 ${
@@ -250,7 +195,7 @@ const Favorites = () => {
                   <CardHeader className="pb-3">
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
-                        <CardTitle className="text-lg font-heading">{candidate.displayName}</CardTitle>
+                        <CardTitle className="text-lg font-heading">{candidate.display_name}</CardTitle>
                         {user?.role === 'admin' && (
                           <p className="text-sm text-muted-foreground">{candidate.name}</p>
                         )}
@@ -258,15 +203,15 @@ const Favorites = () => {
                           {candidate.label}
                         </CardDescription>
                         <Badge variant="outline" className="mt-1 text-xs">
-                          ID: {candidate.uniqueIdentifier}
+                          ID: {candidate.id}
                         </Badge>
                       </div>
                       <div className="flex items-center space-x-2">
                         {selectMode && (
                           <Checkbox
-                            checked={candidate.isSelected}
+                            checked={localState[candidate.id]?.isSelected || false}
                             onCheckedChange={() => toggleSelect(candidate.id)}
-                            disabled={!candidate.isSelected && getSelectedCount() >= 5}
+                            disabled={!localState[candidate.id]?.isSelected && getSelectedCount() >= 5}
                           />
                         )}
                         <Button
@@ -281,7 +226,7 @@ const Favorites = () => {
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <p className="text-sm text-gray-600">{candidate.description}</p>
+                    <p className="text-sm text-gray-600">{candidate.profile_description}</p>
                     
                     <div className="space-y-2">
                       <div className="flex items-center text-sm text-gray-500">
@@ -299,9 +244,9 @@ const Favorites = () => {
                     </div>
 
                     <div className="flex flex-wrap gap-1">
-                      {candidate.skills.slice(0, 3).map((skill) => (
-                        <Badge key={skill} variant="secondary" className="text-xs">
-                          {skill}
+                      {candidate.skills.slice(0, 3).map((skill: any) => (
+                        <Badge key={skill.id} variant="secondary" className="text-xs">
+                          {skill.skill}
                         </Badge>
                       ))}
                       {candidate.skills.length > 3 && (
@@ -342,7 +287,7 @@ const Favorites = () => {
                 </Card>
               ))}
             </div>
-          )}
+          ) : null}
         </div>
       </div>
 
@@ -352,13 +297,13 @@ const Favorites = () => {
           <DialogHeader>
             <div className="flex items-center justify-between">
               <div>
-                <DialogTitle className="font-heading">{selectedCandidate?.displayName}</DialogTitle>
+                <DialogTitle className="font-heading">{selectedCandidate?.display_name}</DialogTitle>
                 {user?.role === 'admin' && (
                   <p className="text-sm text-muted-foreground">{selectedCandidate?.name}</p>
                 )}
                 <DialogDescription>{selectedCandidate?.label}</DialogDescription>
                 <Badge variant="outline" className="mt-1 text-xs">
-                  ID: {selectedCandidate?.uniqueIdentifier}
+                  ID: {selectedCandidate?.id}
                 </Badge>
               </div>
               <Button
@@ -373,7 +318,7 @@ const Favorites = () => {
           <div className="mt-4 space-y-4">
             <div className="bg-gray-100 p-4 rounded-lg">
               <h4 className="font-medium mb-2">Professional Summary</h4>
-              <p className="text-sm text-gray-600">{selectedCandidate?.description}</p>
+              <p className="text-sm text-gray-600">{selectedCandidate?.profile_description}</p>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -391,9 +336,9 @@ const Favorites = () => {
               <div>
                 <h4 className="font-medium mb-2">Skills</h4>
                 <div className="flex flex-wrap gap-1">
-                  {selectedCandidate?.skills.map((skill) => (
-                    <Badge key={skill} variant="secondary" className="text-xs">
-                      {skill}
+                  {selectedCandidate?.skills?.map((skill: any) => (
+                    <Badge key={skill.id} variant="secondary" className="text-xs">
+                      {skill.skill}
                     </Badge>
                   ))}
                 </div>

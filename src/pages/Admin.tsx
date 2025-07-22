@@ -11,7 +11,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Edit2, Trash2, Users, UserPlus, Eye, Settings, Mail, UserX } from "lucide-react";
+import { Plus, Edit2, Trash2, Users, UserPlus, Eye, Settings, Mail, UserX, X } from "lucide-react";
 
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from '@/integrations/supabase/client';
@@ -34,6 +34,7 @@ interface Candidate {
   name: string;
   display_name: string;
   email: string;
+  phone?: string;
   label: string;
   profile_description?: string;
   location: string;
@@ -110,9 +111,14 @@ const Admin = () => {
     location: '',
     experience: '',
     education: '',
-    skills: '',
     openToOpportunities: true,
   });
+  
+  // Skills management state
+  const [availableSkills, setAvailableSkills] = useState<Array<{ id: string; skill: string }>>([]);
+  const [selectedSkills, setSelectedSkills] = useState<Array<{ id: string; skill: string }>>([]);
+  const [skillInput, setSkillInput] = useState('');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<Candidate | null>(null);
 
   // Fetch users and candidates data
   useEffect(() => {
@@ -300,6 +306,25 @@ const Admin = () => {
     }
   };
 
+  // Fetch all skills on component mount
+  useEffect(() => {
+    const fetchSkills = async () => {
+      try {
+        const { data: skillsData, error } = await supabase
+          .from('skills')
+          .select('*')
+          .order('skill');
+        
+        if (error) throw error;
+        setAvailableSkills(skillsData || []);
+      } catch (error) {
+        console.error('Error fetching skills:', error);
+      }
+    };
+
+    fetchSkills();
+  }, []);
+
   const resetCandidateForm = () => {
     setCandidateForm({
       name: '',
@@ -309,9 +334,9 @@ const Admin = () => {
       location: '',
       experience: '',
       education: '',
-      skills: '',
       openToOpportunities: true,
     });
+    setSelectedSkills([]);
     setEditingCandidate(null);
   };
 
@@ -326,27 +351,235 @@ const Admin = () => {
         location: candidate.location,
         experience: candidate.experience.toString(),
         education: candidate.education,
-        skills: candidate.skills.map(s => s.skill).join(', '),
         openToOpportunities: candidate.open_to_opportunities,
       });
+      setSelectedSkills(candidate.skills || []);
     } else {
       resetCandidateForm();
     }
     setShowCandidateForm(true);
   };
 
-  const handleCandidateSubmit = (e: React.FormEvent) => {
+  const handleCandidateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // This is just for UI purposes - in a real app, you'd make API calls
-    toast({
-      title: "Feature not implemented",
-      description: "Candidate editing requires backend API implementation",
-      variant: "destructive",
-    });
+    try {
+      if (editingCandidate) {
+        // Update existing candidate
+        const { error: candidateError } = await supabase
+          .from('candidates')
+          .update({
+            name: candidateForm.name,
+            display_name: candidateForm.name,
+            email: candidateForm.email,
+            label: candidateForm.label,
+            profile_description: candidateForm.description,
+            location: candidateForm.location,
+            experience: parseInt(candidateForm.experience),
+            education: candidateForm.education,
+            open_to_opportunities: candidateForm.openToOpportunities,
+          })
+          .eq('id', editingCandidate.id);
+
+        if (candidateError) throw candidateError;
+
+        // Delete existing skills
+        await supabase
+          .from('candidate_skills')
+          .delete()
+          .eq('candidate_id', editingCandidate.id);
+
+        // Add new skills
+        if (selectedSkills.length > 0) {
+          const { error: skillsError } = await supabase
+            .from('candidate_skills')
+            .insert(
+              selectedSkills.map(skill => ({
+                candidate_id: editingCandidate.id,
+                skill_id: skill.id
+              }))
+            );
+
+          if (skillsError) throw skillsError;
+        }
+
+        // Update local state
+        setCandidates(prev => prev.map(c => 
+          c.id === editingCandidate.id 
+            ? {
+                ...c,
+                name: candidateForm.name,
+                display_name: candidateForm.name,
+                email: candidateForm.email,
+                label: candidateForm.label,
+                profile_description: candidateForm.description,
+                location: candidateForm.location,
+                experience: parseInt(candidateForm.experience),
+                education: candidateForm.education,
+                open_to_opportunities: candidateForm.openToOpportunities,
+                skills: selectedSkills,
+                updated_at: new Date().toISOString()
+              }
+            : c
+        ));
+
+        toast({
+          title: "Candidate updated",
+          description: "Candidate information has been updated successfully.",
+        });
+      } else {
+        // Create new candidate
+        const { data: newCandidate, error: candidateError } = await supabase
+          .from('candidates')
+          .insert({
+            name: candidateForm.name,
+            display_name: candidateForm.name,
+            email: candidateForm.email,
+            label: candidateForm.label,
+            profile_description: candidateForm.description,
+            location: candidateForm.location,
+            experience: parseInt(candidateForm.experience),
+            education: candidateForm.education,
+            open_to_opportunities: candidateForm.openToOpportunities,
+          })
+          .select()
+          .single();
+
+        if (candidateError) throw candidateError;
+
+        // Add skills if any
+        if (selectedSkills.length > 0 && newCandidate) {
+          const { error: skillsError } = await supabase
+            .from('candidate_skills')
+            .insert(
+              selectedSkills.map(skill => ({
+                candidate_id: newCandidate.id,
+                skill_id: skill.id
+              }))
+            );
+
+          if (skillsError) throw skillsError;
+        }
+
+        // Add to local state
+        setCandidates(prev => [...prev, {
+          ...newCandidate,
+          skills: selectedSkills
+        }]);
+
+        toast({
+          title: "Candidate added",
+          description: "New candidate has been added successfully.",
+        });
+      }
+    } catch (error) {
+      console.error('Error saving candidate:', error);
+      toast({
+        title: "Error",
+        description: "Failed to save candidate information",
+        variant: "destructive",
+      });
+    }
     
     setShowCandidateForm(false);
     resetCandidateForm();
+  };
+
+  const handleDeleteCandidate = async (candidate: Candidate) => {
+    try {
+      const { error } = await supabase
+        .from('candidates')
+        .delete()
+        .eq('id', candidate.id);
+
+      if (error) throw error;
+
+      setCandidates(prev => prev.filter(c => c.id !== candidate.id));
+      setShowDeleteConfirm(null);
+
+      toast({
+        title: "Candidate deleted",
+        description: "Candidate has been permanently removed from the system.",
+      });
+    } catch (error) {
+      console.error('Error deleting candidate:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete candidate",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleSkillInputKeyDown = async (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      await addSkillFromInput();
+    }
+  };
+
+  const addSkillFromInput = async () => {
+    const trimmedInput = skillInput.trim().toLowerCase();
+    if (!trimmedInput) return;
+
+    // Check if skill already exists in available skills
+    const existingSkill = availableSkills.find(skill => 
+      skill.skill.toLowerCase() === trimmedInput
+    );
+
+    if (existingSkill) {
+      // Add existing skill if not already selected
+      if (!selectedSkills.find(s => s.id === existingSkill.id)) {
+        setSelectedSkills(prev => [...prev, existingSkill]);
+      }
+    } else {
+      // Create new skill
+      try {
+        const { data: newSkill, error } = await supabase
+          .from('skills')
+          .insert({ skill: skillInput.trim() })
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        setAvailableSkills(prev => [...prev, newSkill]);
+        setSelectedSkills(prev => [...prev, newSkill]);
+
+        toast({
+          title: "New skill created",
+          description: `"${skillInput.trim()}" has been added to the skills database.`,
+        });
+      } catch (error) {
+        console.error('Error creating skill:', error);
+        toast({
+          title: "Error",
+          description: "Failed to create new skill",
+          variant: "destructive",
+        });
+      }
+    }
+
+    setSkillInput('');
+  };
+
+  const removeSkill = (skillId: string) => {
+    setSelectedSkills(prev => prev.filter(skill => skill.id !== skillId));
+  };
+
+  const getFilteredSkills = () => {
+    if (!skillInput) return [];
+    return availableSkills.filter(skill => 
+      skill.skill.toLowerCase().includes(skillInput.toLowerCase()) &&
+      !selectedSkills.find(s => s.id === skill.id)
+    );
+  };
+
+  const addExistingSkill = (skill: { id: string; skill: string }) => {
+    if (!selectedSkills.find(s => s.id === skill.id)) {
+      setSelectedSkills(prev => [...prev, skill]);
+    }
+    setSkillInput('');
   };
 
   const toggleCandidateOpportunities = (candidateId: string) => {
@@ -361,13 +594,6 @@ const Admin = () => {
     ));
   };
 
-  const deleteCandidate = (candidateId: string) => {
-    setCandidates(prev => prev.filter(candidate => candidate.id !== candidateId));
-    toast({
-      title: "Candidate deleted",
-      description: "Candidate has been removed from the system.",
-    });
-  };
 
   const toggleUserStatus = (userId: string) => {
     // This would require implementing a status field in the database
@@ -467,14 +693,6 @@ const Admin = () => {
                               onClick={() => handleOpenCandidateForm(candidate)}
                             >
                               <Edit2 className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => deleteCandidate(candidate.id)}
-                              className="text-red-600 hover:text-red-700"
-                            >
-                              <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
                         </div>
@@ -816,14 +1034,52 @@ TalentConnect Team"
                 </div>
 
                 <div>
-                  <Label htmlFor="skills">Skills (comma-separated)</Label>
-                  <Textarea
-                    id="skills"
-                    value={candidateForm.skills}
-                    onChange={(e) => setCandidateForm(prev => ({ ...prev, skills: e.target.value }))}
-                    placeholder="e.g., React, Node.js, TypeScript"
-                    rows={2}
-                  />
+                  <Label htmlFor="skills">Skills</Label>
+                  <div className="space-y-3">
+                    {/* Selected Skills */}
+                    {selectedSkills.length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {selectedSkills.map((skill) => (
+                          <Badge key={skill.id} variant="secondary" className="text-xs flex items-center gap-1">
+                            {skill.skill}
+                            <X 
+                              className="h-3 w-3 cursor-pointer hover:text-destructive" 
+                              onClick={() => removeSkill(skill.id)}
+                            />
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                    
+                    {/* Skill Input */}
+                    <div className="relative">
+                      <Input
+                        placeholder="Type a skill and press Enter or comma to add..."
+                        value={skillInput}
+                        onChange={(e) => setSkillInput(e.target.value)}
+                        onKeyDown={handleSkillInputKeyDown}
+                      />
+                      
+                      {/* Dropdown for matching skills */}
+                      {skillInput && getFilteredSkills().length > 0 && (
+                        <div className="absolute top-full left-0 right-0 bg-background border rounded-md shadow-lg z-50 max-h-32 overflow-y-auto">
+                          {getFilteredSkills().slice(0, 5).map((skill) => (
+                            <div
+                              key={skill.id}
+                              className="px-3 py-2 hover:bg-muted cursor-pointer text-sm"
+                              onClick={() => addExistingSkill(skill)}
+                            >
+                              {skill.skill}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    
+                    <p className="text-xs text-muted-foreground">
+                      Type a skill name and press Enter or comma to add. If the skill exists, it will show in the dropdown.
+                    </p>
+                  </div>
                 </div>
 
                 <div className="flex items-center space-x-2">
@@ -835,13 +1091,30 @@ TalentConnect Team"
                   <Label htmlFor="openToOpportunities">Open to opportunities</Label>
                 </div>
 
-                <DialogFooter>
-                  <Button type="button" variant="outline" onClick={() => setShowCandidateForm(false)}>
-                    Cancel
-                  </Button>
-                  <Button type="submit">
-                    {editingCandidate ? 'Update Candidate' : 'Add Candidate'}
-                  </Button>
+                <DialogFooter className="flex justify-between">
+                  <div>
+                    {editingCandidate && (
+                      <Button 
+                        type="button" 
+                        variant="destructive"
+                        onClick={() => {
+                          setShowDeleteConfirm(editingCandidate);
+                          setShowCandidateForm(false);
+                        }}
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Delete Candidate
+                      </Button>
+                    )}
+                  </div>
+                  <div className="flex space-x-2">
+                    <Button type="button" variant="outline" onClick={() => setShowCandidateForm(false)}>
+                      Cancel
+                    </Button>
+                    <Button type="submit">
+                      {editingCandidate ? 'Update Candidate' : 'Add Candidate'}
+                    </Button>
+                  </div>
                 </DialogFooter>
               </form>
             </DialogContent>
@@ -1031,6 +1304,28 @@ TalentConnect Team"
                 className="bg-green-600 text-white hover:bg-green-700"
               >
                 Yes, Reactivate User
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Delete Candidate Confirmation Dialog */}
+        <AlertDialog open={!!showDeleteConfirm} onOpenChange={() => setShowDeleteConfirm(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="text-destructive">Delete Candidate</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to permanently delete {showDeleteConfirm?.name}? 
+                This action cannot be undone and will remove all associated data including skills and any introduction requests.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction 
+                onClick={() => showDeleteConfirm && handleDeleteCandidate(showDeleteConfirm)}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Yes, Delete Candidate
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

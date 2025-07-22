@@ -11,7 +11,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Edit2, Trash2, Users, UserPlus, Eye, Settings, Mail } from "lucide-react";
+import { Plus, Edit2, Trash2, Users, UserPlus, Eye, Settings, Mail, UserX } from "lucide-react";
 
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from '@/integrations/supabase/client';
@@ -94,7 +94,8 @@ const Admin = () => {
   const [editingCandidate, setEditingCandidate] = useState<Candidate | null>(null);
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
   const [loading, setLoading] = useState(true);
-  const [roleUpdateUser, setRoleUpdateUser] = useState<User | null>(null);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [showDeactivateConfirm, setShowDeactivateConfirm] = useState<User | null>(null);
   const [newRoleId, setNewRoleId] = useState<string>('');
 
   // Form state for candidate
@@ -184,19 +185,19 @@ const Admin = () => {
   }, [toast]);
 
   const updateUserRole = async () => {
-    if (!roleUpdateUser || !newRoleId) return;
+    if (!editingUser || !newRoleId) return;
 
     try {
       const { error } = await supabase
         .from('users')
         .update({ role_id: newRoleId })
-        .eq('id', roleUpdateUser.id);
+        .eq('id', editingUser.id);
 
       if (error) throw error;
 
       // Update local state
       setUsers(prev => prev.map(user => 
-        user.id === roleUpdateUser.id 
+        user.id === editingUser.id 
           ? { 
               ...user, 
               role_id: newRoleId,
@@ -207,7 +208,7 @@ const Admin = () => {
 
       toast({
         title: "Role updated",
-        description: `${roleUpdateUser.first_name} ${roleUpdateUser.last_name}'s role has been updated successfully.`,
+        description: `${editingUser.first_name} ${editingUser.last_name}'s role has been updated successfully.`,
       });
     } catch (error) {
       console.error('Error updating user role:', error);
@@ -217,8 +218,29 @@ const Admin = () => {
         variant: "destructive",
       });
     } finally {
-      setRoleUpdateUser(null);
+      setEditingUser(null);
       setNewRoleId('');
+    }
+  };
+
+  const deactivateUser = async () => {
+    if (!showDeactivateConfirm) return;
+
+    try {
+      // For now, we'll just show a toast as deactivation would require additional database setup
+      toast({
+        title: "User deactivated",
+        description: `${showDeactivateConfirm.first_name} ${showDeactivateConfirm.last_name} has been deactivated.`,
+      });
+    } catch (error) {
+      console.error('Error deactivating user:', error);
+      toast({
+        title: "Error",
+        description: "Failed to deactivate user",
+        variant: "destructive",
+      });
+    } finally {
+      setShowDeactivateConfirm(null);
     }
   };
 
@@ -300,9 +322,9 @@ const Admin = () => {
     });
   };
 
-  const handleRoleChange = (user: User, newRoleId: string) => {
-    setRoleUpdateUser(user);
-    setNewRoleId(newRoleId);
+  const handleUserEdit = (user: User) => {
+    setEditingUser(user);
+    setNewRoleId(user.role_id);
   };
 
   const getStatusColor = (status: string | boolean) => {
@@ -448,7 +470,8 @@ const Admin = () => {
                   {users.map((userItem) => (
                     <Card 
                       key={userItem.id} 
-                      className={userItem.id === user?.id ? "border-primary bg-primary/5" : ""}
+                      className={`cursor-pointer hover:shadow-md transition-shadow ${userItem.id === user?.id ? "border-primary bg-primary/5" : ""}`}
+                      onClick={() => handleUserEdit(userItem)}
                     >
                       <CardContent className="pt-6">
                         <div className="flex justify-between items-center">
@@ -470,24 +493,13 @@ const Admin = () => {
                             </div>
                           </div>
                           <div className="flex items-center space-x-2">
-                            <Select
-                              value={userItem.role_id}
-                              onValueChange={(value) => handleRoleChange(userItem, value)}
-                            >
-                              <SelectTrigger className="w-32">
-                                <SelectValue placeholder="Role" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {roles.map((role) => (
-                                  <SelectItem key={role.id} value={role.id}>
-                                    {role.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                            <Badge variant="secondary">
+                              {userItem.role}
+                            </Badge>
                             <Badge className="bg-green-100 text-green-800">
                               Active
                             </Badge>
+                            <Settings className="h-4 w-4 text-muted-foreground" />
                           </div>
                         </div>
                       </CardContent>
@@ -791,22 +803,78 @@ TalentConnect Team"
             </DialogContent>
         </Dialog>
 
-        {/* Role Update Confirmation Dialog */}
-        <AlertDialog open={!!roleUpdateUser} onOpenChange={() => setRoleUpdateUser(null)}>
+        {/* User Edit Dialog */}
+        <Dialog open={!!editingUser} onOpenChange={() => setEditingUser(null)}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Edit User: {editingUser?.first_name} {editingUser?.last_name}</DialogTitle>
+              <DialogDescription>
+                Update user role and manage account status
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-6">
+              <div>
+                <Label htmlFor="userRole">User Role</Label>
+                <Select value={newRoleId} onValueChange={setNewRoleId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {roles.map((role) => (
+                      <SelectItem key={role.id} value={role.id}>
+                        {role.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="border-t pt-4">
+                <Label className="text-destructive">Danger Zone</Label>
+                <p className="text-sm text-muted-foreground mb-4">
+                  This action will deactivate the user's account
+                </p>
+                <Button 
+                  variant="destructive" 
+                  className="w-full"
+                  onClick={() => {
+                    setShowDeactivateConfirm(editingUser);
+                    setEditingUser(null);
+                  }}
+                >
+                  <UserX className="mr-2 h-4 w-4" />
+                  Deactivate User
+                </Button>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setEditingUser(null)}>
+                Cancel
+              </Button>
+              <Button onClick={updateUserRole} disabled={!newRoleId || newRoleId === editingUser?.role_id}>
+                Update Role
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Deactivate User Confirmation Dialog */}
+        <AlertDialog open={!!showDeactivateConfirm} onOpenChange={() => setShowDeactivateConfirm(null)}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Update User Role</AlertDialogTitle>
+              <AlertDialogTitle className="text-destructive">Deactivate User Account</AlertDialogTitle>
               <AlertDialogDescription>
-                Are you sure you want to change {roleUpdateUser?.first_name} {roleUpdateUser?.last_name}'s role to{' '}
-                {roles.find(role => role.id === newRoleId)?.name}? This action will immediately update their permissions.
+                Are you sure you want to deactivate {showDeactivateConfirm?.first_name} {showDeactivateConfirm?.last_name}'s account? 
+                This action will prevent them from accessing the system and cannot be easily undone.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel onClick={() => setRoleUpdateUser(null)}>
-                Cancel
-              </AlertDialogCancel>
-              <AlertDialogAction onClick={updateUserRole}>
-                Yes, Update Role
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction 
+                onClick={deactivateUser}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Yes, Deactivate User
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

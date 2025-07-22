@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
@@ -22,6 +23,7 @@ interface User {
   last_name: string;
   email: string;
   role: string;
+  role_id: string;
   created_at: string;
   has_accepted_terms: boolean;
 }
@@ -86,11 +88,14 @@ const Admin = () => {
   const { user } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [roles, setRoles] = useState<Array<{ id: string; name: string }>>([]);
   const [introductions, setIntroductions] = useState<IntroductionRequest[]>(mockIntroductions);
   const [showCandidateForm, setShowCandidateForm] = useState(false);
   const [editingCandidate, setEditingCandidate] = useState<Candidate | null>(null);
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
   const [loading, setLoading] = useState(true);
+  const [roleUpdateUser, setRoleUpdateUser] = useState<User | null>(null);
+  const [newRoleId, setNewRoleId] = useState<string>('');
 
   // Form state for candidate
   const [candidateForm, setCandidateForm] = useState({
@@ -111,12 +116,19 @@ const Admin = () => {
       try {
         setLoading(true);
         
+        // Fetch roles first
+        const { data: rolesData, error: rolesError } = await supabase
+          .from('roles')
+          .select('*');
+
+        if (rolesError) throw rolesError;
+        
         // Fetch users with roles
         const { data: usersData, error: usersError } = await supabase
           .from('users')
           .select(`
             *,
-            roles(name)
+            roles(id, name)
           `);
 
         if (usersError) throw usersError;
@@ -143,6 +155,8 @@ const Admin = () => {
           role: user.roles?.name || 'unknown'
         })) || [];
 
+        setRoles(rolesData || []);
+
         // Transform candidates data to group skills
         const transformedCandidates = candidatesData?.map(candidate => ({
           ...candidate,
@@ -168,6 +182,45 @@ const Admin = () => {
 
     fetchData();
   }, [toast]);
+
+  const updateUserRole = async () => {
+    if (!roleUpdateUser || !newRoleId) return;
+
+    try {
+      const { error } = await supabase
+        .from('users')
+        .update({ role_id: newRoleId })
+        .eq('id', roleUpdateUser.id);
+
+      if (error) throw error;
+
+      // Update local state
+      setUsers(prev => prev.map(user => 
+        user.id === roleUpdateUser.id 
+          ? { 
+              ...user, 
+              role_id: newRoleId,
+              role: roles.find(role => role.id === newRoleId)?.name || 'unknown'
+            }
+          : user
+      ));
+
+      toast({
+        title: "Role updated",
+        description: `${roleUpdateUser.first_name} ${roleUpdateUser.last_name}'s role has been updated successfully.`,
+      });
+    } catch (error) {
+      console.error('Error updating user role:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update user role",
+        variant: "destructive",
+      });
+    } finally {
+      setRoleUpdateUser(null);
+      setNewRoleId('');
+    }
+  };
 
   const resetCandidateForm = () => {
     setCandidateForm({
@@ -245,6 +298,11 @@ const Admin = () => {
       description: "User status management requires additional database setup",
       variant: "destructive",
     });
+  };
+
+  const handleRoleChange = (user: User, newRoleId: string) => {
+    setRoleUpdateUser(user);
+    setNewRoleId(newRoleId);
   };
 
   const getStatusColor = (status: string | boolean) => {
@@ -407,12 +465,26 @@ const Admin = () => {
                             </div>
                             <p className="text-sm text-gray-600">{userItem.email}</p>
                             <div className="flex items-center space-x-4 mt-2 text-sm text-gray-500">
-                              <span>Role: {userItem.role}</span>
                               <span>Joined: {new Date(userItem.created_at).toLocaleDateString()}</span>
                               <span>Terms accepted: {userItem.has_accepted_terms ? 'Yes' : 'No'}</span>
                             </div>
                           </div>
                           <div className="flex items-center space-x-2">
+                            <Select
+                              value={userItem.role_id}
+                              onValueChange={(value) => handleRoleChange(userItem, value)}
+                            >
+                              <SelectTrigger className="w-32">
+                                <SelectValue placeholder="Role" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {roles.map((role) => (
+                                  <SelectItem key={role.id} value={role.id}>
+                                    {role.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                             <Badge className="bg-green-100 text-green-800">
                               Active
                             </Badge>
@@ -717,7 +789,28 @@ TalentConnect Team"
                 </div>
               </div>
             </DialogContent>
-          </Dialog>
+        </Dialog>
+
+        {/* Role Update Confirmation Dialog */}
+        <AlertDialog open={!!roleUpdateUser} onOpenChange={() => setRoleUpdateUser(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Update User Role</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to change {roleUpdateUser?.first_name} {roleUpdateUser?.last_name}'s role to{' '}
+                {roles.find(role => role.id === newRoleId)?.name}? This action will immediately update their permissions.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setRoleUpdateUser(null)}>
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction onClick={updateUserRole}>
+                Yes, Update Role
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
         </div>
       </div>
     );

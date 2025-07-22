@@ -553,7 +553,7 @@ const Admin = () => {
                                 <Badge variant="secondary">
                                   {currentUser.role}
                                 </Badge>
-                                <Badge className={currentUser.is_active === false ? "bg-red-100 text-red-800" : "bg-green-100 text-green-800"}>
+                                <Badge className={`${currentUser.is_active === false ? "bg-red-100 text-red-800" : "bg-green-100 text-green-800"} pointer-events-none`}>
                                   {currentUser.is_active === false ? 'Inactive' : 'Active'}
                                 </Badge>
                               </div>
@@ -593,7 +593,7 @@ const Admin = () => {
                               <Badge variant="secondary">
                                 {userItem.role}
                               </Badge>
-                              <Badge className={userItem.is_active === false ? "bg-red-100 text-red-800" : "bg-green-100 text-green-800"}>
+                              <Badge className={`${userItem.is_active === false ? "bg-red-100 text-red-800" : "bg-green-100 text-green-800"} pointer-events-none`}>
                                 {userItem.is_active === false ? 'Inactive' : 'Active'}
                               </Badge>
                               <Settings className="h-4 w-4 text-muted-foreground" />

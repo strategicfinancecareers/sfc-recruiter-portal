@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,30 +13,33 @@ import { Textarea } from "@/components/ui/textarea";
 import { Plus, Edit2, Trash2, Users, UserPlus, Eye, Settings, Mail } from "lucide-react";
 
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface User {
   id: string;
-  name: string;
+  first_name: string;
+  last_name: string;
   email: string;
-  role: 'recruiter' | 'admin';
-  createdAt: string;
-  lastLogin: string;
-  status: 'active' | 'inactive';
+  role: string;
+  created_at: string;
+  has_accepted_terms: boolean;
 }
 
 interface Candidate {
   id: string;
   name: string;
+  display_name: string;
   email: string;
   label: string;
-  description: string;
+  profile_description?: string;
   location: string;
   experience: number;
   education: string;
-  skills: string[];
-  openToOpportunities: boolean;
-  createdAt: string;
-  lastUpdated: string;
+  skills: Array<{ id: string; skill: string }>;
+  open_to_opportunities: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 interface IntroductionRequest {
@@ -52,57 +55,6 @@ interface IntroductionRequest {
   emailSentAt?: string;
 }
 
-const mockUsers: User[] = [
-  {
-    id: '1',
-    name: 'John Recruiter',
-    email: 'recruiter@example.com',
-    role: 'recruiter',
-    createdAt: '2024-01-01',
-    lastLogin: '2024-01-15',
-    status: 'active',
-  },
-  {
-    id: '2',
-    name: 'Admin User',
-    email: 'admin@example.com',
-    role: 'admin',
-    createdAt: '2024-01-01',
-    lastLogin: '2024-01-16',
-    status: 'active',
-  },
-];
-
-const mockCandidates: Candidate[] = [
-  {
-    id: '1',
-    name: 'Sarah Johnson',
-    email: 'sarah.j@email.com',
-    label: 'Senior Full Stack Developer',
-    description: 'Experienced developer specializing in React and Node.js with a passion for creating scalable web applications.',
-    location: 'San Francisco, CA',
-    experience: 5,
-    education: 'Bachelor\'s',
-    skills: ['React', 'Node.js', 'TypeScript', 'AWS'],
-    openToOpportunities: true,
-    createdAt: '2024-01-10',
-    lastUpdated: '2024-01-15',
-  },
-  {
-    id: '2',
-    name: 'Michael Chen',
-    email: 'michael.c@email.com',
-    label: 'DevOps Engineer',
-    description: 'Infrastructure expert with deep knowledge of cloud platforms and automation tools.',
-    location: 'Seattle, WA',
-    experience: 7,
-    education: 'Master\'s',
-    skills: ['Kubernetes', 'Docker', 'AWS', 'Terraform'],
-    openToOpportunities: false,
-    createdAt: '2024-01-08',
-    lastUpdated: '2024-01-12',
-  },
-];
 
 const mockIntroductions: IntroductionRequest[] = [
   {
@@ -131,12 +83,14 @@ const mockIntroductions: IntroductionRequest[] = [
 
 const Admin = () => {
   const { toast } = useToast();
-  const [users, setUsers] = useState<User[]>(mockUsers);
-  const [candidates, setCandidates] = useState<Candidate[]>(mockCandidates);
+  const { user } = useAuth();
+  const [users, setUsers] = useState<User[]>([]);
+  const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [introductions, setIntroductions] = useState<IntroductionRequest[]>(mockIntroductions);
   const [showCandidateForm, setShowCandidateForm] = useState(false);
   const [editingCandidate, setEditingCandidate] = useState<Candidate | null>(null);
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
+  const [loading, setLoading] = useState(true);
 
   // Form state for candidate
   const [candidateForm, setCandidateForm] = useState({
@@ -150,6 +104,70 @@ const Admin = () => {
     skills: '',
     openToOpportunities: true,
   });
+
+  // Fetch users and candidates data
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        
+        // Fetch users with roles
+        const { data: usersData, error: usersError } = await supabase
+          .from('users')
+          .select(`
+            *,
+            roles(name)
+          `);
+
+        if (usersError) throw usersError;
+
+        // Fetch candidates with skills
+        const { data: candidatesData, error: candidatesError } = await supabase
+          .from('candidates')
+          .select(`
+            *,
+            candidate_skills!inner(
+              skill_id,
+              skills!inner(
+                id,
+                skill
+              )
+            )
+          `);
+
+        if (candidatesError) throw candidatesError;
+
+        // Transform users data
+        const transformedUsers = usersData?.map(user => ({
+          ...user,
+          role: user.roles?.name || 'unknown'
+        })) || [];
+
+        // Transform candidates data to group skills
+        const transformedCandidates = candidatesData?.map(candidate => ({
+          ...candidate,
+          skills: candidate.candidate_skills?.map((cs: any) => ({
+            id: cs.skills.id,
+            skill: cs.skills.skill
+          })) || []
+        })) || [];
+
+        setUsers(transformedUsers);
+        setCandidates(transformedCandidates);
+      } catch (error) {
+        console.error('Error fetching data:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load admin data",
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [toast]);
 
   const resetCandidateForm = () => {
     setCandidateForm({
@@ -173,12 +191,12 @@ const Admin = () => {
         name: candidate.name,
         email: candidate.email,
         label: candidate.label,
-        description: candidate.description,
+        description: candidate.profile_description || '',
         location: candidate.location,
         experience: candidate.experience.toString(),
         education: candidate.education,
-        skills: candidate.skills.join(', '),
-        openToOpportunities: candidate.openToOpportunities,
+        skills: candidate.skills.map(s => s.skill).join(', '),
+        openToOpportunities: candidate.open_to_opportunities,
       });
     } else {
       resetCandidateForm();
@@ -189,39 +207,12 @@ const Admin = () => {
   const handleCandidateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    const candidateData = {
-      ...candidateForm,
-      experience: parseInt(candidateForm.experience),
-      skills: candidateForm.skills.split(',').map(s => s.trim()).filter(s => s),
-    };
-
-    if (editingCandidate) {
-      setCandidates(prev => prev.map(candidate =>
-        candidate.id === editingCandidate.id
-          ? { 
-              ...candidate, 
-              ...candidateData, 
-              lastUpdated: new Date().toISOString().split('T')[0] 
-            }
-          : candidate
-      ));
-      toast({
-        title: "Candidate updated",
-        description: "Candidate information has been successfully updated.",
-      });
-    } else {
-      const newCandidate: Candidate = {
-        id: Date.now().toString(),
-        ...candidateData,
-        createdAt: new Date().toISOString().split('T')[0],
-        lastUpdated: new Date().toISOString().split('T')[0],
-      };
-      setCandidates(prev => [newCandidate, ...prev]);
-      toast({
-        title: "Candidate created",
-        description: "New candidate has been added successfully.",
-      });
-    }
+    // This is just for UI purposes - in a real app, you'd make API calls
+    toast({
+      title: "Feature not implemented",
+      description: "Candidate editing requires backend API implementation",
+      variant: "destructive",
+    });
     
     setShowCandidateForm(false);
     resetCandidateForm();
@@ -232,8 +223,8 @@ const Admin = () => {
       candidate.id === candidateId
         ? { 
             ...candidate, 
-            openToOpportunities: !candidate.openToOpportunities,
-            lastUpdated: new Date().toISOString().split('T')[0]
+            open_to_opportunities: !candidate.open_to_opportunities,
+            updated_at: new Date().toISOString()
           }
         : candidate
     ));
@@ -248,14 +239,18 @@ const Admin = () => {
   };
 
   const toggleUserStatus = (userId: string) => {
-    setUsers(prev => prev.map(user =>
-      user.id === userId
-        ? { ...user, status: user.status === 'active' ? 'inactive' : 'active' }
-        : user
-    ));
+    // This would require implementing a status field in the database
+    toast({
+      title: "Feature not implemented",
+      description: "User status management requires additional database setup",
+      variant: "destructive",
+    });
   };
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: string | boolean) => {
+    if (typeof status === 'boolean') {
+      return status ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
+    }
     switch (status) {
       case 'active':
       case 'accepted':
@@ -269,6 +264,16 @@ const Admin = () => {
         return 'bg-gray-100 text-gray-800';
     }
   };
+
+  if (loading) {
+    return (
+      <div className="flex-1 overflow-auto">
+        <div className="p-6">
+          <div className="text-center">Loading admin data...</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 overflow-auto">
@@ -302,25 +307,16 @@ const Admin = () => {
                       <CardHeader>
                         <div className="flex justify-between items-start">
                           <div className="flex-1">
-                            <CardTitle className="text-lg">{candidate.name}</CardTitle>
-                            <p className="text-sm text-muted-foreground">ID: {(() => {
-                              const seniorityMap: { [key: number]: string } = {
-                                1: "Junior", 2: "Junior", 3: "Mid-level", 4: "Mid-level", 
-                                5: "Senior", 6: "Senior", 7: "Lead", 8: "Lead"
-                              };
-                              const seniority = seniorityMap[Math.min(candidate.experience, 8)] || "Senior";
-                              const primarySkill = candidate.skills[0] || "Tech";
-                              const locationCode = candidate.location.split(',')[1]?.trim().substring(0, 2) || candidate.location.substring(0, 2);
-                              return `${seniority} ${primarySkill} Professional (${locationCode})`;
-                            })()}</p>
+                            <CardTitle className="text-lg">{candidate.display_name}</CardTitle>
+                            <p className="text-sm text-muted-foreground">Name: {candidate.name}</p>
                             <CardDescription className="text-primary font-medium">
                               {candidate.label}
                             </CardDescription>
                             <p className="text-sm text-muted-foreground mt-1">{candidate.email}</p>
                           </div>
                           <div className="flex items-center space-x-2">
-                            <Badge className={getStatusColor(candidate.openToOpportunities ? 'active' : 'inactive')}>
-                              {candidate.openToOpportunities ? 'Open to opportunities' : 'Not available'}
+                            <Badge className={getStatusColor(candidate.open_to_opportunities)}>
+                              {candidate.open_to_opportunities ? 'Open to opportunities' : 'Not available'}
                             </Badge>
                             <Button
                               variant="outline"
@@ -364,16 +360,18 @@ const Admin = () => {
                           <div className="flex items-center space-x-2">
                             <span className="text-sm font-medium">Open to opportunities:</span>
                             <Switch
-                              checked={candidate.openToOpportunities}
+                              checked={candidate.open_to_opportunities}
                               onCheckedChange={() => toggleCandidateOpportunities(candidate.id)}
                             />
                           </div>
                         </div>
-                        <p className="text-sm text-gray-600 mb-3">{candidate.description}</p>
+                        {candidate.profile_description && (
+                          <p className="text-sm text-gray-600 mb-3">{candidate.profile_description}</p>
+                        )}
                         <div className="flex flex-wrap gap-1">
-                          {candidate.skills.map((skill, index) => (
-                            <Badge key={index} variant="secondary" className="text-xs">
-                              {skill}
+                          {candidate.skills.map((skill) => (
+                            <Badge key={skill.id} variant="secondary" className="text-xs">
+                              {skill.skill}
                             </Badge>
                           ))}
                         </div>
@@ -389,30 +387,35 @@ const Admin = () => {
                 <h2 className="text-xl font-semibold">User Management</h2>
                 
                 <div className="grid grid-cols-1 gap-4">
-                  {users.map((user) => (
-                    <Card key={user.id}>
+                  {users.map((userItem) => (
+                    <Card 
+                      key={userItem.id} 
+                      className={userItem.id === user?.id ? "border-primary bg-primary/5" : ""}
+                    >
                       <CardContent className="pt-6">
                         <div className="flex justify-between items-center">
                           <div className="flex-1">
-                            <h3 className="font-semibold">{user.name}</h3>
-                            <p className="text-sm text-gray-600">{user.email}</p>
+                            <div className="flex items-center gap-2">
+                              <h3 className="font-semibold">
+                                {userItem.first_name} {userItem.last_name}
+                              </h3>
+                              {userItem.id === user?.id && (
+                                <Badge variant="outline" className="text-xs">
+                                  You
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="text-sm text-gray-600">{userItem.email}</p>
                             <div className="flex items-center space-x-4 mt-2 text-sm text-gray-500">
-                              <span>Role: {user.role}</span>
-                              <span>Joined: {new Date(user.createdAt).toLocaleDateString()}</span>
-                              <span>Last login: {new Date(user.lastLogin).toLocaleDateString()}</span>
+                              <span>Role: {userItem.role}</span>
+                              <span>Joined: {new Date(userItem.created_at).toLocaleDateString()}</span>
+                              <span>Terms accepted: {userItem.has_accepted_terms ? 'Yes' : 'No'}</span>
                             </div>
                           </div>
                           <div className="flex items-center space-x-2">
-                            <Badge className={getStatusColor(user.status)}>
-                              {user.status}
+                            <Badge className="bg-green-100 text-green-800">
+                              Active
                             </Badge>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => toggleUserStatus(user.id)}
-                            >
-                              {user.status === 'active' ? 'Deactivate' : 'Activate'}
-                            </Button>
                           </div>
                         </div>
                       </CardContent>
@@ -690,14 +693,14 @@ TalentConnect Team"
                 </div>
                 <div>
                   <h4 className="font-medium mb-2">Description</h4>
-                  <p className="text-sm text-gray-600">{selectedCandidate?.description}</p>
+                  <p className="text-sm text-gray-600">{selectedCandidate?.profile_description || 'No description available'}</p>
                 </div>
                 <div>
                   <h4 className="font-medium mb-2">Skills</h4>
                   <div className="flex flex-wrap gap-1">
                     {selectedCandidate?.skills.map((skill) => (
-                      <Badge key={skill} variant="secondary" className="text-xs">
-                        {skill}
+                      <Badge key={skill.id} variant="secondary" className="text-xs">
+                        {skill.skill}
                       </Badge>
                     ))}
                   </div>
@@ -705,11 +708,11 @@ TalentConnect Team"
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
                     <h4 className="font-medium mb-1">Created</h4>
-                    <p className="text-gray-600">{selectedCandidate && new Date(selectedCandidate.createdAt).toLocaleDateString()}</p>
+                    <p className="text-gray-600">{selectedCandidate && new Date(selectedCandidate.created_at).toLocaleDateString()}</p>
                   </div>
                   <div>
                     <h4 className="font-medium mb-1">Last Updated</h4>
-                    <p className="text-gray-600">{selectedCandidate && new Date(selectedCandidate.lastUpdated).toLocaleDateString()}</p>
+                    <p className="text-gray-600">{selectedCandidate && new Date(selectedCandidate.updated_at).toLocaleDateString()}</p>
                   </div>
                 </div>
               </div>

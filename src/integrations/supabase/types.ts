@@ -179,6 +179,7 @@ export type Database = {
           first_name: string
           has_accepted_terms: boolean | null
           id: string
+          is_active: boolean
           last_name: string | null
           role_id: string
           updated_at: string | null
@@ -189,6 +190,7 @@ export type Database = {
           first_name: string
           has_accepted_terms?: boolean | null
           id: string
+          is_active?: boolean
           last_name?: string | null
           role_id: string
           updated_at?: string | null
@@ -199,6 +201,7 @@ export type Database = {
           first_name?: string
           has_accepted_terms?: boolean | null
           id?: string
+          is_active?: boolean
           last_name?: string | null
           role_id?: string
           updated_at?: string | null
@@ -218,6 +221,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      is_current_user_active: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
       is_current_user_admin: {
         Args: Record<PropertyKey, never>
         Returns: boolean

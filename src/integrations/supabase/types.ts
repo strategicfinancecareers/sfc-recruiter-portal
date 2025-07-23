@@ -57,6 +57,7 @@ export type Database = {
           education: string
           email: string
           experience: number
+          highest_education_level: string | null
           id: string
           label: string
           location: string
@@ -74,6 +75,7 @@ export type Database = {
           education: string
           email: string
           experience: number
+          highest_education_level?: string | null
           id?: string
           label: string
           location: string
@@ -91,6 +93,7 @@ export type Database = {
           education?: string
           email?: string
           experience?: number
+          highest_education_level?: string | null
           id?: string
           label?: string
           location?: string

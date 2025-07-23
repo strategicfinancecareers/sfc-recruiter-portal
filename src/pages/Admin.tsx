@@ -40,6 +40,7 @@ interface Candidate {
   location: string;
   experience: number;
   education: string;
+  highest_education_level?: string;
   skills: Array<{ id: string; skill: string }>;
   open_to_opportunities: boolean;
   created_at: string;
@@ -111,6 +112,7 @@ const Admin = () => {
     location: '',
     experience: '',
     education: '',
+    highestEducationLevel: '',
     openToOpportunities: true,
   });
   
@@ -334,6 +336,7 @@ const Admin = () => {
       location: '',
       experience: '',
       education: '',
+      highestEducationLevel: '',
       openToOpportunities: true,
     });
     setSelectedSkills([]);
@@ -351,6 +354,7 @@ const Admin = () => {
         location: candidate.location,
         experience: candidate.experience.toString(),
         education: candidate.education,
+        highestEducationLevel: candidate.highest_education_level || '',
         openToOpportunities: candidate.open_to_opportunities,
       });
       setSelectedSkills(candidate.skills || []);
@@ -377,6 +381,7 @@ const Admin = () => {
             location: candidateForm.location,
             experience: parseInt(candidateForm.experience),
             education: candidateForm.education,
+            highest_education_level: candidateForm.highestEducationLevel,
             open_to_opportunities: candidateForm.openToOpportunities,
           })
           .eq('id', editingCandidate.id);
@@ -440,6 +445,7 @@ const Admin = () => {
             location: candidateForm.location,
             experience: parseInt(candidateForm.experience),
             education: candidateForm.education,
+            highest_education_level: candidateForm.highestEducationLevel,
             open_to_opportunities: candidateForm.openToOpportunities,
           })
           .select()
@@ -739,6 +745,12 @@ const Admin = () => {
                             <span className="text-sm font-medium">Education:</span>
                             <p className="text-sm text-gray-600">{candidate.education}</p>
                           </div>
+                          {candidate.highest_education_level && (
+                            <div>
+                              <span className="text-sm font-medium">Education Level:</span>
+                              <p className="text-sm text-gray-600">{candidate.highest_education_level}</p>
+                            </div>
+                          )}
                           <div className="flex items-center space-x-2">
                             <span className="text-sm font-medium">Open to opportunities:</span>
                             <Switch
@@ -1043,13 +1055,24 @@ TalentConnect Team"
                 </div>
 
                 <div>
-                  <Label htmlFor="education">Education Level *</Label>
-                  <Select
+                  <Label htmlFor="education">Education Details *</Label>
+                  <Input
+                    id="education"
                     value={candidateForm.education}
-                    onValueChange={(value) => setCandidateForm(prev => ({ ...prev, education: value }))}
+                    onChange={(e) => setCandidateForm(prev => ({ ...prev, education: e.target.value }))}
+                    placeholder="e.g., BS Computer Science, MBA Finance"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="highestEducationLevel">Highest Education Level</Label>
+                  <Select
+                    value={candidateForm.highestEducationLevel}
+                    onValueChange={(value) => setCandidateForm(prev => ({ ...prev, highestEducationLevel: value }))}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Select education level" />
+                      <SelectValue placeholder="Select highest education level" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="High School">High School</SelectItem>

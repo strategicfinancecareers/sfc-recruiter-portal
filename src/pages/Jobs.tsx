@@ -35,7 +35,7 @@ const Jobs = () => {
   const [submitting, setSubmitting] = useState(false);
   const [showJobForm, setShowJobForm] = useState(false);
   const [editingJob, setEditingJob] = useState<Job | null>(null);
-  const [showDeleteDialog, setShowDeleteDialog] = useState<string | null>(null);
+  const [showDeleteDialog, setShowDeleteDialog] = useState<Job | null>(null);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -319,14 +319,6 @@ const Jobs = () => {
                       >
                         <Edit2 className="h-4 w-4" />
                       </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setShowDeleteDialog(job.id)}
-                        className="text-red-600 hover:text-red-700"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
                     </div>
                   </div>
                 </CardHeader>
@@ -473,8 +465,7 @@ const Jobs = () => {
                     type="button"
                     variant="destructive"
                     onClick={() => {
-                      setShowDeleteDialog(editingJob.id);
-                      setShowJobForm(false);
+                      setShowDeleteDialog(editingJob);
                     }}
                   >
                     <Trash2 className="mr-2 h-4 w-4" />
@@ -502,7 +493,7 @@ const Jobs = () => {
             <DialogHeader>
               <DialogTitle>Delete Job Posting</DialogTitle>
               <DialogDescription>
-                Are you sure you want to delete this job posting? This action cannot be undone.
+                Are you sure you want to delete "{showDeleteDialog?.title}" at {showDeleteDialog?.company}? This action cannot be undone.
               </DialogDescription>
             </DialogHeader>
             <DialogFooter>
@@ -511,7 +502,7 @@ const Jobs = () => {
               </Button>
               <Button 
                 variant="destructive" 
-                onClick={() => showDeleteDialog && handleDelete(showDeleteDialog)}
+                onClick={() => showDeleteDialog && handleDelete(showDeleteDialog.id)}
               >
                 Delete
               </Button>

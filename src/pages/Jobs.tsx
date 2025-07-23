@@ -1,5 +1,4 @@
-
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,9 +7,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Edit2, Trash2, MapPin, DollarSign, Clock } from "lucide-react";
+import { Plus, Edit2, Trash2, MapPin, DollarSign, Clock, Loader2 } from "lucide-react";
 
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { useSupabaseSession } from "@/integrations/supabase/hooks";
 
 interface Job {
   id: string;
@@ -18,43 +19,20 @@ interface Job {
   company: string;
   location: string;
   type: 'full-time' | 'part-time' | 'contract' | 'remote';
-  salaryRange: string;
-  description: string;
-  requirements: string[];
-  createdAt: string;
+  salary_range: string | null;
+  description: string | null;
+  requirements: string | null;
+  created_at: string;
   status: 'active' | 'paused' | 'closed';
+  user_id: string;
 }
-
-const mockJobs: Job[] = [
-  {
-    id: '1',
-    title: 'Senior Frontend Developer',
-    company: 'TechCorp Inc.',
-    location: 'San Francisco, CA',
-    type: 'full-time',
-    salaryRange: '$120k - $160k',
-    description: 'We are looking for a senior frontend developer to join our team and help build the next generation of our web platform.',
-    requirements: ['React', 'TypeScript', 'Next.js', '5+ years experience'],
-    createdAt: '2024-01-10',
-    status: 'active',
-  },
-  {
-    id: '2',
-    title: 'DevOps Engineer',
-    company: 'CloudStart',
-    location: 'Remote',
-    type: 'remote',
-    salaryRange: '$100k - $140k',
-    description: 'Join our infrastructure team to help scale our cloud platform and improve deployment processes.',
-    requirements: ['AWS', 'Kubernetes', 'Docker', 'Terraform'],
-    createdAt: '2024-01-08',
-    status: 'active',
-  },
-];
 
 const Jobs = () => {
   const { toast } = useToast();
-  const [jobs, setJobs] = useState<Job[]>(mockJobs);
+  const { session } = useSupabaseSession();
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [showJobForm, setShowJobForm] = useState(false);
   const [editingJob, setEditingJob] = useState<Job | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState<string | null>(null);
@@ -69,6 +47,34 @@ const Jobs = () => {
     description: '',
     requirements: '',
   });
+
+  // Fetch jobs from database
+  const fetchJobs = async () => {
+    if (!session?.user) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('jobs')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setJobs((data as Job[]) || []);
+    } catch (error) {
+      console.error('Error fetching jobs:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load job postings.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchJobs();
+  }, [session]);
 
   const resetForm = () => {
     setFormData({
@@ -91,9 +97,9 @@ const Jobs = () => {
         company: job.company,
         location: job.location,
         type: job.type,
-        salaryRange: job.salaryRange,
-        description: job.description,
-        requirements: job.requirements.join(', '),
+        salaryRange: job.salary_range || '',
+        description: job.description || '',
+        requirements: job.requirements || '',
       });
     } else {
       resetForm();
@@ -101,57 +107,116 @@ const Jobs = () => {
     setShowJobForm(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!session?.user) return;
     
-    const jobData = {
-      ...formData,
-      requirements: formData.requirements.split(',').map(r => r.trim()).filter(r => r),
-    };
-
-    if (editingJob) {
-      setJobs(prev => prev.map(job =>
-        job.id === editingJob.id
-          ? { ...job, ...jobData }
-          : job
-      ));
-      toast({
-        title: "Job updated",
-        description: "The job posting has been successfully updated.",
-      });
-    } else {
-      const newJob: Job = {
-        id: Date.now().toString(),
-        ...jobData,
-        createdAt: new Date().toISOString().split('T')[0],
-        status: 'active',
+    setSubmitting(true);
+    
+    try {
+      const jobData = {
+        title: formData.title,
+        company: formData.company,
+        location: formData.location,
+        type: formData.type,
+        salary_range: formData.salaryRange || null,
+        description: formData.description || null,
+        requirements: formData.requirements || null,
+        user_id: session.user.id,
       };
-      setJobs(prev => [newJob, ...prev]);
+
+      if (editingJob) {
+        const { error } = await supabase
+          .from('jobs')
+          .update(jobData)
+          .eq('id', editingJob.id);
+
+        if (error) throw error;
+
+        toast({
+          title: "Job updated",
+          description: "The job posting has been successfully updated.",
+        });
+      } else {
+        const { error } = await supabase
+          .from('jobs')
+          .insert([jobData]);
+
+        if (error) throw error;
+
+        toast({
+          title: "Job created",
+          description: "New job posting has been created successfully.",
+        });
+      }
+      
+      await fetchJobs();
+      setShowJobForm(false);
+      resetForm();
+    } catch (error) {
+      console.error('Error saving job:', error);
       toast({
-        title: "Job created",
-        description: "New job posting has been created successfully.",
+        title: "Error",
+        description: "Failed to save job posting.",
+        variant: "destructive",
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDelete = async (jobId: string) => {
+    try {
+      const { error } = await supabase
+        .from('jobs')
+        .delete()
+        .eq('id', jobId);
+
+      if (error) throw error;
+
+      await fetchJobs();
+      setShowDeleteDialog(null);
+      toast({
+        title: "Job deleted",
+        description: "The job posting has been removed.",
+      });
+    } catch (error) {
+      console.error('Error deleting job:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete job posting.",
+        variant: "destructive",
       });
     }
-    
-    setShowJobForm(false);
-    resetForm();
   };
 
-  const handleDelete = (jobId: string) => {
-    setJobs(prev => prev.filter(job => job.id !== jobId));
-    setShowDeleteDialog(null);
-    toast({
-      title: "Job deleted",
-      description: "The job posting has been removed.",
-    });
-  };
+  const toggleJobStatus = async (jobId: string) => {
+    const job = jobs.find(j => j.id === jobId);
+    if (!job) return;
 
-  const toggleJobStatus = (jobId: string) => {
-    setJobs(prev => prev.map(job =>
-      job.id === jobId
-        ? { ...job, status: job.status === 'active' ? 'paused' : 'active' }
-        : job
-    ));
+    const newStatus = job.status === 'active' ? 'paused' : 'active';
+
+    try {
+      const { error } = await supabase
+        .from('jobs')
+        .update({ status: newStatus })
+        .eq('id', jobId);
+
+      if (error) throw error;
+
+      await fetchJobs();
+      toast({
+        title: "Status updated",
+        description: `Job posting is now ${newStatus}.`,
+      });
+    } catch (error) {
+      console.error('Error updating status:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update job status.",
+        variant: "destructive",
+      });
+    }
   };
 
   const getStatusColor = (status: Job['status']) => {
@@ -180,6 +245,18 @@ const Jobs = () => {
     }
   };
 
+  if (loading) {
+    return (
+      <div className="flex-1 overflow-auto">
+        <div className="p-6">
+          <div className="flex items-center justify-center h-64">
+            <Loader2 className="h-8 w-8 animate-spin" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex-1 overflow-auto">
       <div className="p-6">
@@ -188,232 +265,239 @@ const Jobs = () => {
             <h1 className="text-3xl font-bold text-gray-900">Job Opportunities</h1>
             <p className="text-gray-600">Manage your current job postings</p>
           </div>
-            <Button onClick={() => handleOpenForm()}>
-              <Plus className="mr-2 h-4 w-4" />
-              Add Job
-            </Button>
-          </div>
+          <Button onClick={() => handleOpenForm()} disabled={!session?.user}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add Job
+          </Button>
+        </div>
 
-          {/* Jobs List */}
-          <div className="space-y-4">
-            {jobs.length === 0 ? (
-              <Card>
-                <CardContent className="text-center py-12">
-                  <div className="text-gray-400 mb-4">
-                    <Plus className="h-12 w-12 mx-auto" />
-                  </div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No job postings yet</h3>
-                  <p className="text-gray-600 mb-4">Create your first job posting to start attracting candidates.</p>
-                  <Button onClick={() => handleOpenForm()}>
-                    <Plus className="mr-2 h-4 w-4" />
-                    Create Job Posting
-                  </Button>
-                </CardContent>
-              </Card>
-            ) : (
-              jobs.map((job) => (
-                <Card key={job.id} className="hover:shadow-md transition-shadow">
-                  <CardHeader>
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <div className="flex items-center space-x-2 mb-2">
-                          <span className="text-lg">{getTypeIcon(job.type)}</span>
-                          <CardTitle className="text-xl">{job.title}</CardTitle>
-                          <Badge className={getStatusColor(job.status)}>
-                            {job.status}
-                          </Badge>
-                        </div>
-                        <CardDescription className="text-lg font-medium text-blue-600">
-                          {job.company}
-                        </CardDescription>
+        {/* Jobs List */}
+        <div className="space-y-4">
+          {jobs.length === 0 ? (
+            <Card>
+              <CardContent className="text-center py-12">
+                <div className="text-gray-400 mb-4">
+                  <Plus className="h-12 w-12 mx-auto" />
+                </div>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No job postings yet</h3>
+                <p className="text-gray-600 mb-4">Create your first job posting to start attracting candidates.</p>
+                <Button onClick={() => handleOpenForm()} disabled={!session?.user}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Create Job Posting
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
+            jobs.map((job) => (
+              <Card key={job.id} className="hover:shadow-md transition-shadow">
+                <CardHeader>
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <span className="text-lg">{getTypeIcon(job.type)}</span>
+                        <CardTitle className="text-xl">{job.title}</CardTitle>
+                        <Badge className={getStatusColor(job.status)}>
+                          {job.status}
+                        </Badge>
                       </div>
-                      <div className="flex space-x-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => toggleJobStatus(job.id)}
-                        >
-                          {job.status === 'active' ? 'Pause' : 'Activate'}
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleOpenForm(job)}
-                        >
-                          <Edit2 className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setShowDeleteDialog(job.id)}
-                          className="text-red-600 hover:text-red-700"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
+                      <CardDescription className="text-lg font-medium text-blue-600">
+                        {job.company}
+                      </CardDescription>
                     </div>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="flex flex-wrap gap-4 text-sm text-gray-600">
-                      <div className="flex items-center">
-                        <MapPin className="h-4 w-4 mr-1" />
-                        {job.location}
-                      </div>
+                    <div className="flex space-x-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => toggleJobStatus(job.id)}
+                      >
+                        {job.status === 'active' ? 'Pause' : 'Activate'}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleOpenForm(job)}
+                      >
+                        <Edit2 className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowDeleteDialog(job.id)}
+                        className="text-red-600 hover:text-red-700"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex flex-wrap gap-4 text-sm text-gray-600">
+                    <div className="flex items-center">
+                      <MapPin className="h-4 w-4 mr-1" />
+                      {job.location}
+                    </div>
+                    {job.salary_range && (
                       <div className="flex items-center">
                         <DollarSign className="h-4 w-4 mr-1" />
-                        {job.salaryRange}
+                        {job.salary_range}
                       </div>
-                      <div className="flex items-center">
-                        <Clock className="h-4 w-4 mr-1" />
-                        Created {new Date(job.createdAt).toLocaleDateString()}
-                      </div>
+                    )}
+                    <div className="flex items-center">
+                      <Clock className="h-4 w-4 mr-1" />
+                      Created {new Date(job.created_at).toLocaleDateString()}
                     </div>
-                    
+                  </div>
+                  
+                  {job.description && (
                     <p className="text-gray-700">{job.description}</p>
-                    
+                  )}
+                  
+                  {job.requirements && (
                     <div>
                       <h4 className="font-medium mb-2">Requirements:</h4>
                       <div className="flex flex-wrap gap-1">
-                        {job.requirements.map((req, index) => (
+                        {job.requirements.split(',').map((req, index) => (
                           <Badge key={index} variant="secondary">
-                            {req}
+                            {req.trim()}
                           </Badge>
                         ))}
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
-              ))
-            )}
-          </div>
+                  )}
+                </CardContent>
+              </Card>
+            ))
+          )}
+        </div>
 
-          {/* Job Form Dialog */}
-          <Dialog open={showJobForm} onOpenChange={setShowJobForm}>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>{editingJob ? 'Edit Job' : 'Create New Job'}</DialogTitle>
-                <DialogDescription>
-                  {editingJob ? 'Update the job posting details' : 'Fill in the details for your job posting'}
-                </DialogDescription>
-              </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="title">Job Title *</Label>
-                    <Input
-                      id="title"
-                      value={formData.title}
-                      onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="company">Company *</Label>
-                    <Input
-                      id="company"
-                      value={formData.company}
-                      onChange={(e) => setFormData(prev => ({ ...prev, company: e.target.value }))}
-                      required
-                    />
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="location">Location *</Label>
-                    <Input
-                      id="location"
-                      value={formData.location}
-                      onChange={(e) => setFormData(prev => ({ ...prev, location: e.target.value }))}
-                      placeholder="e.g., San Francisco, CA or Remote"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="type">Job Type *</Label>
-                    <Select
-                      value={formData.type}
-                      onValueChange={(value: Job['type']) => setFormData(prev => ({ ...prev, type: value }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="full-time">Full-time</SelectItem>
-                        <SelectItem value="part-time">Part-time</SelectItem>
-                        <SelectItem value="contract">Contract</SelectItem>
-                        <SelectItem value="remote">Remote</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
+        {/* Job Form Dialog */}
+        <Dialog open={showJobForm} onOpenChange={setShowJobForm}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>{editingJob ? 'Edit Job' : 'Create New Job'}</DialogTitle>
+              <DialogDescription>
+                {editingJob ? 'Update the job posting details' : 'Fill in the details for your job posting'}
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="salaryRange">Salary Range</Label>
+                  <Label htmlFor="title">Job Title *</Label>
                   <Input
-                    id="salaryRange"
-                    value={formData.salaryRange}
-                    onChange={(e) => setFormData(prev => ({ ...prev, salaryRange: e.target.value }))}
-                    placeholder="e.g., $80k - $120k"
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="description">Job Description *</Label>
-                  <Textarea
-                    id="description"
-                    value={formData.description}
-                    onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                    rows={4}
+                    id="title"
+                    value={formData.title}
+                    onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
                     required
                   />
                 </div>
-
                 <div>
-                  <Label htmlFor="requirements">Requirements (comma-separated)</Label>
-                  <Textarea
-                    id="requirements"
-                    value={formData.requirements}
-                    onChange={(e) => setFormData(prev => ({ ...prev, requirements: e.target.value }))}
-                    placeholder="e.g., React, TypeScript, 3+ years experience"
-                    rows={3}
+                  <Label htmlFor="company">Company *</Label>
+                  <Input
+                    id="company"
+                    value={formData.company}
+                    onChange={(e) => setFormData(prev => ({ ...prev, company: e.target.value }))}
+                    required
                   />
                 </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="location">Location *</Label>
+                  <Input
+                    id="location"
+                    value={formData.location}
+                    onChange={(e) => setFormData(prev => ({ ...prev, location: e.target.value }))}
+                    placeholder="e.g., San Francisco, CA or Remote"
+                    required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="type">Job Type *</Label>
+                  <Select
+                    value={formData.type}
+                    onValueChange={(value: Job['type']) => setFormData(prev => ({ ...prev, type: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="full-time">Full-time</SelectItem>
+                      <SelectItem value="part-time">Part-time</SelectItem>
+                      <SelectItem value="contract">Contract</SelectItem>
+                      <SelectItem value="remote">Remote</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
 
-                <DialogFooter>
-                  <Button type="button" variant="outline" onClick={() => setShowJobForm(false)}>
-                    Cancel
-                  </Button>
-                  <Button type="submit">
-                    {editingJob ? 'Update Job' : 'Create Job'}
-                  </Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
+              <div>
+                <Label htmlFor="salaryRange">Salary Range</Label>
+                <Input
+                  id="salaryRange"
+                  value={formData.salaryRange}
+                  onChange={(e) => setFormData(prev => ({ ...prev, salaryRange: e.target.value }))}
+                  placeholder="e.g., $80k - $120k"
+                />
+              </div>
 
-          {/* Delete Confirmation Dialog */}
-          <Dialog open={!!showDeleteDialog} onOpenChange={() => setShowDeleteDialog(null)}>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Delete Job Posting</DialogTitle>
-                <DialogDescription>
-                  Are you sure you want to delete this job posting? This action cannot be undone.
-                </DialogDescription>
-              </DialogHeader>
+              <div>
+                <Label htmlFor="description">Job Description</Label>
+                <Textarea
+                  id="description"
+                  value={formData.description}
+                  onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                  rows={4}
+                  placeholder="Describe the role and responsibilities..."
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="requirements">Requirements (comma-separated)</Label>
+                <Textarea
+                  id="requirements"
+                  value={formData.requirements}
+                  onChange={(e) => setFormData(prev => ({ ...prev, requirements: e.target.value }))}
+                  placeholder="e.g., React, TypeScript, 3+ years experience"
+                  rows={3}
+                />
+              </div>
+
               <DialogFooter>
-                <Button variant="outline" onClick={() => setShowDeleteDialog(null)}>
+                <Button type="button" variant="outline" onClick={() => setShowJobForm(false)}>
                   Cancel
                 </Button>
-                <Button 
-                  variant="destructive" 
-                  onClick={() => showDeleteDialog && handleDelete(showDeleteDialog)}
-                >
-                  Delete
+                <Button type="submit" disabled={submitting}>
+                  {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {editingJob ? 'Update Job' : 'Create Job'}
                 </Button>
               </DialogFooter>
-            </DialogContent>
-          </Dialog>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete Confirmation Dialog */}
+        <Dialog open={!!showDeleteDialog} onOpenChange={() => setShowDeleteDialog(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Delete Job Posting</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to delete this job posting? This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowDeleteDialog(null)}>
+                Cancel
+              </Button>
+              <Button 
+                variant="destructive" 
+                onClick={() => showDeleteDialog && handleDelete(showDeleteDialog)}
+              >
+                Delete
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

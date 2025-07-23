@@ -107,6 +107,51 @@ export type Database = {
         }
         Relationships: []
       }
+      jobs: {
+        Row: {
+          company: string
+          created_at: string
+          description: string | null
+          id: string
+          location: string
+          requirements: string | null
+          salary_range: string | null
+          status: string
+          title: string
+          type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          company: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          location: string
+          requirements?: string | null
+          salary_range?: string | null
+          status?: string
+          title: string
+          type: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          company?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          location?: string
+          requirements?: string | null
+          salary_range?: string | null
+          status?: string
+          title?: string
+          type?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       roles: {
         Row: {
           created_at: string | null

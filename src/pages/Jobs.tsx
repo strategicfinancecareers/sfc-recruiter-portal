@@ -463,6 +463,26 @@ const Jobs = () => {
                 />
               </div>
 
+              {editingJob && (
+                <div className="border-t pt-4 mt-6">
+                  <h3 className="text-lg font-medium text-red-600 mb-2">Danger Zone</h3>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Once you delete this job posting, there is no going back. Please be certain.
+                  </p>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    onClick={() => {
+                      setShowDeleteDialog(editingJob.id);
+                      setShowJobForm(false);
+                    }}
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete Job Posting
+                  </Button>
+                </div>
+              )}
+
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setShowJobForm(false)}>
                   Cancel

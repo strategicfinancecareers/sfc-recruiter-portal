@@ -409,6 +409,12 @@ export default function CandidateSearch() {
                   <h4 className="font-medium mb-2">Education</h4>
                   <p className="text-sm text-muted-foreground">{selectedCandidate?.education}</p>
                 </div>
+                {selectedCandidate?.highest_education_level && (
+                  <div>
+                    <h4 className="font-medium mb-2">Education Level</h4>
+                    <p className="text-sm text-muted-foreground">{selectedCandidate.highest_education_level}</p>
+                  </div>
+                )}
                 <div>
                   <h4 className="font-medium mb-2">Skills</h4>
                   <div className="flex flex-wrap gap-1">

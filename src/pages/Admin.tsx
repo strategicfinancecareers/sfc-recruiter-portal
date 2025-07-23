@@ -1055,21 +1055,11 @@ TalentConnect Team"
                 </div>
 
                 <div>
-                  <Label htmlFor="education">Education Details *</Label>
-                  <Input
-                    id="education"
-                    value={candidateForm.education}
-                    onChange={(e) => setCandidateForm(prev => ({ ...prev, education: e.target.value }))}
-                    placeholder="e.g., BS Computer Science, MBA Finance"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="highestEducationLevel">Highest Education Level</Label>
+                  <Label htmlFor="highestEducationLevel">Highest Education Level *</Label>
                   <Select
                     value={candidateForm.highestEducationLevel}
                     onValueChange={(value) => setCandidateForm(prev => ({ ...prev, highestEducationLevel: value }))}
+                    required
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select highest education level" />
@@ -1082,6 +1072,16 @@ TalentConnect Team"
                       <SelectItem value="PhD">PhD</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+
+                <div>
+                  <Label htmlFor="education">Education Details</Label>
+                  <Input
+                    id="education"
+                    value={candidateForm.education}
+                    onChange={(e) => setCandidateForm(prev => ({ ...prev, education: e.target.value }))}
+                    placeholder="e.g., BS Computer Science, MBA Finance"
+                  />
                 </div>
 
                 <div>

@@ -11,6 +11,7 @@ export interface Candidate {
   location: string;
   experience: number;
   education: string;
+  highest_education_level?: string;
   label: string;
   profile_description?: string;
   open_to_opportunities?: boolean;

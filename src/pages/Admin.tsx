@@ -703,8 +703,8 @@ const Admin = () => {
                       <CardHeader>
                         <div className="flex justify-between items-start">
                           <div className="flex-1">
-                            <CardTitle className="text-lg">{candidate.display_name}</CardTitle>
-                            <p className="text-sm text-muted-foreground">Name: {candidate.name}</p>
+                            <CardTitle className="text-lg">{candidate.name}</CardTitle>
+                            <p className="text-sm text-muted-foreground">Display Name: {candidate.display_name}</p>
                             <CardDescription className="text-primary font-medium">
                               {candidate.label}
                             </CardDescription>

@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Heart, Handshake, Search, Filter, MapPin, GraduationCap, Calendar, Eye, Loader2 } from "lucide-react";
 
 import { useAuth } from "../contexts/AuthContext";
@@ -13,6 +14,13 @@ import { useToast } from "@/hooks/use-toast";
 import TermsDialog from "../components/TermsDialog";
 import RedactedResume from "../components/RedactedResume";
 import { useCandidates, type Candidate } from "../hooks/useCandidates";
+import { supabase } from "@/integrations/supabase/client";
+
+interface Job {
+  id: string;
+  title: string;
+  company: string;
+}
 
 export default function CandidateSearch() {
   const { user } = useAuth();
@@ -26,12 +34,41 @@ export default function CandidateSearch() {
   const [showTermsDialog, setShowTermsDialog] = useState(false);
   const [pendingIntroductions, setPendingIntroductions] = useState<string[]>([]);
   const [selectedCandidates, setSelectedCandidates] = useState<string[]>([]);
+  const [showJobSelectionDialog, setShowJobSelectionDialog] = useState(false);
+  const [currentCandidateForIntro, setCurrentCandidateForIntro] = useState<Candidate | null>(null);
+  const [userJobs, setUserJobs] = useState<Job[]>([]);
+  const [selectedJobId, setSelectedJobId] = useState<string>('');
+  const [showAdminWarningDialog, setShowAdminWarningDialog] = useState(false);
+  const [isSubmittingIntro, setIsSubmittingIntro] = useState(false);
 
   // Filters
   const [experienceFilter, setExperienceFilter] = useState('');
   const [educationFilter, setEducationFilter] = useState('');
   const [locationFilter, setLocationFilter] = useState('');
   const [skillsFilter, setSkillsFilter] = useState('');
+
+  // Fetch user's jobs
+  const fetchUserJobs = async () => {
+    if (!user?.id) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('jobs')
+        .select('id, title, company')
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setUserJobs(data || []);
+    } catch (error) {
+      console.error('Error fetching user jobs:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchUserJobs();
+  }, [user?.id]);
 
   useEffect(() => {
     let filtered = candidates.filter(() => true); // All candidates are "open to opportunities"
@@ -81,18 +118,69 @@ export default function CandidateSearch() {
   };
 
   const handleIntroduceMe = (candidate: Candidate) => {
+    // Check if user is admin
+    if (user?.role === 'admin') {
+      setShowAdminWarningDialog(true);
+      return;
+    }
+
     if (!user?.has_accepted_terms) {
       setShowTermsDialog(true);
+      setCurrentCandidateForIntro(candidate);
       return;
     }
     
-    // Add to pending introductions
-    setPendingIntroductions(prev => [...prev, candidate.id]);
+    // Show job selection dialog
+    setCurrentCandidateForIntro(candidate);
+    setShowJobSelectionDialog(true);
+  };
+
+  const handleTermsAccepted = () => {
+    setShowTermsDialog(false);
+    if (currentCandidateForIntro) {
+      setShowJobSelectionDialog(true);
+    }
+  };
+
+  const submitIntroductionRequest = async () => {
+    if (!currentCandidateForIntro || !selectedJobId || !user?.id) return;
+
+    setIsSubmittingIntro(true);
     
-    toast({
-      title: "Introduction request sent",
-      description: "Thank you for your interest. Please give us 24-48 hours to connect with the candidate and see their interest in this role. We will email you once the candidate has accepted or rejected.",
-    });
+    try {
+      const { error } = await supabase
+        .from('introduction_requests')
+        .insert({
+          requester_id: user.id,
+          candidate_id: currentCandidateForIntro.id,
+          job_id: selectedJobId,
+          status: 'pending'
+        });
+
+      if (error) throw error;
+
+      // Add to pending introductions
+      setPendingIntroductions(prev => [...prev, currentCandidateForIntro.id]);
+      
+      // Reset states
+      setShowJobSelectionDialog(false);
+      setCurrentCandidateForIntro(null);
+      setSelectedJobId('');
+      
+      toast({
+        title: "Introduction request sent",
+        description: "Thank you for your interest. Please give us 24-48 hours to connect with the candidate and see their interest in this role. We will email you once the candidate has accepted or rejected.",
+      });
+    } catch (error) {
+      console.error('Error submitting introduction request:', error);
+      toast({
+        title: "Error",
+        description: "Failed to submit introduction request. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmittingIntro(false);
+    }
   };
 
   const handleBulkIntroduce = () => {
@@ -140,6 +228,7 @@ export default function CandidateSearch() {
         onOpenChange={(open) => {
           setShowTermsDialog(open);
         }}
+        onAccept={handleTermsAccepted}
       />
       
       <div className="flex-1 overflow-auto">
@@ -454,6 +543,89 @@ export default function CandidateSearch() {
               </div>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Admin Warning Dialog */}
+      <Dialog open={showAdminWarningDialog} onOpenChange={setShowAdminWarningDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cannot Request Introductions</DialogTitle>
+            <DialogDescription>
+              You are an admin, you cannot request introductions
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button onClick={() => setShowAdminWarningDialog(false)}>
+              OK
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Job Selection Dialog */}
+      <Dialog open={showJobSelectionDialog} onOpenChange={(open) => {
+        if (!open) {
+          setShowJobSelectionDialog(false);
+          setCurrentCandidateForIntro(null);
+          setSelectedJobId('');
+        }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Select Job Position</DialogTitle>
+            <DialogDescription>
+              Choose which job position you want to introduce {currentCandidateForIntro?.display_name} for.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {userJobs.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                You don't have any active job postings. Please create a job posting first.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                <Label htmlFor="job-select">Job Position</Label>
+                <Select value={selectedJobId} onValueChange={setSelectedJobId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a job position" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {userJobs.map((job) => (
+                      <SelectItem key={job.id} value={job.id}>
+                        {job.title} - {job.company}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setShowJobSelectionDialog(false);
+                setCurrentCandidateForIntro(null);
+                setSelectedJobId('');
+              }}
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={submitIntroductionRequest}
+              disabled={!selectedJobId || isSubmittingIntro || userJobs.length === 0}
+            >
+              {isSubmittingIntro ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Submitting...
+                </>
+              ) : (
+                'Send Introduction Request'
+              )}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </>

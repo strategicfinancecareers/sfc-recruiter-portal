@@ -56,6 +56,16 @@ const Favorites = () => {
   };
 
   const handleIntroduceMe = (candidate: any) => {
+    // Check if user is admin
+    if (user?.role === 'admin') {
+      toast({
+        title: "Cannot Request Introductions",
+        description: "You are an admin, you cannot request introductions",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (!user?.has_accepted_terms) {
       setShowTermsDialog(true);
       return;

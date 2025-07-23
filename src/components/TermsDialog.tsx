@@ -9,9 +9,10 @@ import { useToast } from "@/hooks/use-toast";
 interface TermsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onAccept?: () => void;
 }
 
-const TermsDialog: React.FC<TermsDialogProps> = ({ open, onOpenChange }) => {
+const TermsDialog: React.FC<TermsDialogProps> = ({ open, onOpenChange, onAccept }) => {
   const [accepted, setAccepted] = useState(false);
   const { acceptTerms } = useAuth();
   const { toast } = useToast();
@@ -24,6 +25,11 @@ const TermsDialog: React.FC<TermsDialogProps> = ({ open, onOpenChange }) => {
         title: "Terms accepted",
         description: "You can now request introductions to candidates.",
       });
+      
+      // Call the optional onAccept callback
+      if (onAccept) {
+        onAccept();
+      }
     }
   };
 

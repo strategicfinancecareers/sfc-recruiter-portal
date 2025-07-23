@@ -1142,30 +1142,34 @@ TalentConnect Team"
                   <Label htmlFor="openToOpportunities">Open to opportunities</Label>
                 </div>
 
-                <DialogFooter className="flex justify-between">
-                  <div>
-                    {editingCandidate && (
-                      <Button 
-                        type="button" 
-                        variant="destructive"
-                        onClick={() => {
-                          setShowDeleteConfirm(editingCandidate);
-                          setShowCandidateForm(false);
-                        }}
-                      >
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        Delete Candidate
-                      </Button>
-                    )}
-                  </div>
-                  <div className="flex space-x-2">
-                    <Button type="button" variant="outline" onClick={() => setShowCandidateForm(false)}>
-                      Cancel
-                    </Button>
-                    <Button type="submit">
-                      {editingCandidate ? 'Update Candidate' : 'Add Candidate'}
+                {editingCandidate && (
+                  <div className="border-t pt-6">
+                    <Label className="text-destructive">Danger Zone</Label>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      This action will permanently delete the candidate and all associated data including skills and introduction requests. This cannot be undone.
+                    </p>
+                    <Button 
+                      type="button" 
+                      variant="destructive"
+                      className="w-full"
+                      onClick={() => {
+                        setShowDeleteConfirm(editingCandidate);
+                        setShowCandidateForm(false);
+                      }}
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Delete Candidate
                     </Button>
                   </div>
+                )}
+
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={() => setShowCandidateForm(false)}>
+                    Cancel
+                  </Button>
+                  <Button type="submit">
+                    {editingCandidate ? 'Update Candidate' : 'Add Candidate'}
+                  </Button>
                 </DialogFooter>
               </form>
             </DialogContent>

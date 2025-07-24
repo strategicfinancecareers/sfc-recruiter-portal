@@ -112,7 +112,7 @@ export type Database = {
           candidate_id: string
           created_at: string
           id: string
-          job_id: string
+          job_id: string | null
           message: string | null
           requester_id: string
           status: string
@@ -122,7 +122,7 @@ export type Database = {
           candidate_id: string
           created_at?: string
           id?: string
-          job_id: string
+          job_id?: string | null
           message?: string | null
           requester_id: string
           status?: string
@@ -132,7 +132,7 @@ export type Database = {
           candidate_id?: string
           created_at?: string
           id?: string
-          job_id?: string
+          job_id?: string | null
           message?: string | null
           requester_id?: string
           status?: string

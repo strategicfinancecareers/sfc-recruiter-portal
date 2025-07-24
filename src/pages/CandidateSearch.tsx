@@ -142,20 +142,29 @@ export default function CandidateSearch() {
     }
   };
 
-  const submitIntroductionRequest = async () => {
-    if (!currentCandidateForIntro || !selectedJobId || !user?.id) return;
+  const submitIntroductionRequest = async (jobId?: string | null) => {
+    if (!currentCandidateForIntro || !user?.id) return;
+
+    // Use passed jobId or selectedJobId, but don't require it
+    const finalJobId = jobId !== undefined ? jobId : selectedJobId;
 
     setIsSubmittingIntro(true);
     
     try {
+      const requestData: any = {
+        requester_id: user.id,
+        candidate_id: currentCandidateForIntro.id,
+        status: 'pending'
+      };
+
+      // Only add job_id if we have one
+      if (finalJobId) {
+        requestData.job_id = finalJobId;
+      }
+
       const { error } = await supabase
         .from('introduction_requests')
-        .insert({
-          requester_id: user.id,
-          candidate_id: currentCandidateForIntro.id,
-          job_id: selectedJobId,
-          status: 'pending'
-        });
+        .insert(requestData);
 
       if (error) throw error;
 
@@ -574,15 +583,38 @@ export default function CandidateSearch() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Select Job Position</DialogTitle>
-            <DialogDescription>
-              Choose which job position you want to introduce {currentCandidateForIntro?.display_name} for.
-            </DialogDescription>
+            {userJobs.length > 0 && (
+              <DialogDescription>
+                Choose which job position you want to introduce {currentCandidateForIntro?.display_name} for.
+              </DialogDescription>
+            )}
           </DialogHeader>
           <div className="space-y-4 py-4">
             {userJobs.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                You don't have any active job postings. Please create a job posting first.
-              </p>
+              <div className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  You don't have any active job postings.
+                </p>
+                <div className="flex flex-col gap-2">
+                  <Button 
+                    onClick={() => {
+                      setShowJobSelectionDialog(false);
+                      setCurrentCandidateForIntro(null);
+                      setSelectedJobId('');
+                      // Navigate to Jobs page
+                      window.location.href = '/jobs';
+                    }}
+                  >
+                    Add New Job
+                  </Button>
+                  <Button 
+                    variant="outline"
+                    onClick={() => submitIntroductionRequest(null)}
+                  >
+                    Request Introduction Without Job
+                  </Button>
+                </div>
+              </div>
             ) : (
               <div className="space-y-2">
                 <Label htmlFor="job-select">Job Position</Label>
@@ -613,8 +645,8 @@ export default function CandidateSearch() {
               Cancel
             </Button>
             <Button 
-              onClick={submitIntroductionRequest}
-              disabled={!selectedJobId || isSubmittingIntro || userJobs.length === 0}
+              onClick={() => submitIntroductionRequest()}
+              disabled={(!selectedJobId && userJobs.length > 0) || isSubmittingIntro}
             >
               {isSubmittingIntro ? (
                 <>

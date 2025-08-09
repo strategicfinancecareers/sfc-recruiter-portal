@@ -125,7 +125,8 @@ const handleOpenForm = (job?: Job) => {
     
     setSubmitting(true);
     
-try {
+    try {
+  console.log('[Jobs] handleSubmit start', { editing: !!editingJob });
   const jobData = {
     title: formData.title,
     company: formData.company,
@@ -138,6 +139,7 @@ try {
     user_id: session.user.id,
   };
 
+      console.time('[Jobs] upsert');
       if (editingJob) {
         const { error } = await supabase
           .from('jobs')
@@ -162,10 +164,15 @@ try {
           description: "New job posting has been created successfully.",
         });
       }
+      console.timeEnd('[Jobs] upsert');
       
+      console.time('[Jobs] fetchJobs');
       await fetchJobs();
+      console.timeEnd('[Jobs] fetchJobs');
+
       setShowJobForm(false);
       resetForm();
+      console.log('[Jobs] handleSubmit success');
     } catch (error) {
       console.error('Error saving job:', error);
       toast({
@@ -175,6 +182,7 @@ try {
       });
     } finally {
       setSubmitting(false);
+      console.log('[Jobs] handleSubmit finally');
     }
   };
 

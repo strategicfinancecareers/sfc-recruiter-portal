@@ -79,6 +79,7 @@ const resetForm = () => {
     setSubmitting(true);
     
     try {
+      console.log('[JobForm] handleSubmit start', { editing: !!editingJob });
       const jobData = {
         title: formData.title,
         company: formData.company,
@@ -91,6 +92,7 @@ const resetForm = () => {
         user_id: session.user.id,
       };
 
+      console.time('[JobForm] upsert');
       if (editingJob) {
         const { data, error } = await supabase
           .from('jobs')
@@ -100,6 +102,7 @@ const resetForm = () => {
           .single();
 
         if (error) throw error;
+        console.timeEnd('[JobForm] upsert');
 
         toast({
           title: "Job updated",
@@ -115,6 +118,7 @@ const resetForm = () => {
           .single();
 
         if (error) throw error;
+        console.timeEnd('[JobForm] upsert');
 
         toast({
           title: "Job created",
@@ -126,6 +130,7 @@ const resetForm = () => {
       
       onOpenChange(false);
       resetForm();
+      console.log('[JobForm] handleSubmit success');
     } catch (error) {
       console.error('Error saving job:', error);
       toast({
@@ -135,6 +140,7 @@ const resetForm = () => {
       });
     } finally {
       setSubmitting(false);
+      console.log('[JobForm] handleSubmit finally');
     }
   };
 

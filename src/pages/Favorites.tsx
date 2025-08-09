@@ -323,9 +323,9 @@ const Favorites = () => {
                        >
                          <Handshake className="mr-1 h-4 w-4" />
                          {pendingIntroductions.includes(candidate.id)
-                           ? 'Introduction Sent'
+                           ? 'Intro Requested'
                            : completedIntroductions.includes(candidate.id)
-                             ? 'Introduction Complete'
+                             ? 'Intro Complete'
                              : 'Introduce Me'}
                        </Button>
                     </div>

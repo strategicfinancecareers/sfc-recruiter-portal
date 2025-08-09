@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -46,12 +47,12 @@ export const useIntroductionRequests = () => {
     try {
       setLoading(true);
       
-      // Build the query based on user role
+      // Build the query based on user role with specific relationship aliases
       let query = supabase
         .from('introduction_requests')
         .select(`
           *,
-          candidate:candidates (
+          candidate:candidates!introduction_requests_candidate_id_fkey (
             id,
             name,
             display_name,

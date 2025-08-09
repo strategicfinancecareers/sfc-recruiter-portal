@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -27,22 +27,28 @@ const Favorites = () => {
   const [showTermsDialog, setShowTermsDialog] = useState(false);
   const [pendingIntroductions, setPendingIntroductions] = useState<string[]>([]);
 
-  // Filter to only show favorited candidates
-  const favoriteCandidates = allCandidates.filter(candidate => candidate.is_favorite);
+  // Filter to only show favorited candidates (memoized to stabilize reference)
+  const favoriteCandidates = useMemo(
+    () => allCandidates.filter(candidate => candidate.is_favorite),
+    [allCandidates]
+  );
+  const favoriteCandidateIds = useMemo(
+    () => favoriteCandidates.map(c => c.id),
+    [favoriteCandidates]
+  );
 
   // Fetch pending introductions from backend for current user
   useEffect(() => {
     const fetchPending = async () => {
-      if (!user?.id || favoriteCandidates.length === 0) {
+      if (!user?.id || favoriteCandidateIds.length === 0) {
         setPendingIntroductions([]);
         return;
       }
       try {
-        const ids = favoriteCandidates.map(c => c.id);
         const { data, error } = await supabase
           .from('introduction_requests')
           .select('candidate_id')
-          .in('candidate_id', ids)
+          .in('candidate_id', favoriteCandidateIds)
           .eq('requester_id', user.id)
           .eq('status', 'pending');
         if (error) throw error;
@@ -52,7 +58,7 @@ const Favorites = () => {
       }
     };
     fetchPending();
-  }, [user?.id, favoriteCandidates]);
+  }, [user?.id, favoriteCandidateIds.join(',')]);
 
   const toggleFavorite = async (candidateId: string) => {
     await toggleCandidateFavorite(candidateId);

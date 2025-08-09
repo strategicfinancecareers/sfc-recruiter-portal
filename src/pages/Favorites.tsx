@@ -303,15 +303,6 @@ const Favorites = () => {
                       )}
                      </div>
 
-                      {pendingIntroductions.includes(candidate.id) ? (
-                        <Badge variant="secondary" className="mb-2 bg-warning/10 text-warning border-warning/20">
-                          Pending Introduction
-                        </Badge>
-                      ) : completedIntroductions.includes(candidate.id) ? (
-                        <Badge variant="secondary" className="mb-2 bg-success/10 text-success border-success/20">
-                          Introduction Complete
-                        </Badge>
-                      ) : null}
 
                      <div className="flex space-x-2 pt-2">
                       <Button

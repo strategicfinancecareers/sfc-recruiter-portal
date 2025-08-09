@@ -66,7 +66,7 @@ export const useIntroductionRequests = () => {
             last_name,
             email
           ),
-          job:jobs (
+          job:jobs!introduction_requests_job_id_fkey (
             id,
             title,
             company

@@ -32,6 +32,7 @@ export interface IntroductionRequest {
     id: string;
     title: string;
     company: string;
+    location: string;
   } | null;
 }
 
@@ -69,7 +70,8 @@ export const useIntroductionRequests = () => {
           job:jobs!introduction_requests_job_id_fkey (
             id,
             title,
-            company
+            company,
+            location
           )
         `)
         .order('created_at', { ascending: false });

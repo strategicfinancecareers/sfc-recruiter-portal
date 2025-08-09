@@ -104,7 +104,7 @@ const IntroductionRequests = () => {
                         )}
                         <div className="flex items-center space-x-2">
                           <MapPin className="w-4 h-4" />
-                          <span>{request.candidate.location}</span>
+                          <span>{request.job?.location ?? request.candidate.location}</span>
                         </div>
                         <div className="text-sm text-gray-500">
                           Requested: {new Date(request.created_at).toLocaleDateString()}

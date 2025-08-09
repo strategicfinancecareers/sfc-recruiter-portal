@@ -15,20 +15,11 @@ import TermsDialog from "../components/TermsDialog";
 import RedactedResume from "../components/RedactedResume";
 import { useCandidates, type Candidate } from "../hooks/useCandidates";
 import { supabase } from "@/integrations/supabase/client";
-import { JobForm } from "@/components/JobForm";
 
 interface Job {
   id: string;
   title: string;
   company: string;
-  location: string;
-  type: 'full-time' | 'part-time' | 'contract' | 'remote';
-  salary_range: string | null;
-  description: string | null;
-  requirements: string | null;
-  created_at: string;
-  status: 'active' | 'paused' | 'closed';
-  user_id: string;
 }
 
 export default function CandidateSearch() {
@@ -49,7 +40,6 @@ export default function CandidateSearch() {
   const [selectedJobId, setSelectedJobId] = useState<string>('');
   const [showAdminWarningDialog, setShowAdminWarningDialog] = useState(false);
   const [isSubmittingIntro, setIsSubmittingIntro] = useState(false);
-  const [showJobForm, setShowJobForm] = useState(false);
 
   // Filters
   const [experienceFilter, setExperienceFilter] = useState('');
@@ -64,22 +54,16 @@ export default function CandidateSearch() {
     try {
       const { data, error } = await supabase
         .from('jobs')
-        .select('*')
+        .select('id, title, company')
         .eq('user_id', user.id)
         .eq('status', 'active')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setUserJobs((data as Job[]) || []);
+      setUserJobs(data || []);
     } catch (error) {
       console.error('Error fetching user jobs:', error);
     }
-  };
-
-  const handleJobCreated = (newJob: Job) => {
-    setUserJobs(prev => [newJob, ...prev]);
-    setSelectedJobId(newJob.id);
-    setShowJobForm(false);
   };
 
   useEffect(() => {
@@ -613,7 +597,13 @@ export default function CandidateSearch() {
                 </p>
                 <div className="flex flex-col gap-2">
                   <Button 
-                    onClick={() => setShowJobForm(true)}
+                    onClick={() => {
+                      setShowJobSelectionDialog(false);
+                      setCurrentCandidateForIntro(null);
+                      setSelectedJobId('');
+                      // Navigate to Jobs page
+                      window.location.href = '/jobs';
+                    }}
                   >
                     Add New Job
                   </Button>
@@ -670,13 +660,6 @@ export default function CandidateSearch() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Job Form Dialog */}
-      <JobForm
-        open={showJobForm}
-        onOpenChange={setShowJobForm}
-        onJobCreated={handleJobCreated}
-      />
     </>
   );
 }

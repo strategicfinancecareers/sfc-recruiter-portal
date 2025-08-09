@@ -112,7 +112,8 @@ const IntroductionRequests = () => {
 
         {['pending', 'approved', 'rejected', 'all'].map(status => (
           <TabsContent key={status} value={status} className="space-y-4">
-            <div className="rounded-md border">
+            {sortedRequests(status).length > 0 ? (
+              <div className="rounded-md border">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -301,7 +302,7 @@ const IntroductionRequests = () => {
               </Table>
             </div>
 
-            {sortedRequests(status).length === 0 && (
+) : (
               <div className="text-center py-12">
                 <p className="text-gray-500">No {status === 'all' ? '' : status} requests found.</p>
               </div>

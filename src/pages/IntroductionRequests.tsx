@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { CheckCircle, XCircle, Clock, MapPin, Loader2 } from "lucide-react";
+import { CheckCircle, XCircle, Clock, Loader2 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { useIntroductionRequests, type IntroductionRequest } from "../hooks/useIntroductionRequests";
 
@@ -111,12 +111,6 @@ const IntroductionRequests = () => {
                       
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-600">
                         {/* Contact info removed */}
-                        {request.job?.location && (
-                          <div className="flex items-center space-x-2">
-                            <MapPin className="w-4 h-4" />
-                            <span>{request.job.location}</span>
-                          </div>
-                        )}
                         <div className="text-sm text-gray-500">
                           Requested: {new Date(request.created_at).toLocaleDateString()}
                         </div>

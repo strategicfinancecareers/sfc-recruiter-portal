@@ -55,15 +55,15 @@ const IntroductionRequests = () => {
         </div>
       </div>
 
-      <Tabs defaultValue="all" className="w-full">
+      <Tabs defaultValue="pending" className="w-full">
         <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="all">All ({filterRequests('all').length})</TabsTrigger>
           <TabsTrigger value="pending">Pending ({filterRequests('pending').length})</TabsTrigger>
           <TabsTrigger value="approved">Approved ({filterRequests('approved').length})</TabsTrigger>
           <TabsTrigger value="rejected">Rejected ({filterRequests('rejected').length})</TabsTrigger>
+          <TabsTrigger value="all">All ({filterRequests('all').length})</TabsTrigger>
         </TabsList>
 
-        {['all', 'pending', 'approved', 'rejected'].map(status => (
+        {['pending', 'approved', 'rejected', 'all'].map(status => (
           <TabsContent key={status} value={status} className="space-y-4">
             {filterRequests(status).map((request: IntroductionRequest) => (
               <Card key={request.id} className="p-6">

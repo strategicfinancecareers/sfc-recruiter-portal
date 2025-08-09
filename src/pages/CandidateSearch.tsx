@@ -121,6 +121,27 @@ export default function CandidateSearch() {
     setFilteredCandidates(filtered);
   }, [candidates, searchTerm, experienceFilter, educationFilter, locationFilter, skillsFilter]);
 
+  // Fetch pending introductions from backend for current user
+  useEffect(() => {
+    const fetchPending = async () => {
+      if (!user?.id || candidates.length === 0) return;
+      try {
+        const candidateIds = candidates.map(c => c.id);
+        const { data, error } = await supabase
+          .from('introduction_requests')
+          .select('candidate_id')
+          .in('candidate_id', candidateIds)
+          .eq('requester_id', user.id)
+          .eq('status', 'pending');
+        if (error) throw error;
+        setPendingIntroductions((data || []).map((r: any) => r.candidate_id));
+      } catch (err) {
+        console.error('Error fetching pending introductions:', err);
+      }
+    };
+    fetchPending();
+  }, [user?.id, candidates]);
+
   const toggleSelect = (candidateId: string) => {
     setSelectedCandidates(prev => 
       prev.includes(candidateId)

@@ -10,6 +10,7 @@ import { Heart, Handshake, MapPin, GraduationCap, Calendar, Eye, X } from "lucid
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { useCandidates } from "../hooks/useCandidates";
+import { supabase } from "@/integrations/supabase/client";
 import TermsDialog from "../components/TermsDialog";
 
 interface LocalCandidate {
@@ -28,6 +29,30 @@ const Favorites = () => {
 
   // Filter to only show favorited candidates
   const favoriteCandidates = allCandidates.filter(candidate => candidate.is_favorite);
+
+  // Fetch pending introductions from backend for current user
+  useEffect(() => {
+    const fetchPending = async () => {
+      if (!user?.id || favoriteCandidates.length === 0) {
+        setPendingIntroductions([]);
+        return;
+      }
+      try {
+        const ids = favoriteCandidates.map(c => c.id);
+        const { data, error } = await supabase
+          .from('introduction_requests')
+          .select('candidate_id')
+          .in('candidate_id', ids)
+          .eq('requester_id', user.id)
+          .eq('status', 'pending');
+        if (error) throw error;
+        setPendingIntroductions((data || []).map((r: any) => r.candidate_id));
+      } catch (err) {
+        console.error('Error fetching pending introductions:', err);
+      }
+    };
+    fetchPending();
+  }, [user?.id, favoriteCandidates]);
 
   const toggleFavorite = async (candidateId: string) => {
     await toggleCandidateFavorite(candidateId);

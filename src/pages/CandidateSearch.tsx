@@ -158,25 +158,18 @@ export default function CandidateSearch() {
     }
   };
 
-  const submitIntroductionRequest = async (jobId?: string | null) => {
-    if (!currentCandidateForIntro || !user?.id) return;
-
-    // Use passed jobId or selectedJobId, but don't require it
-    const finalJobId = jobId !== undefined ? jobId : selectedJobId;
+  const submitIntroductionRequest = async () => {
+    if (!currentCandidateForIntro || !user?.id || !selectedJobId) return;
 
     setIsSubmittingIntro(true);
     
     try {
-      const requestData: any = {
+      const requestData = {
         requester_id: user.id,
         candidate_id: currentCandidateForIntro.id,
+        job_id: selectedJobId,
         status: 'pending'
       };
-
-      // Only add job_id if we have one
-      if (finalJobId) {
-        requestData.job_id = finalJobId;
-      }
 
       const { error } = await supabase
         .from('introduction_requests')
@@ -611,35 +604,42 @@ export default function CandidateSearch() {
                 <p className="text-sm text-muted-foreground">
                   You don't have any active job postings.
                 </p>
-                <div className="flex flex-col gap-2">
-                  <Button 
-                    onClick={() => setShowJobForm(true)}
-                  >
-                    Add New Job
-                  </Button>
-                  <Button 
-                    variant="outline"
-                    onClick={() => submitIntroductionRequest(null)}
-                  >
-                    Request Introduction Without Job
-                  </Button>
+                <div className="bg-destructive/10 border border-destructive/20 p-3 rounded-lg">
+                  <p className="text-sm text-destructive">
+                    A job must be selected in order to request an introduction.
+                  </p>
                 </div>
+                <Button 
+                  onClick={() => setShowJobForm(true)}
+                  className="w-full"
+                >
+                  Add New Job
+                </Button>
               </div>
             ) : (
-              <div className="space-y-2">
-                <Label htmlFor="job-select">Job Position</Label>
-                <Select value={selectedJobId} onValueChange={setSelectedJobId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a job position" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {userJobs.map((job) => (
-                      <SelectItem key={job.id} value={job.id}>
-                        {job.title} - {job.company}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="job-select">Job Position</Label>
+                  <Select value={selectedJobId} onValueChange={setSelectedJobId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a job position" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {userJobs.map((job) => (
+                        <SelectItem key={job.id} value={job.id}>
+                          {job.title} - {job.company}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {!selectedJobId && (
+                  <div className="bg-destructive/10 border border-destructive/20 p-3 rounded-lg">
+                    <p className="text-sm text-destructive">
+                      A job must be selected in order to request an introduction.
+                    </p>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -656,7 +656,7 @@ export default function CandidateSearch() {
             </Button>
             <Button 
               onClick={() => submitIntroductionRequest()}
-              disabled={(!selectedJobId && userJobs.length > 0) || isSubmittingIntro}
+              disabled={!selectedJobId || isSubmittingIntro}
             >
               {isSubmittingIntro ? (
                 <>

@@ -10,14 +10,8 @@ interface ProtectedRouteProps {
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requireAdmin = false }) => {
   const { user, isLoading } = useAuth();
 
-  // START: REMOVE THIS BEFORE DEPLOYING
-  console.log('isLoading:', isLoading, 'user:', user);
-  // END: REMOVE THIS BEFORE DEPLOYING
+  if (isLoading) return null;
 
-  // START: SEE IF YOU NEED TO REMOVE THIS BEFORE DEPLOYING
-  // prevent premature redirect
-  //if (isLoading) return null;  
-  // END: SEE IF YOU NEED TO REMOVE THIS BEFORE DEPLOYING
 
   if (!user) {
     return <Navigate to="/login" replace />;

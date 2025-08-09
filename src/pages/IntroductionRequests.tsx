@@ -153,7 +153,38 @@ const IntroductionRequests = () => {
                 <TableBody>
                   {sortedRequests(status).map((request: IntroductionRequest) => (
                     <TableRow key={request.id}>
-                      <TableCell className="font-medium">{request.candidate.display_name}</TableCell>
+                      <TableCell className="font-medium">
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <Button variant="link" className="p-0 h-auto font-medium">
+                              {request.candidate.display_name}
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent>
+                            <DialogHeader>
+                              <DialogTitle>{request.candidate.display_name}</DialogTitle>
+                              <DialogDescription>Candidate details</DialogDescription>
+                            </DialogHeader>
+                            <div className="space-y-2 text-sm">
+                              {request.candidate.email && (
+                                <p>
+                                  <span className="font-medium">Email:</span> {request.candidate.email}
+                                </p>
+                              )}
+                              {request.candidate.phone && (
+                                <p>
+                                  <span className="font-medium">Phone:</span> {request.candidate.phone}
+                                </p>
+                              )}
+                              {request.candidate.location && (
+                                <p>
+                                  <span className="font-medium">Location:</span> {request.candidate.location}
+                                </p>
+                              )}
+                            </div>
+                          </DialogContent>
+                        </Dialog>
+                      </TableCell>
                       <TableCell>
                         {request.job ? (
                           <Dialog>

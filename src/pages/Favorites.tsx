@@ -26,6 +26,7 @@ const Favorites = () => {
   const [selectedCandidate, setSelectedCandidate] = useState<any>(null);
   const [showTermsDialog, setShowTermsDialog] = useState(false);
   const [pendingIntroductions, setPendingIntroductions] = useState<string[]>([]);
+  const [completedIntroductions, setCompletedIntroductions] = useState<string[]>([]);
 
   // Filter to only show favorited candidates (memoized to stabilize reference)
   const favoriteCandidates = useMemo(
@@ -37,27 +38,32 @@ const Favorites = () => {
     [favoriteCandidates]
   );
 
-  // Fetch pending introductions from backend for current user
+  // Fetch introduction statuses for current user
   useEffect(() => {
-    const fetchPending = async () => {
+    const fetchStatuses = async () => {
       if (!user?.id || favoriteCandidateIds.length === 0) {
         setPendingIntroductions([]);
+        setCompletedIntroductions([]);
         return;
       }
       try {
         const { data, error } = await supabase
           .from('introduction_requests')
-          .select('candidate_id')
+          .select('candidate_id, status')
           .in('candidate_id', favoriteCandidateIds)
-          .eq('requester_id', user.id)
-          .eq('status', 'pending');
+          .eq('requester_id', user.id);
         if (error) throw error;
-        setPendingIntroductions((data || []).map((r: any) => r.candidate_id));
+
+        const pending = (data || []).filter((r: any) => r.status === 'pending').map((r: any) => r.candidate_id);
+        const completed = (data || []).filter((r: any) => r.status === 'approved' || r.status === 'rejected').map((r: any) => r.candidate_id);
+
+        setPendingIntroductions(pending);
+        setCompletedIntroductions(completed);
       } catch (err) {
-        console.error('Error fetching pending introductions:', err);
+        console.error('Error fetching introduction statuses:', err);
       }
     };
-    fetchPending();
+    fetchStatuses();
   }, [user?.id, favoriteCandidateIds.join(',')]);
 
   const toggleFavorite = async (candidateId: string) => {
@@ -229,8 +235,8 @@ const Favorites = () => {
               {favoriteCandidates.map((candidate) => (
                 <Card
                   key={candidate.id}
-                  className={`transition-all duration-200 hover:shadow-lg ring-2 ring-primary/20 bg-accent/50 ${
-                    pendingIntroductions.includes(candidate.id) ? 'opacity-75 bg-muted/50' : ''
+                   className={`transition-all duration-200 hover:shadow-lg ring-2 ring-primary/20 bg-accent/50 ${
+                    (pendingIntroductions.includes(candidate.id) || completedIntroductions.includes(candidate.id)) ? 'opacity-75 bg-muted/50' : ''
                   }`}
                 >
                   <CardHeader className="pb-3">
@@ -297,11 +303,15 @@ const Favorites = () => {
                       )}
                      </div>
 
-                     {pendingIntroductions.includes(candidate.id) && (
-                       <Badge variant="secondary" className="mb-2 bg-warning/10 text-warning border-warning/20">
-                         Pending Introduction
-                       </Badge>
-                     )}
+                      {pendingIntroductions.includes(candidate.id) ? (
+                        <Badge variant="secondary" className="mb-2 bg-warning/10 text-warning border-warning/20">
+                          Pending Introduction
+                        </Badge>
+                      ) : completedIntroductions.includes(candidate.id) ? (
+                        <Badge variant="secondary" className="mb-2 bg-success/10 text-success border-success/20">
+                          Introduction Complete
+                        </Badge>
+                      ) : null}
 
                      <div className="flex space-x-2 pt-2">
                       <Button
@@ -313,16 +323,20 @@ const Favorites = () => {
                         <Eye className="mr-1 h-4 w-4" />
                         View Profile
                       </Button>
-                      <Button
-                        size="sm"
-                        onClick={() => handleIntroduceMe(candidate)}
-                        disabled={pendingIntroductions.includes(candidate.id)}
-                        variant={pendingIntroductions.includes(candidate.id) ? "secondary" : "default"}
-                        className="flex-1"
-                      >
-                        <Handshake className="mr-1 h-4 w-4" />
-                        {pendingIntroductions.includes(candidate.id) ? 'Introduction Sent' : 'Introduce Me'}
-                      </Button>
+                       <Button
+                         size="sm"
+                         onClick={() => handleIntroduceMe(candidate)}
+                         disabled={pendingIntroductions.includes(candidate.id) || completedIntroductions.includes(candidate.id)}
+                         variant={(pendingIntroductions.includes(candidate.id) || completedIntroductions.includes(candidate.id)) ? "secondary" : "default"}
+                         className="flex-1"
+                       >
+                         <Handshake className="mr-1 h-4 w-4" />
+                         {pendingIntroductions.includes(candidate.id)
+                           ? 'Introduction Sent'
+                           : completedIntroductions.includes(candidate.id)
+                             ? 'Introduction Complete'
+                             : 'Introduce Me'}
+                       </Button>
                     </div>
                   </CardContent>
                 </Card>

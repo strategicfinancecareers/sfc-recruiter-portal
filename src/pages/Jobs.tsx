@@ -21,6 +21,7 @@ interface Job {
   location: string;
   type: 'full-time' | 'part-time' | 'contract' | 'remote';
   salary_range: string | null;
+  job_description_url?: string | null;
   description: string | null;
   requirements: string | null;
   created_at: string;
@@ -39,16 +40,17 @@ const Jobs = () => {
   const [editingJob, setEditingJob] = useState<Job | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState<Job | null>(null);
 
-  // Form state
-  const [formData, setFormData] = useState({
-    title: '',
-    company: '',
-    location: '',
-    type: 'full-time' as Job['type'],
-    salaryRange: '',
-    description: '',
-    requirements: '',
-  });
+// Form state
+const [formData, setFormData] = useState({
+  title: '',
+  company: '',
+  location: '',
+  type: 'full-time' as Job['type'],
+  salaryRange: '',
+  jobDescriptionUrl: '',
+  description: '',
+  requirements: '',
+});
 
   // Fetch jobs from database
   const fetchJobs = async () => {
@@ -67,7 +69,7 @@ const Jobs = () => {
       const { data, error } = await query.order('created_at', { ascending: false });
 
       if (error) throw error;
-      setJobs((data as Job[]) || []);
+      setJobs((data as unknown as Job[]) || []);
     } catch (error) {
       console.error('Error fetching jobs:', error);
       toast({
@@ -84,36 +86,38 @@ const Jobs = () => {
     fetchJobs();
   }, [session, user]);
 
-  const resetForm = () => {
-    setFormData({
-      title: '',
-      company: '',
-      location: '',
-      type: 'full-time',
-      salaryRange: '',
-      description: '',
-      requirements: '',
-    });
-    setEditingJob(null);
-  };
+const resetForm = () => {
+  setFormData({
+    title: '',
+    company: '',
+    location: '',
+    type: 'full-time',
+    salaryRange: '',
+    jobDescriptionUrl: '',
+    description: '',
+    requirements: '',
+  });
+  setEditingJob(null);
+};
 
-  const handleOpenForm = (job?: Job) => {
-    if (job) {
-      setEditingJob(job);
-      setFormData({
-        title: job.title,
-        company: job.company,
-        location: job.location,
-        type: job.type,
-        salaryRange: job.salary_range || '',
-        description: job.description || '',
-        requirements: job.requirements || '',
-      });
-    } else {
-      resetForm();
-    }
-    setShowJobForm(true);
-  };
+const handleOpenForm = (job?: Job) => {
+  if (job) {
+    setEditingJob(job);
+    setFormData({
+      title: job.title,
+      company: job.company,
+      location: job.location,
+      type: job.type,
+      salaryRange: job.salary_range || '',
+      jobDescriptionUrl: job.job_description_url || '',
+      description: job.description || '',
+      requirements: job.requirements || '',
+    });
+  } else {
+    resetForm();
+  }
+  setShowJobForm(true);
+};
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -121,17 +125,18 @@ const Jobs = () => {
     
     setSubmitting(true);
     
-    try {
-      const jobData = {
-        title: formData.title,
-        company: formData.company,
-        location: formData.location,
-        type: formData.type,
-        salary_range: formData.salaryRange || null,
-        description: formData.description || null,
-        requirements: formData.requirements || null,
-        user_id: session.user.id,
-      };
+try {
+  const jobData = {
+    title: formData.title,
+    company: formData.company,
+    location: formData.location,
+    type: formData.type,
+    salary_range: formData.salaryRange || null,
+    job_description_url: formData.jobDescriptionUrl || null,
+    description: formData.description || null,
+    requirements: formData.requirements || null,
+    user_id: session.user.id,
+  };
 
       if (editingJob) {
         const { error } = await supabase
@@ -348,10 +353,19 @@ const Jobs = () => {
                     </div>
                   </div>
                   
-                  {job.description && (
-                    <p className="text-gray-700">{job.description}</p>
-                  )}
-                  
+{job.description && (
+  <p className="text-gray-700">{job.description}</p>
+)}
+
+{job.job_description_url && (
+  <div>
+    <Button variant="link" size="sm" asChild>
+      <a href={job.job_description_url} target="_blank" rel="noopener noreferrer">
+        View full job description
+      </a>
+    </Button>
+  </div>
+)}
                   {job.requirements && (
                     <div>
                       <h4 className="font-medium mb-2">Requirements:</h4>
@@ -431,15 +445,26 @@ const Jobs = () => {
                 </div>
               </div>
 
-              <div>
-                <Label htmlFor="salaryRange">Salary Range</Label>
-                <Input
-                  id="salaryRange"
-                  value={formData.salaryRange}
-                  onChange={(e) => setFormData(prev => ({ ...prev, salaryRange: e.target.value }))}
-                  placeholder="e.g., $80k - $120k"
-                />
-              </div>
+<div>
+  <Label htmlFor="salaryRange">Salary Range</Label>
+  <Input
+    id="salaryRange"
+    value={formData.salaryRange}
+    onChange={(e) => setFormData(prev => ({ ...prev, salaryRange: e.target.value }))}
+    placeholder="e.g., $80k - $120k"
+  />
+</div>
+
+<div>
+  <Label htmlFor="jobDescriptionUrl">Job Description URL</Label>
+  <Input
+    id="jobDescriptionUrl"
+    type="url"
+    placeholder="https://example.com/job-description"
+    value={formData.jobDescriptionUrl}
+    onChange={(e) => setFormData(prev => ({ ...prev, jobDescriptionUrl: e.target.value }))}
+  />
+</div>
 
               <div>
                 <Label htmlFor="description">Job Description</Label>

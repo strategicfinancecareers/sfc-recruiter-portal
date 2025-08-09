@@ -16,6 +16,7 @@ interface JobFormData {
   location: string;
   type: 'full-time' | 'part-time' | 'contract' | 'remote';
   salaryRange: string;
+  jobDescriptionUrl: string;
   description: string;
   requirements: string;
 }
@@ -27,6 +28,7 @@ interface Job {
   location: string;
   type: 'full-time' | 'part-time' | 'contract' | 'remote';
   salary_range: string | null;
+  job_description_url?: string | null;
   description: string | null;
   requirements: string | null;
   created_at: string;
@@ -46,27 +48,29 @@ export function JobForm({ open, onOpenChange, onJobCreated, editingJob }: JobFor
   const { session } = useSupabaseSession();
   const [submitting, setSubmitting] = useState(false);
 
-  const [formData, setFormData] = useState<JobFormData>({
-    title: editingJob?.title || '',
-    company: editingJob?.company || '',
-    location: editingJob?.location || '',
-    type: editingJob?.type || 'full-time',
-    salaryRange: editingJob?.salary_range || '',
-    description: editingJob?.description || '',
-    requirements: editingJob?.requirements || '',
-  });
+const [formData, setFormData] = useState<JobFormData>({
+  title: editingJob?.title || '',
+  company: editingJob?.company || '',
+  location: editingJob?.location || '',
+  type: editingJob?.type || 'full-time',
+  salaryRange: editingJob?.salary_range || '',
+  jobDescriptionUrl: editingJob?.job_description_url || '',
+  description: editingJob?.description || '',
+  requirements: editingJob?.requirements || '',
+});
 
-  const resetForm = () => {
-    setFormData({
-      title: '',
-      company: '',
-      location: '',
-      type: 'full-time',
-      salaryRange: '',
-      description: '',
-      requirements: '',
-    });
-  };
+const resetForm = () => {
+  setFormData({
+    title: '',
+    company: '',
+    location: '',
+    type: 'full-time',
+    salaryRange: '',
+    jobDescriptionUrl: '',
+    description: '',
+    requirements: '',
+  });
+};
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -81,6 +85,7 @@ export function JobForm({ open, onOpenChange, onJobCreated, editingJob }: JobFor
         location: formData.location,
         type: formData.type,
         salary_range: formData.salaryRange || null,
+        job_description_url: formData.jobDescriptionUrl || null,
         description: formData.description || null,
         requirements: formData.requirements || null,
         user_id: session.user.id,
@@ -101,7 +106,7 @@ export function JobForm({ open, onOpenChange, onJobCreated, editingJob }: JobFor
           description: "The job posting has been successfully updated.",
         });
 
-        onJobCreated?.(data as Job);
+        onJobCreated?.(data as unknown as Job);
       } else {
         const { data, error } = await supabase
           .from('jobs')
@@ -116,7 +121,7 @@ export function JobForm({ open, onOpenChange, onJobCreated, editingJob }: JobFor
           description: "New job posting has been created successfully.",
         });
 
-        onJobCreated?.(data as Job);
+        onJobCreated?.(data as unknown as Job);
       }
       
       onOpenChange(false);
@@ -194,15 +199,26 @@ export function JobForm({ open, onOpenChange, onJobCreated, editingJob }: JobFor
             </div>
           </div>
 
-          <div>
-            <Label htmlFor="salaryRange">Salary Range</Label>
-            <Input
-              id="salaryRange"
-              value={formData.salaryRange}
-              onChange={(e) => setFormData(prev => ({ ...prev, salaryRange: e.target.value }))}
-              placeholder="e.g., $80k - $120k"
-            />
-          </div>
+<div>
+  <Label htmlFor="salaryRange">Salary Range</Label>
+  <Input
+    id="salaryRange"
+    value={formData.salaryRange}
+    onChange={(e) => setFormData(prev => ({ ...prev, salaryRange: e.target.value }))}
+    placeholder="e.g., $80k - $120k"
+  />
+</div>
+
+<div>
+  <Label htmlFor="jobDescriptionUrl">Job Description URL</Label>
+  <Input
+    id="jobDescriptionUrl"
+    type="url"
+    placeholder="https://example.com/job-description"
+    value={formData.jobDescriptionUrl}
+    onChange={(e) => setFormData(prev => ({ ...prev, jobDescriptionUrl: e.target.value }))}
+  />
+</div>
 
           <div>
             <Label htmlFor="description">Job Description</Label>

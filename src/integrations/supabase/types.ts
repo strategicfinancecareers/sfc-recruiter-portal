@@ -140,6 +140,27 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "fk_introduction_requests_candidate"
+            columns: ["candidate_id"]
+            isOneToOne: false
+            referencedRelation: "candidates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_introduction_requests_job"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_introduction_requests_requester"
+            columns: ["requester_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "introduction_requests_candidate_id_fkey"
             columns: ["candidate_id"]
             isOneToOne: false

@@ -404,7 +404,7 @@ export default function CandidateSearch() {
             {filteredCandidates.map((candidate) => (
               <Card
                 key={candidate.id}
-                className={`transition-all duration-200 hover:shadow-lg ${
+                className={`transition-all duration-200 hover:shadow-lg h-full flex flex-col ${
                   candidate.is_favorite ? 'ring-2 ring-primary/20 bg-accent/50' : ''
                 } ${
                   (pendingIntroductions.includes(candidate.id) || completedIntroductions.includes(candidate.id)) ? 'opacity-75 bg-muted/50' : ''
@@ -440,7 +440,7 @@ export default function CandidateSearch() {
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent className="space-y-4 flex flex-col h-full">
                   {candidate.profile_description && (
                     <p className="text-sm text-muted-foreground">{candidate.profile_description}</p>
                   )}
@@ -474,7 +474,7 @@ export default function CandidateSearch() {
                   </div>
 
 
-                  <div className="flex space-x-2 pt-2">
+                  <div className="flex space-x-2 pt-2 mt-auto">
                     <Button
                       variant="outline"
                       size="sm"

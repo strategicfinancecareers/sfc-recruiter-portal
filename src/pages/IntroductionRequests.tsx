@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import RedactedResume from "@/components/RedactedResume";
 import { CheckCircle, XCircle, Clock, Loader2, ArrowUpDown } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
@@ -160,27 +161,73 @@ const IntroductionRequests = () => {
                               {request.candidate.display_name}
                             </Button>
                           </DialogTrigger>
-                          <DialogContent>
+                          <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
                             <DialogHeader>
-                              <DialogTitle>{request.candidate.display_name}</DialogTitle>
-                              <DialogDescription>Candidate details</DialogDescription>
+                              <DialogTitle className="font-heading">{request.candidate.display_name}</DialogTitle>
+                              {user?.role === 'admin' && (
+                                <p className="text-sm text-muted-foreground">{request.candidate.name}</p>
+                              )}
+                              <DialogDescription>{request.candidate.label}</DialogDescription>
                             </DialogHeader>
-                            <div className="space-y-2 text-sm">
-                              {request.candidate.email && (
-                                <p>
-                                  <span className="font-medium">Email:</span> {request.candidate.email}
-                                </p>
-                              )}
-                              {request.candidate.phone && (
-                                <p>
-                                  <span className="font-medium">Phone:</span> {request.candidate.phone}
-                                </p>
-                              )}
-                              {request.candidate.location && (
-                                <p>
-                                  <span className="font-medium">Location:</span> {request.candidate.location}
-                                </p>
-                              )}
+                            <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-6">
+                              <div className="space-y-4">
+                                <div className="bg-muted p-4 rounded-lg">
+                                  <h4 className="font-medium mb-2">Professional Summary</h4>
+                                  <p className="text-sm text-muted-foreground">{request.candidate.profile_description}</p>
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                  <div>
+                                    <h4 className="font-medium mb-2">Location</h4>
+                                    <p className="text-sm text-muted-foreground">{request.candidate.location}</p>
+                                  </div>
+                                  <div>
+                                    <h4 className="font-medium mb-2">Experience</h4>
+                                    <p className="text-sm text-muted-foreground">{request.candidate.experience} years</p>
+                                  </div>
+                                  <div>
+                                    <h4 className="font-medium mb-2">Education</h4>
+                                    <p className="text-sm text-muted-foreground">{request.candidate.education}</p>
+                                  </div>
+                                  {request.candidate.highest_education_level && (
+                                    <div>
+                                      <h4 className="font-medium mb-2">Education Level</h4>
+                                      <p className="text-sm text-muted-foreground">{request.candidate.highest_education_level}</p>
+                                    </div>
+                                  )}
+                                  <div>
+                                    <h4 className="font-medium mb-2">Skills</h4>
+                                    <div className="flex flex-wrap gap-1">
+                                      {(request.candidate.skills || []).map((skill) => (
+                                        <Badge key={skill.id} variant="secondary" className="text-xs">
+                                          {skill.skill}
+                                        </Badge>
+                                      ))}
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="bg-warning/10 border border-warning/20 p-4 rounded-lg">
+                                  <p className="text-sm text-warning-foreground">
+                                    <strong>Note:</strong> This is a redacted profile preview. Full contact information and detailed work history will be shared upon successful introduction.
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="space-y-4">
+                                <div>
+                                  <h4 className="font-medium mb-2">Resume Preview</h4>
+                                  <div className="border rounded-lg max-h-96 overflow-y-auto bg-background">
+                                    <RedactedResume 
+                                      candidate={{
+                                        displayName: request.candidate.display_name,
+                                        label: request.candidate.label,
+                                        location: request.candidate.location,
+                                        experience: request.candidate.experience,
+                                        education: request.candidate.education,
+                                        skills: (request.candidate.skills || []).map(s => s.skill)
+                                      }}
+                                    />
+                                  </div>
+                                </div>
+                              </div>
                             </div>
                           </DialogContent>
                         </Dialog>

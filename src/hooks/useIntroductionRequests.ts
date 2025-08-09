@@ -21,6 +21,12 @@ export interface IntroductionRequest {
     email: string;
     phone: string | null;
     location: string;
+    experience: number;
+    education: string;
+    highest_education_level?: string | null;
+    label: string;
+    profile_description?: string | null;
+    skills: Array<{ id: string; skill: string }>;
   };
   requester: {
     id: string;
@@ -59,7 +65,18 @@ export const useIntroductionRequests = () => {
             display_name,
             email,
             phone,
-            location
+            location,
+            experience,
+            education,
+            highest_education_level,
+            label,
+            profile_description,
+            candidate_skills (
+              skills (
+                id,
+                skill
+              )
+            )
           ),
           requester:users (
             id,
@@ -85,9 +102,19 @@ export const useIntroductionRequests = () => {
 
       if (error) throw error;
 
-      // Type the data properly with unknown first
-      const typedData = (data || []) as unknown as IntroductionRequest[];
-      setRequests(typedData);
+      const typedData = (data || []) as any[];
+      // Map candidate_skills to a flat skills array for convenience
+      const transformed: IntroductionRequest[] = typedData.map((req: any) => ({
+        ...req,
+        candidate: {
+          ...req.candidate,
+          skills: (req.candidate?.candidate_skills || []).map((cs: any) => ({
+            id: cs.skills.id,
+            skill: cs.skills.skill,
+          })),
+        },
+      }));
+      setRequests(transformed);
     } catch (error) {
       console.error('Error fetching introduction requests:', error);
       toast({

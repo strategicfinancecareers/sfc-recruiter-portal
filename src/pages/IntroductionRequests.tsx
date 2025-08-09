@@ -1,84 +1,23 @@
-import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CheckCircle, XCircle, Clock, Mail, Phone, MapPin } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { CheckCircle, XCircle, Clock, Mail, Phone, MapPin, Loader2 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
+import { useIntroductionRequests, type IntroductionRequest } from "../hooks/useIntroductionRequests";
 
 const IntroductionRequests = () => {
-  const { toast } = useToast();
   const { user } = useAuth();
-  const [requests, setRequests] = useState([
-    {
-      id: 1,
-      candidateName: "Sarah Chen",
-      candidateEmail: "sarah.chen@email.com",
-      candidatePhone: "+1 (555) 123-4567",
-      candidateLocation: "San Francisco, CA",
-      companyName: "TechCorp",
-      position: "Senior Financial Analyst",
-      requesterName: "Mark Johnson",
-      requesterEmail: "mark@techcorp.com",
-      requesterId: "1",
-      requestDate: "2024-01-10",
-      status: "pending",
-      avatar: "/api/placeholder/100/100"
-    },
-    {
-      id: 2,
-      candidateName: "David Rodriguez",
-      candidateEmail: "david.r@email.com",
-      candidatePhone: "+1 (555) 987-6543",
-      candidateLocation: "New York, NY",
-      companyName: "Finance Plus",
-      position: "Investment Banking Associate",
-      requesterName: "Lisa Zhang",
-      requesterEmail: "lisa@financeplus.com",
-      requesterId: "1",
-      requestDate: "2024-01-08",
-      status: "pending",
-      avatar: "/api/placeholder/100/100"
-    },
-    {
-      id: 3,
-      candidateName: "Emily Watson",
-      candidateEmail: "emily.watson@email.com",
-      candidatePhone: "+1 (555) 456-7890",
-      candidateLocation: "Chicago, IL",
-      companyName: "Capital Solutions",
-      position: "Financial Manager",
-      requesterName: "Robert Kim",
-      requesterEmail: "robert@capitalsol.com",
-      requesterId: "2",
-      requestDate: "2024-01-05",
-      status: "approved",
-      avatar: "/api/placeholder/100/100"
-    }
-  ]);
+  const { requests, loading, updateRequestStatus, cancelRequest } = useIntroductionRequests();
 
-  const handleRequestAction = (requestId: number, action: 'approve' | 'reject' | 'cancel') => {
+  const handleRequestAction = (requestId: string, action: 'approve' | 'reject' | 'cancel') => {
     if (action === 'cancel') {
-      setRequests(prev => prev.filter(req => req.id !== requestId));
-      toast({
-        title: "Request Cancelled",
-        description: "Introduction request has been cancelled.",
-      });
+      cancelRequest(requestId);
     } else {
-      setRequests(prev => 
-        prev.map(req => 
-          req.id === requestId 
-            ? { ...req, status: action === 'approve' ? 'approved' : 'rejected' }
-            : req
-        )
-      );
-      
-      toast({
-        title: `Request ${action === 'approve' ? 'Approved' : 'Rejected'}`,
-        description: `Introduction request has been ${action === 'approve' ? 'approved' : 'rejected'}.`,
-      });
+      // Map the action to the correct status
+      const status = action === 'approve' ? 'approved' : 'rejected';
+      updateRequestStatus(requestId, status);
     }
   };
 
@@ -96,15 +35,16 @@ const IntroductionRequests = () => {
   };
 
   const filterRequests = (status: string) => {
-    let filtered = status === 'all' ? requests : requests.filter(req => req.status === status);
-    
-    // Recruiters can only see their own requests
-    if (user?.role === 'recruiter') {
-      filtered = filtered.filter(req => req.requesterId === user.id);
-    }
-    
-    return filtered;
+    return status === 'all' ? requests : requests.filter(req => req.status === status);
   };
+
+  if (loading) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 space-y-6">
@@ -125,43 +65,65 @@ const IntroductionRequests = () => {
 
         {['all', 'pending', 'approved', 'rejected'].map(status => (
           <TabsContent key={status} value={status} className="space-y-4">
-            {filterRequests(status).map((request) => (
+            {filterRequests(status).map((request: IntroductionRequest) => (
               <Card key={request.id} className="p-6">
                 <div className="flex items-start justify-between">
                   <div className="flex space-x-4">
                     <Avatar className="h-12 w-12">
-                      <AvatarImage src={request.avatar} alt={request.candidateName} />
-                      <AvatarFallback>{request.candidateName.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                      <AvatarFallback>
+                        {request.candidate.display_name.split(' ').map(n => n[0]).join('')}
+                      </AvatarFallback>
                     </Avatar>
                     
                     <div className="flex-1 space-y-3">
                       <div>
-                        <h3 className="text-lg font-semibold text-gray-900">{request.candidateName}</h3>
-                        <p className="text-sm text-gray-600">Requested for: <span className="font-medium">{request.position}</span> at <span className="font-medium">{request.companyName}</span></p>
+                        <h3 className="text-lg font-semibold text-gray-900">
+                          {request.candidate.display_name}
+                        </h3>
+                        <p className="text-sm text-gray-600">
+                          {request.job ? (
+                            <>
+                              Requested for: <span className="font-medium">{request.job.title}</span> at <span className="font-medium">{request.job.company}</span>
+                            </>
+                          ) : (
+                            <span className="text-muted-foreground">General introduction request</span>
+                          )}
+                        </p>
                       </div>
                       
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-600">
                         <div className="flex items-center space-x-2">
                           <Mail className="w-4 h-4" />
-                          <span>{request.candidateEmail}</span>
+                          <span>{request.candidate.email}</span>
                         </div>
-                        <div className="flex items-center space-x-2">
-                          <Phone className="w-4 h-4" />
-                          <span>{request.candidatePhone}</span>
-                        </div>
+                        {request.candidate.phone && (
+                          <div className="flex items-center space-x-2">
+                            <Phone className="w-4 h-4" />
+                            <span>{request.candidate.phone}</span>
+                          </div>
+                        )}
                         <div className="flex items-center space-x-2">
                           <MapPin className="w-4 h-4" />
-                          <span>{request.candidateLocation}</span>
+                          <span>{request.candidate.location}</span>
                         </div>
                         <div className="text-sm text-gray-500">
-                          Requested: {new Date(request.requestDate).toLocaleDateString()}
+                          Requested: {new Date(request.created_at).toLocaleDateString()}
                         </div>
                       </div>
                       
                       <div className="p-3 bg-gray-50 rounded-lg">
-                        <p className="text-sm"><span className="font-medium">Requester:</span> {request.requesterName}</p>
-                        <p className="text-sm text-gray-600">{request.requesterEmail}</p>
+                        <p className="text-sm">
+                          <span className="font-medium">Requester:</span> {request.requester.first_name} {request.requester.last_name}
+                        </p>
+                        <p className="text-sm text-gray-600">{request.requester.email}</p>
                       </div>
+
+                      {request.message && (
+                        <div className="p-3 bg-blue-50 rounded-lg">
+                          <p className="text-sm font-medium text-blue-900 mb-1">Message:</p>
+                          <p className="text-sm text-blue-800">{request.message}</p>
+                        </div>
+                      )}
                     </div>
                   </div>
                   

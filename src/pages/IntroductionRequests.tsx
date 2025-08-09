@@ -149,7 +149,9 @@ const IntroductionRequests = () => {
                         </Button>
                       </TableHead>
                     )}
-                    <TableHead className="text-right">Actions</TableHead>
+                    {user?.role === 'admin' && (
+                      <TableHead className="text-right">Actions</TableHead>
+                    )}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -261,41 +263,43 @@ const IntroductionRequests = () => {
                       {status === 'all' && (
                         <TableCell>{getStatusBadge(request.status)}</TableCell>
                       )}
-                      <TableCell className="text-right">
-                        {request.status === 'pending' ? (
-                          user?.role === 'admin' ? (
-                            <>
+                      {user?.role === 'admin' && (
+                        <TableCell className="text-right">
+                          {request.status === 'pending' ? (
+                            user?.role === 'admin' ? (
+                              <>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleRequestAction(request.id, 'reject')}
+                                  className="border-red-200 text-red-700 hover:bg-red-50 mr-2"
+                                >
+                                  <XCircle className="w-4 h-4 mr-1" />
+                                  Reject
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleRequestAction(request.id, 'approve')}
+                                  className="bg-green-600 hover:bg-green-700"
+                                >
+                                  <CheckCircle className="w-4 h-4 mr-1" />
+                                  Approve
+                                </Button>
+                              </>
+                            ) : (
                               <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() => handleRequestAction(request.id, 'reject')}
-                                className="border-red-200 text-red-700 hover:bg-red-50 mr-2"
+                                onClick={() => handleRequestAction(request.id, 'cancel')}
+                                className="border-red-200 text-red-700 hover:bg-red-50"
                               >
                                 <XCircle className="w-4 h-4 mr-1" />
-                                Reject
+                                Cancel
                               </Button>
-                              <Button
-                                size="sm"
-                                onClick={() => handleRequestAction(request.id, 'approve')}
-                                className="bg-green-600 hover:bg-green-700"
-                              >
-                                <CheckCircle className="w-4 h-4 mr-1" />
-                                Approve
-                              </Button>
-                            </>
-                          ) : (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleRequestAction(request.id, 'cancel')}
-                              className="border-red-200 text-red-700 hover:bg-red-50"
-                            >
-                              <XCircle className="w-4 h-4 mr-1" />
-                              Cancel
-                            </Button>
-                          )
-                        ) : null}
-                      </TableCell>
+                            )
+                          ) : null}
+                        </TableCell>
+                      )}
                     </TableRow>
                   ))}
                 </TableBody>

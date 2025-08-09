@@ -3,7 +3,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CheckCircle, XCircle, Clock, Mail, Phone, MapPin, Loader2 } from "lucide-react";
+import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { CheckCircle, XCircle, Clock, MapPin, Loader2 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { useIntroductionRequests, type IntroductionRequest } from "../hooks/useIntroductionRequests";
 
@@ -83,7 +84,24 @@ const IntroductionRequests = () => {
                         <p className="text-sm text-gray-600">
                           {request.job ? (
                             <>
-                              Requested for: <span className="font-medium">{request.job.title}</span> at <span className="font-medium">{request.job.company}</span>
+                              Requested for: 
+                              <Dialog>
+                                <DialogTrigger asChild>
+                                  <Button variant="link" className="p-0 h-auto font-medium">
+                                    {request.job.title}
+                                  </Button>
+                                </DialogTrigger>
+                                <DialogContent>
+                                  <DialogHeader>
+                                    <DialogTitle>{request.job.title}</DialogTitle>
+                                    <DialogDescription>
+                                      {request.job.company}
+                                      {request.job.location ? ` • ${request.job.location}` : ""}
+                                    </DialogDescription>
+                                  </DialogHeader>
+                                </DialogContent>
+                              </Dialog>
+                              {" "}at <span className="font-medium">{request.job.company}</span>
                             </>
                           ) : (
                             <span className="text-muted-foreground">General introduction request</span>
@@ -92,16 +110,7 @@ const IntroductionRequests = () => {
                       </div>
                       
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-600">
-                        <div className="flex items-center space-x-2">
-                          <Mail className="w-4 h-4" />
-                          <span>{request.candidate.email}</span>
-                        </div>
-                        {request.candidate.phone && (
-                          <div className="flex items-center space-x-2">
-                            <Phone className="w-4 h-4" />
-                            <span>{request.candidate.phone}</span>
-                          </div>
-                        )}
+                        {/* Contact info removed */}
                         {request.job?.location && (
                           <div className="flex items-center space-x-2">
                             <MapPin className="w-4 h-4" />

@@ -40,30 +40,7 @@ serve(async (req: Request) => {
       });
     }
 
-    // Ensure caller is admin
-    const { data: isAdmin, error: adminCheckErr } = await authedClient.rpc("is_current_user_admin");
-    if (adminCheckErr) {
-      console.error("Admin check error", adminCheckErr);
-      return new Response(JSON.stringify({ error: "Admin check failed" }), {
-        status: 500,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
-      });
-    }
-    if (!isAdmin) {
-      return new Response(JSON.stringify({ error: "Forbidden" }), {
-        status: 403,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
-      });
-    }
-
-    // If user already exists in users table by email, just update role to admin
-    const { data: existingUser } = await adminClient
-      .from("users")
-      .select("id")
-      .eq("email", email)
-      .maybeSingle();
-
-    // Resolve admin role id
+    // Resolve admin role id first
     const { data: roleRow, error: roleErr } = await adminClient
       .from("roles")
       .select("id")
@@ -76,6 +53,44 @@ serve(async (req: Request) => {
         headers: { "Content-Type": "application/json", ...corsHeaders },
       });
     }
+
+    // Ensure caller is admin OR allow bootstrap when no admins exist yet
+    const { data: isAdmin, error: adminCheckErr } = await authedClient.rpc("is_current_user_admin");
+    if (adminCheckErr) {
+      console.error("Admin check error", adminCheckErr);
+      return new Response(JSON.stringify({ error: "Admin check failed" }), {
+        status: 500,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      });
+    }
+
+    if (!isAdmin) {
+      const { count: adminCount, error: cntErr } = await adminClient
+        .from("users")
+        .select("id", { count: "exact", head: true })
+        .eq("role_id", roleRow.id);
+      if (cntErr) {
+        console.error("Admin count error", cntErr);
+        return new Response(JSON.stringify({ error: "Admin verification failed" }), {
+          status: 500,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        });
+      }
+      if ((adminCount ?? 0) > 0) {
+        return new Response(JSON.stringify({ error: "Forbidden" }), {
+          status: 403,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        });
+      }
+      console.log("Bootstrap mode: no admins exist; proceeding to create first admin");
+    }
+
+    // If user already exists in users table by email, just update role to admin
+    const { data: existingUser } = await adminClient
+      .from("users")
+      .select("id")
+      .eq("email", email)
+      .maybeSingle();
 
     let userId: string | null = existingUser?.id ?? null;
 

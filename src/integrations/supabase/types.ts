@@ -140,13 +140,6 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "fk_introduction_requests_candidate"
-            columns: ["candidate_id"]
-            isOneToOne: false
-            referencedRelation: "candidates"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "fk_introduction_requests_job"
             columns: ["job_id"]
             isOneToOne: false
@@ -182,6 +175,7 @@ export type Database = {
           created_at: string
           description: string | null
           id: string
+          job_description_url: string | null
           location: string
           requirements: string | null
           salary_range: string | null
@@ -196,6 +190,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          job_description_url?: string | null
           location: string
           requirements?: string | null
           salary_range?: string | null
@@ -210,6 +205,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          job_description_url?: string | null
           location?: string
           requirements?: string | null
           salary_range?: string | null

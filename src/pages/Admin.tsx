@@ -780,33 +780,6 @@ const Admin = () => {
               <div className="space-y-6">
                 <div className="flex items-center justify-between">
                   <h2 className="text-xl font-semibold">User Management</h2>
-                  <Button
-                    variant="outline"
-                    onClick={async () => {
-                      try {
-                        setLoading(true);
-                        const { data, error } = await supabase.functions.invoke('create-admin-user', {
-                          body: {
-                            email: 'zuhayr.daya@gmail.com',
-                            first_name: 'Zuhayr',
-                            last_name: 'Daya',
-                            role: 'admin',
-                            notify_intro_requests: false,
-                          },
-                        });
-                        if (error) throw error as any;
-                        toast({ title: 'Admin user created', description: 'Invitation sent and user added to public.users.' });
-                      } catch (err: any) {
-                        console.error('Create admin error', err);
-                        toast({ title: 'Failed to create admin', description: err?.message || 'Unknown error', variant: 'destructive' });
-                      } finally {
-                        setLoading(false);
-                      }
-                    }}
-                  >
-                    <UserPlus className="mr-2 h-4 w-4" />
-                    Create admin: Zuhayr Daya
-                  </Button>
                 </div>
                 
                 {/* Current User Section */}

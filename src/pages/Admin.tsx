@@ -103,6 +103,13 @@ const Admin = () => {
   const [showReactivateConfirm, setShowReactivateConfirm] = useState<User | null>(null);
   const [newRoleId, setNewRoleId] = useState<string>('');
 
+  // Invite user state
+  const [inviteFirstName, setInviteFirstName] = useState('demo');
+  const [inviteLastName, setInviteLastName] = useState('owner');
+  const [inviteEmail, setInviteEmail] = useState('owner@demo.com');
+  const [inviteRole, setInviteRole] = useState('owner');
+  const [inviteLoading, setInviteLoading] = useState(false);
+
   // Form state for candidate
   const [candidateForm, setCandidateForm] = useState({
     name: '',
@@ -781,7 +788,87 @@ const Admin = () => {
                 <div className="flex items-center justify-between">
                   <h2 className="text-xl font-semibold">User Management</h2>
                 </div>
-                
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Invite New User</CardTitle>
+                    <CardDescription>Send an invite and assign a role (Owner inherits Admin permissions).</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                      <div>
+                        <Label htmlFor="invite-first-name">First name</Label>
+                        <Input id="invite-first-name" value={inviteFirstName} onChange={(e) => setInviteFirstName(e.target.value)} placeholder="First name" />
+                      </div>
+                      <div>
+                        <Label htmlFor="invite-last-name">Last name</Label>
+                        <Input id="invite-last-name" value={inviteLastName} onChange={(e) => setInviteLastName(e.target.value)} placeholder="Last name" />
+                      </div>
+                      <div className="md:col-span-1">
+                        <Label htmlFor="invite-email">Email</Label>
+                        <Input id="invite-email" type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} placeholder="user@example.com" />
+                      </div>
+                      <div>
+                        <Label>Role</Label>
+                        <Select value={inviteRole} onValueChange={setInviteRole}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select role" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {roles.map((r) => (
+                              <SelectItem key={r.id} value={r.name}>
+                                {r.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <div className="mt-4">
+                      <Button
+                        disabled={inviteLoading || !inviteFirstName || !inviteLastName || !inviteEmail}
+                        onClick={async () => {
+                          try {
+                            setInviteLoading(true);
+                            const { data, error } = await supabase.functions.invoke('create-admin-user', {
+                              body: {
+                                email: inviteEmail,
+                                first_name: inviteFirstName,
+                                last_name: inviteLastName,
+                                role: inviteRole,
+                                notify_intro_requests: false,
+                              },
+                            });
+                            if (error) throw error as any;
+                            toast({ title: 'User invited', description: `${inviteFirstName} ${inviteLastName} invited as ${inviteRole}.` });
+
+                            // Refresh users list
+                            const { data: usersData, error: usersError } = await supabase
+                              .from('users')
+                              .select(`
+                                *,
+                                roles(id, name)
+                              `);
+                            if (!usersError && usersData) {
+                              const transformedUsers = usersData.map((u: any) => ({
+                                ...u,
+                                role: u.roles?.name || 'unknown'
+                              }));
+                              setUsers(transformedUsers);
+                            }
+                          } catch (err: any) {
+                            console.error('Invite user error', err);
+                            toast({ title: 'Failed to invite user', description: err?.message || 'Unknown error', variant: 'destructive' });
+                          } finally {
+                            setInviteLoading(false);
+                          }
+                        }}
+                      >
+                        {inviteLoading ? 'Inviting...' : 'Invite User'}
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
                 {/* Current User Section */}
                 {user && (
                   <div className="mb-6">

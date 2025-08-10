@@ -9,7 +9,7 @@ interface Profile {
   email: string;
   first_name?: string;
   last_name?: string;
-  role: 'recruiter' | 'admin' | 'candidate';
+  role: 'recruiter' | 'admin' | 'owner' | 'candidate';
   has_accepted_terms?: boolean;
   notify_intro_requests?: boolean;
   created_at: string;
@@ -80,7 +80,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return null;
         }
         
-        const role = data.roles?.name as 'recruiter' | 'admin' | 'candidate' || 'recruiter';
+        const role = data.roles?.name as 'recruiter' | 'admin' | 'owner' | 'candidate' || 'recruiter';
         return {
           ...data,
           role

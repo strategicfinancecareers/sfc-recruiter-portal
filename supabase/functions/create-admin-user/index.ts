@@ -37,7 +37,7 @@ Deno.serve(async (req) => {
       email: string;
       first_name: string;
       last_name: string;
-      role?: 'admin' | 'recruiter';
+      role?: 'admin' | 'recruiter' | 'owner';
       notify_intro_requests?: boolean;
     } = body;
 
@@ -64,23 +64,24 @@ Deno.serve(async (req) => {
     }
 
     const adminRoleId = (await supabaseAdmin.from('roles').select('id').eq('name', 'admin').single()).data?.id;
+    const ownerRoleId = (await supabaseAdmin.from('roles').select('id').eq('name', 'owner').single()).data?.id;
 
-    // Count existing admins to allow bootstrap if none exist
-    let adminCount = 0;
-    if (adminRoleId) {
+    // Count existing elevated users (admin or owner) to allow bootstrap if none exist
+    let elevatedCount = 0;
+    if (adminRoleId || ownerRoleId) {
       const { count, error: countErr } = await supabaseAdmin
         .from('users')
         .select('id', { count: 'exact', head: true })
-        .eq('role_id', adminRoleId);
+        .in('role_id', [adminRoleId, ownerRoleId].filter(Boolean) as string[]);
       if (countErr) {
-        console.error('Admin count error', countErr);
+        console.error('Elevated count error', countErr);
       } else if (typeof count === 'number') {
-        adminCount = count;
+        elevatedCount = count;
       }
     }
 
-    // If admins exist, require caller to be an admin
-    if (adminCount > 0) {
+    // If elevated users exist, require caller to be admin or owner
+    if (elevatedCount > 0) {
       const { data: userRes, error: getUserErr } = await supabaseAuthed.auth.getUser();
       if (getUserErr || !userRes?.user) {
         return new Response(JSON.stringify({ error: 'Unauthorized' }), {
@@ -89,15 +90,19 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Verify caller is admin
+      // Verify caller is admin or owner
       const { data: callerRow, error: callerErr } = await supabaseAdmin
         .from('users')
         .select('role_id')
         .eq('id', userRes.user.id)
         .single();
 
-      if (callerErr || !callerRow || callerRow.role_id !== adminRoleId) {
-        return new Response(JSON.stringify({ error: 'Forbidden: admin only' }), {
+      if (
+        callerErr ||
+        !callerRow ||
+        (callerRow.role_id !== adminRoleId && callerRow.role_id !== ownerRoleId)
+      ) {
+        return new Response(JSON.stringify({ error: 'Forbidden: admin or owner only' }), {
           status: 403,
           headers: { 'Content-Type': 'application/json', ...corsHeaders },
         });

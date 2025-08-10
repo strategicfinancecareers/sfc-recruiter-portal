@@ -202,11 +202,22 @@ export default function CandidateSearch() {
         status: 'pending'
       };
 
-      const { error } = await supabase
+const { data: inserted, error } = await supabase
         .from('introduction_requests')
-        .insert(requestData);
+        .insert(requestData)
+        .select('id')
+        .single();
 
       if (error) throw error;
+
+      // Fire-and-forget notification to opted-in admins
+      try {
+        await supabase.functions.invoke('notify-intro-created', {
+          body: { request_id: inserted?.id },
+        });
+      } catch (fnErr) {
+        console.error('notify-intro-created error:', fnErr);
+      }
 
       // Add to pending introductions
       setPendingIntroductions(prev => [...prev, currentCandidateForIntro.id]);

@@ -1,15 +1,15 @@
-
 import { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 
 const Account = () => {
-  const { user } = useAuth();
+  const { user, setAdminNotifications } = useAuth();
   const { toast } = useToast();
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -53,88 +53,111 @@ const Account = () => {
           <p className="text-muted-foreground">Manage your account settings and preferences</p>
         </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Profile Information */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Profile Information</CardTitle>
-                <CardDescription>Your account details</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label>First Name</Label>
-                    <Input value={user?.first_name || ''} disabled />
-                  </div>
-                  <div>
-                    <Label>Last Name</Label>
-                    <Input value={user?.last_name || ''} disabled />
-                  </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Profile Information */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Profile Information</CardTitle>
+              <CardDescription>Your account details</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>First Name</Label>
+                  <Input value={user?.first_name || ''} disabled />
                 </div>
                 <div>
-                  <Label>Email</Label>
-                  <Input value={user?.email || ''} disabled />
+                  <Label>Last Name</Label>
+                  <Input value={user?.last_name || ''} disabled />
                 </div>
-                <div>
-                  <Label>Role</Label>
-                  <Input value={user?.role || ''} disabled className="capitalize" />
+              </div>
+              <div>
+                <Label>Email</Label>
+                <Input value={user?.email || ''} disabled />
+              </div>
+              <div>
+                <Label>Role</Label>
+                <Input value={user?.role || ''} disabled className="capitalize" />
+              </div>
+              <div>
+                <Label>Terms Status</Label>
+                <div className="mt-1">
+                  <Badge variant={user?.has_accepted_terms ? "default" : "secondary"}>
+                    {user?.has_accepted_terms ? "Accepted" : "Not Accepted"}
+                  </Badge>
                 </div>
-                <div>
-                  <Label>Terms Status</Label>
-                  <div className="mt-1">
-                    <Badge variant={user?.has_accepted_terms ? "default" : "secondary"}>
-                      {user?.has_accepted_terms ? "Accepted" : "Not Accepted"}
-                    </Badge>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+              </div>
+            </CardContent>
+          </Card>
 
-            {/* Change Password */}
+          {/* Change Password */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Change Password</CardTitle>
+              <CardDescription>Update your account password</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handlePasswordChange} className="space-y-4">
+                <div>
+                  <Label htmlFor="currentPassword">Current Password</Label>
+                  <Input
+                    id="currentPassword"
+                    type="password"
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="newPassword">New Password</Label>
+                  <Input
+                    id="newPassword"
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="confirmPassword">Confirm New Password</Label>
+                  <Input
+                    id="confirmPassword"
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    required
+                  />
+                </div>
+                <Button type="submit" disabled={isLoading}>
+                  {isLoading ? "Updating..." : "Update Password"}
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+
+          {/* Admin Notifications */}
+          {user?.role === 'admin' && (
             <Card>
               <CardHeader>
-                <CardTitle>Change Password</CardTitle>
-                <CardDescription>Update your account password</CardDescription>
+                <CardTitle>Notifications</CardTitle>
+                <CardDescription>Admin email preferences</CardDescription>
               </CardHeader>
               <CardContent>
-                <form onSubmit={handlePasswordChange} className="space-y-4">
+                <div className="flex items-center justify-between">
                   <div>
-                    <Label htmlFor="currentPassword">Current Password</Label>
-                    <Input
-                      id="currentPassword"
-                      type="password"
-                      value={currentPassword}
-                      onChange={(e) => setCurrentPassword(e.target.value)}
-                      required
-                    />
+                    <Label htmlFor="notify-intros">Intro request emails</Label>
+                    <p className="text-sm text-muted-foreground">Email me when recruiters submit introduction requests.</p>
                   </div>
-                  <div>
-                    <Label htmlFor="newPassword">New Password</Label>
-                    <Input
-                      id="newPassword"
-                      type="password"
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="confirmPassword">Confirm New Password</Label>
-                    <Input
-                      id="confirmPassword"
-                      type="password"
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      required
-                    />
-                  </div>
-                  <Button type="submit" disabled={isLoading}>
-                    {isLoading ? "Updating..." : "Update Password"}
-                  </Button>
-                </form>
+                  <Switch
+                    id="notify-intros"
+                    checked={!!user?.notify_intro_requests}
+                    onCheckedChange={(v) => setAdminNotifications(v)}
+                  />
+                </div>
               </CardContent>
             </Card>
-          </div>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -11,6 +11,7 @@ interface Profile {
   last_name?: string;
   role: 'recruiter' | 'admin' | 'candidate';
   has_accepted_terms?: boolean;
+  notify_intro_requests?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -24,6 +25,7 @@ interface AuthContextType {
   signInWithMicrosoft: () => Promise<boolean>;
   logout: () => void;
   acceptTerms: () => void;
+  setAdminNotifications: (value: boolean) => Promise<void>;
   isLoading: boolean;
 }
 
@@ -343,7 +345,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  return (
+  const setAdminNotifications = async (enabled: boolean) => {
+    if (!user) return;
+    try {
+      const { error } = await supabase
+        .from('users')
+        .update({ notify_intro_requests: enabled, updated_at: new Date().toISOString() })
+        .eq('id', user.id);
+      if (error) throw error;
+
+      setUser(prev => prev ? { ...prev, notify_intro_requests: enabled, updated_at: new Date().toISOString() } : prev);
+      toast({
+        title: 'Preferences updated',
+        description: `Admin email notifications ${enabled ? 'enabled' : 'disabled'}.`
+      });
+    } catch (error: any) {
+      console.error('Error updating notification preference:', error);
+      toast({
+        title: 'Update failed',
+        description: error.message || 'Could not update preference',
+        variant: 'destructive'
+      });
+    }
+  };
+
+return (
     <AuthContext.Provider value={{
       user,
       session,
@@ -353,6 +379,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       signInWithMicrosoft,
       logout,
       acceptTerms,
+      setAdminNotifications,
       isLoading
     }}>
       {children}

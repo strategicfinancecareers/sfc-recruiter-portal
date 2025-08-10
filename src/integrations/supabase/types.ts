@@ -294,6 +294,7 @@ export type Database = {
           id: string
           is_active: boolean
           last_name: string | null
+          notify_intro_requests: boolean
           role_id: string
           updated_at: string | null
         }
@@ -305,6 +306,7 @@ export type Database = {
           id: string
           is_active?: boolean
           last_name?: string | null
+          notify_intro_requests?: boolean
           role_id: string
           updated_at?: string | null
         }
@@ -316,6 +318,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           last_name?: string | null
+          notify_intro_requests?: boolean
           role_id?: string
           updated_at?: string | null
         }

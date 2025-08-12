@@ -11,7 +11,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Edit2, Trash2, Users, UserPlus, Eye, Settings, Mail, UserX, X } from "lucide-react";
+import { Plus, Edit2, Trash2, Users, UserPlus, Eye, Settings, Mail, UserX, X, Check } from "lucide-react";
 
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from '@/integrations/supabase/client';
@@ -332,6 +332,36 @@ setCandidates(transformedCandidates);
       });
     } finally {
       setShowReactivateConfirm(null);
+    }
+  };
+
+  // Verification actions
+  const handleResendVerification = async (target: User) => {
+    try {
+      const { error } = await supabase.functions.invoke('resend-verification', {
+        body: { email: target.email, redirectTo: window.location.origin },
+      });
+      if (error) throw error as any;
+      toast({ title: 'Verification email sent', description: `Resent to ${target.email}` });
+    } catch (err: any) {
+      console.error('Resend verification error', err);
+      toast({ title: 'Failed to resend verification', description: err?.message || 'Unknown error', variant: 'destructive' });
+    }
+  };
+
+  const handleConfirmUser = async (target: User) => {
+    try {
+      const { error } = await supabase.functions.invoke('confirm-user', {
+        body: { user_id: target.id },
+      });
+      if (error) throw error as any;
+
+      // Optimistically update local state
+      setUsers(prev => prev.map(u => u.id === target.id ? { ...u, email_confirmed_at: new Date().toISOString() } : u));
+      toast({ title: 'User confirmed', description: `${target.first_name} ${target.last_name} is now verified.` });
+    } catch (err: any) {
+      console.error('Confirm user error', err);
+      toast({ title: 'Failed to confirm user', description: err?.message || 'Unknown error', variant: 'destructive' });
     }
   };
 
@@ -1388,7 +1418,23 @@ TalentConnect Team"
                   </SelectContent>
                 </Select>
               </div>
-              
+
+              {(!editingUser?.email_confirmed_at) && (
+                <div className="space-y-3">
+                  <Label>Verification</Label>
+                  <div className="grid grid-cols-1 gap-2">
+                    <Button variant="outline" onClick={() => editingUser && handleResendVerification(editingUser)}>
+                      <Mail className="mr-2 h-4 w-4" />
+                      Resend verification email
+                    </Button>
+                    <Button onClick={() => editingUser && handleConfirmUser(editingUser)}>
+                      <Check className="mr-2 h-4 w-4" />
+                      Confirm user
+                    </Button>
+                  </div>
+                </div>
+              )}
+
               <div className="border-t pt-4">
                 <Label className="text-destructive">Danger Zone</Label>
                 <p className="text-sm text-muted-foreground mb-4">

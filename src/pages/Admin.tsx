@@ -942,9 +942,6 @@ if (!usersError && usersData) {
   <Badge className={`${currentUser.email_confirmed_at ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"} pointer-events-none`}>
     {currentUser.email_confirmed_at ? 'Verified' : 'Unverified'}
   </Badge>
-  <Badge className={`${currentUser.able_to_login ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"} pointer-events-none`}>
-    {currentUser.able_to_login ? 'Able to log in' : 'Blocked'}
-  </Badge>
   <Badge className={`${currentUser.is_active === false ? "bg-red-100 text-red-800" : "bg-green-100 text-green-800"} pointer-events-none`}>
     {currentUser.is_active === false ? 'Inactive' : 'Active'}
   </Badge>
@@ -987,9 +984,6 @@ if (!usersError && usersData) {
   </Badge>
   <Badge className={`${userItem.email_confirmed_at ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"} pointer-events-none`}>
     {userItem.email_confirmed_at ? 'Verified' : 'Unverified'}
-  </Badge>
-  <Badge className={`${userItem.able_to_login ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"} pointer-events-none`}>
-    {userItem.able_to_login ? 'Able to log in' : 'Blocked'}
   </Badge>
   <Badge className={`${userItem.is_active === false ? "bg-red-100 text-red-800" : "bg-green-100 text-green-800"} pointer-events-none`}>
     {userItem.is_active === false ? 'Inactive' : 'Active'}

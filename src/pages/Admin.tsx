@@ -27,6 +27,8 @@ interface User {
   created_at: string;
   has_accepted_terms: boolean;
   is_active?: boolean;
+  email_confirmed_at?: string | null;
+  able_to_login?: boolean;
 }
 
 interface Candidate {
@@ -168,25 +170,43 @@ const Admin = () => {
 
         if (candidatesError) throw candidatesError;
 
-        // Transform users data
-        const transformedUsers = usersData?.map(user => ({
-          ...user,
-          role: user.roles?.name || 'unknown'
-        })) || [];
+// Transform users data
+let transformedUsers = usersData?.map(user => ({
+  ...user,
+  role: user.roles?.name || 'unknown'
+})) || [];
 
-        setRoles(rolesData || []);
+setRoles(rolesData || []);
 
-        // Transform candidates data to group skills
-        const transformedCandidates = candidatesData?.map(candidate => ({
-          ...candidate,
-          skills: candidate.candidate_skills?.map((cs: any) => ({
-            id: cs.skills.id,
-            skill: cs.skills.skill
-          })) || []
-        })) || [];
+// Fetch and merge verification status from edge function
+try {
+  const { data: statusData, error: statusError } = await supabase.functions.invoke('list-users-status');
+  if (!statusError && statusData?.users) {
+    const statusMap = new Map<string, any>(statusData.users.map((u: any) => [u.id as string, u]));
+    transformedUsers = transformedUsers.map((u: any) => {
+      const s = statusMap.get(u.id);
+      return {
+        ...u,
+        email_confirmed_at: s?.email_confirmed_at ?? null,
+        able_to_login: (u.is_active !== false) && !!(s?.email_confirmed_at),
+      };
+    });
+  }
+} catch (e) {
+  console.warn('Could not load verification status', e);
+}
 
-        setUsers(transformedUsers);
-        setCandidates(transformedCandidates);
+// Transform candidates data to group skills
+const transformedCandidates = candidatesData?.map(candidate => ({
+  ...candidate,
+  skills: candidate.candidate_skills?.map((cs: any) => ({
+    id: cs.skills.id,
+    skill: cs.skills.skill
+  })) || []
+})) || [];
+
+setUsers(transformedUsers);
+setCandidates(transformedCandidates);
       } catch (error) {
         console.error('Error fetching data:', error);
         toast({
@@ -850,11 +870,30 @@ const Admin = () => {
                                 roles(id, name)
                               `);
                             if (!usersError && usersData) {
-                              const transformedUsers = usersData.map((u: any) => ({
-                                ...u,
-                                role: u.roles?.name || 'unknown'
-                              }));
-                              setUsers(transformedUsers);
+const { data: usersData, error: usersError } = await supabase
+  .from('users')
+  .select(`
+    *,
+    roles(id, name)
+  `);
+if (!usersError && usersData) {
+  let transformed = usersData.map((u: any) => ({
+    ...u,
+    role: u.roles?.name || 'unknown'
+  }));
+  try {
+    const { data: statusData, error: statusError } = await supabase.functions.invoke('list-users-status');
+    if (!statusError && statusData?.users) {
+      const statusMap = new Map<string, any>(statusData.users.map((u: any) => [u.id as string, u]));
+      transformed = transformed.map((u: any) => ({
+        ...u,
+        email_confirmed_at: statusMap.get(u.id)?.email_confirmed_at ?? null,
+        able_to_login: (u.is_active !== false) && !!(statusMap.get(u.id)?.email_confirmed_at),
+      }));
+    }
+  } catch {}
+  setUsers(transformed);
+}
                             }
                           } catch (err: any) {
                             console.error('Invite user error', err);
@@ -896,14 +935,20 @@ const Admin = () => {
                                   <span>Terms accepted: {currentUser.has_accepted_terms ? 'Yes' : 'No'}</span>
                                 </div>
                               </div>
-                              <div className="flex items-center space-x-2">
-                                <Badge variant="secondary">
-                                  {currentUser.role}
-                                </Badge>
-                                <Badge className={`${currentUser.is_active === false ? "bg-red-100 text-red-800" : "bg-green-100 text-green-800"} pointer-events-none`}>
-                                  {currentUser.is_active === false ? 'Inactive' : 'Active'}
-                                </Badge>
-                              </div>
+<div className="flex items-center space-x-2">
+  <Badge variant="secondary">
+    {currentUser.role}
+  </Badge>
+  <Badge className={`${currentUser.email_confirmed_at ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"} pointer-events-none`}>
+    {currentUser.email_confirmed_at ? 'Verified' : 'Unverified'}
+  </Badge>
+  <Badge className={`${currentUser.able_to_login ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"} pointer-events-none`}>
+    {currentUser.able_to_login ? 'Able to log in' : 'Blocked'}
+  </Badge>
+  <Badge className={`${currentUser.is_active === false ? "bg-red-100 text-red-800" : "bg-green-100 text-green-800"} pointer-events-none`}>
+    {currentUser.is_active === false ? 'Inactive' : 'Active'}
+  </Badge>
+</div>
                             </div>
                           </CardContent>
                         </Card>
@@ -936,15 +981,21 @@ const Admin = () => {
                                 <span>Terms accepted: {userItem.has_accepted_terms ? 'Yes' : 'No'}</span>
                               </div>
                             </div>
-                            <div className="flex items-center space-x-2">
-                              <Badge variant="secondary">
-                                {userItem.role}
-                              </Badge>
-                              <Badge className={`${userItem.is_active === false ? "bg-red-100 text-red-800" : "bg-green-100 text-green-800"} pointer-events-none`}>
-                                {userItem.is_active === false ? 'Inactive' : 'Active'}
-                              </Badge>
-                              <Settings className="h-4 w-4 text-muted-foreground" />
-                            </div>
+<div className="flex items-center space-x-2">
+  <Badge variant="secondary">
+    {userItem.role}
+  </Badge>
+  <Badge className={`${userItem.email_confirmed_at ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"} pointer-events-none`}>
+    {userItem.email_confirmed_at ? 'Verified' : 'Unverified'}
+  </Badge>
+  <Badge className={`${userItem.able_to_login ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"} pointer-events-none`}>
+    {userItem.able_to_login ? 'Able to log in' : 'Blocked'}
+  </Badge>
+  <Badge className={`${userItem.is_active === false ? "bg-red-100 text-red-800" : "bg-green-100 text-green-800"} pointer-events-none`}>
+    {userItem.is_active === false ? 'Inactive' : 'Active'}
+  </Badge>
+  <Settings className="h-4 w-4 text-muted-foreground" />
+</div>
                           </div>
                         </CardContent>
                       </Card>

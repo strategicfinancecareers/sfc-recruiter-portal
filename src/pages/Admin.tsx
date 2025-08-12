@@ -104,10 +104,10 @@ const Admin = () => {
   const [newRoleId, setNewRoleId] = useState<string>('');
 
   // Invite user state
-  const [inviteFirstName, setInviteFirstName] = useState('demo');
-  const [inviteLastName, setInviteLastName] = useState('owner');
-  const [inviteEmail, setInviteEmail] = useState('owner@demo.com');
-  const [inviteRole, setInviteRole] = useState('owner');
+  const [inviteFirstName, setInviteFirstName] = useState('');
+  const [inviteLastName, setInviteLastName] = useState('');
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState('recruiter');
   const [inviteLoading, setInviteLoading] = useState(false);
 
   // Form state for candidate
@@ -792,7 +792,7 @@ const Admin = () => {
                 <Card>
                   <CardHeader>
                     <CardTitle>Invite New User</CardTitle>
-                    <CardDescription>Send an invite and assign a role (Owner inherits Admin permissions).</CardDescription>
+                    <CardDescription>Send an invite and assign a role. Owner cannot be assigned here.</CardDescription>
                   </CardHeader>
                   <CardContent>
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -815,7 +815,7 @@ const Admin = () => {
                             <SelectValue placeholder="Select role" />
                           </SelectTrigger>
                           <SelectContent>
-                            {roles.map((r) => (
+                            {roles.filter((r) => r.name !== 'owner').map((r) => (
                               <SelectItem key={r.id} value={r.name}>
                                 {r.name}
                               </SelectItem>
@@ -1335,7 +1335,7 @@ TalentConnect Team"
                     <SelectValue placeholder="Select role" />
                   </SelectTrigger>
                   <SelectContent>
-                    {roles.map((role) => (
+                    {roles.filter((role) => role.name !== 'owner').map((role) => (
                       <SelectItem key={role.id} value={role.id}>
                         {role.name}
                       </SelectItem>

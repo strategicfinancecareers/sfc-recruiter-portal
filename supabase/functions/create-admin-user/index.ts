@@ -80,6 +80,28 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Count existing owners to ensure there is only one
+    let ownerCount = 0;
+    if (ownerRoleId) {
+      const { count: oc, error: ocErr } = await supabaseAdmin
+        .from('users')
+        .select('id', { count: 'exact', head: true })
+        .eq('role_id', ownerRoleId);
+      if (ocErr) {
+        console.error('Owner count error', ocErr);
+      } else if (typeof oc === 'number') {
+        ownerCount = oc;
+      }
+    }
+
+    // Disallow assigning 'owner' via this endpoint if one already exists
+    if (role === 'owner' && ownerCount > 0) {
+      return new Response(JSON.stringify({ error: 'Owner role assignment is disabled' }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders },
+      });
+    }
+
     // If elevated users exist, require caller to be admin or owner
     if (elevatedCount > 0) {
       const { data: userRes, error: getUserErr } = await supabaseAuthed.auth.getUser();

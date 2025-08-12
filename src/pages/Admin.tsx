@@ -792,7 +792,7 @@ const Admin = () => {
                 <Card>
                   <CardHeader>
                     <CardTitle>Invite New User</CardTitle>
-                    <CardDescription>Send an invite and assign a role. Owner cannot be assigned here.</CardDescription>
+                    <CardDescription>Send an invite and assign a role. Only the Owner can assign the 'owner' role.</CardDescription>
                   </CardHeader>
                   <CardContent>
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -815,7 +815,7 @@ const Admin = () => {
                             <SelectValue placeholder="Select role" />
                           </SelectTrigger>
                           <SelectContent>
-                            {roles.filter((r) => r.name !== 'owner').map((r) => (
+                            {(user?.role === 'owner' ? roles : roles.filter((r) => r.name !== 'owner')).map((r) => (
                               <SelectItem key={r.id} value={r.name}>
                                 {r.name}
                               </SelectItem>
@@ -1335,7 +1335,7 @@ TalentConnect Team"
                     <SelectValue placeholder="Select role" />
                   </SelectTrigger>
                   <SelectContent>
-                    {roles.filter((role) => role.name !== 'owner').map((role) => (
+                    {(user?.role === 'owner' ? roles : roles.filter((role) => role.name !== 'owner')).map((role) => (
                       <SelectItem key={role.id} value={role.id}>
                         {role.name}
                       </SelectItem>

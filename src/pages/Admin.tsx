@@ -11,7 +11,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Edit2, Trash2, Users, UserPlus, Eye, Settings, Mail, UserX, X, Check, Key } from "lucide-react";
+import { Plus, Edit2, Trash2, Users, UserPlus, Eye, Settings, Mail, UserX, X, Check } from "lucide-react";
 
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from '@/integrations/supabase/client';
@@ -104,12 +104,6 @@ const Admin = () => {
   const [showRoleChangeConfirm, setShowRoleChangeConfirm] = useState<boolean>(false);
   const [showReactivateConfirm, setShowReactivateConfirm] = useState<User | null>(null);
   const [newRoleId, setNewRoleId] = useState<string>('');
-
-  // Password update state
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [showPasswordUpdate, setShowPasswordUpdate] = useState(false);
-  const [passwordUpdateLoading, setPasswordUpdateLoading] = useState(false);
 
   // Invite user state
   const [inviteFirstName, setInviteFirstName] = useState('');
@@ -368,58 +362,6 @@ setCandidates(transformedCandidates);
     } catch (err: any) {
       console.error('Confirm user error', err);
       toast({ title: 'Failed to confirm user', description: err?.message || 'Unknown error', variant: 'destructive' });
-    }
-  };
-
-  // Password update functionality
-  const handlePasswordUpdate = async () => {
-    if (!editingUser) return;
-
-    if (newPassword !== confirmPassword) {
-      toast({ 
-        title: 'Password mismatch', 
-        description: 'Passwords do not match', 
-        variant: 'destructive' 
-      });
-      return;
-    }
-
-    if (newPassword.length < 6) {
-      toast({ 
-        title: 'Password too short', 
-        description: 'Password must be at least 6 characters long', 
-        variant: 'destructive' 
-      });
-      return;
-    }
-
-    setPasswordUpdateLoading(true);
-
-    try {
-      const { error } = await supabase.functions.invoke('update-password', {
-        body: { user_id: editingUser.id, new_password: newPassword },
-      });
-
-      if (error) throw error as any;
-
-      toast({ 
-        title: 'Password updated', 
-        description: `Password for ${editingUser.first_name} ${editingUser.last_name} has been updated successfully.` 
-      });
-
-      // Clear password fields and hide update form
-      setNewPassword('');
-      setConfirmPassword('');
-      setShowPasswordUpdate(false);
-    } catch (err: any) {
-      console.error('Password update error', err);
-      toast({ 
-        title: 'Failed to update password', 
-        description: err?.message || 'Unknown error', 
-        variant: 'destructive' 
-      });
-    } finally {
-      setPasswordUpdateLoading(false);
     }
   };
 
@@ -756,10 +698,6 @@ setCandidates(transformedCandidates);
   const handleUserEdit = (user: User) => {
     setEditingUser(user);
     setNewRoleId(user.role_id);
-    // Reset password form state
-    setShowPasswordUpdate(false);
-    setNewPassword('');
-    setConfirmPassword('');
   };
 
   const getStatusColor = (status: string | boolean) => {
@@ -1456,14 +1394,7 @@ TalentConnect Team"
         </Dialog>
 
         {/* User Edit Dialog */}
-        <Dialog open={!!editingUser} onOpenChange={(open) => {
-          if (!open) {
-            setEditingUser(null);
-            setShowPasswordUpdate(false);
-            setNewPassword('');
-            setConfirmPassword('');
-          }
-        }}>
+        <Dialog open={!!editingUser} onOpenChange={() => setEditingUser(null)}>
           <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle>Edit User: {editingUser?.first_name} {editingUser?.last_name}</DialogTitle>
@@ -1503,70 +1434,6 @@ TalentConnect Team"
                   </div>
                 </div>
               )}
-
-              <div className="space-y-3">
-                <Label>Password Management</Label>
-                {!showPasswordUpdate ? (
-                  <Button 
-                    variant="outline" 
-                    className="w-full"
-                    onClick={() => {
-                      setShowPasswordUpdate(true);
-                      setNewPassword('');
-                      setConfirmPassword('');
-                    }}
-                  >
-                    <Key className="mr-2 h-4 w-4" />
-                    Update Password
-                  </Button>
-                ) : (
-                  <div className="space-y-3 p-4 border rounded-lg">
-                    <div>
-                      <Label htmlFor="newPassword">New Password</Label>
-                      <Input
-                        id="newPassword"
-                        type="password"
-                        value={newPassword}
-                        onChange={(e) => setNewPassword(e.target.value)}
-                        placeholder="Enter new password"
-                        minLength={6}
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="confirmPassword">Confirm Password</Label>
-                      <Input
-                        id="confirmPassword"
-                        type="password"
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
-                        placeholder="Confirm new password"
-                        minLength={6}
-                      />
-                    </div>
-                    <div className="flex gap-2">
-                      <Button 
-                        onClick={handlePasswordUpdate}
-                        disabled={passwordUpdateLoading || !newPassword || !confirmPassword}
-                        size="sm"
-                        className="flex-1"
-                      >
-                        {passwordUpdateLoading ? 'Updating...' : 'Update Password'}
-                      </Button>
-                      <Button 
-                        variant="outline" 
-                        onClick={() => {
-                          setShowPasswordUpdate(false);
-                          setNewPassword('');
-                          setConfirmPassword('');
-                        }}
-                        size="sm"
-                      >
-                        Cancel
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </div>
 
               <div className="border-t pt-4">
                 <Label className="text-destructive">Danger Zone</Label>

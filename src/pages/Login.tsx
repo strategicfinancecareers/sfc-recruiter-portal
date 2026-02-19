@@ -16,7 +16,10 @@ const Login = () => {
   const { login, signInWithGoogle, signInWithMicrosoft, isLoading, user } = useAuth();
   
   // Debug loading states
-  console.log('Login page - localLoading:', localLoading, 'isLoading:', isLoading, 'combined:', localLoading || isLoading);
+  console.log('user:', user)
+  console.log('localLoading:', localLoading)
+  console.log('isLoading:', isLoading)
+  console.log('combined:', localLoading || isLoading)
   const navigate = useNavigate();
   const { toast } = useToast();
 

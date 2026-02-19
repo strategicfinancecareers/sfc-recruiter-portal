@@ -1,29 +1,28 @@
 
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { useSupabaseSession } from "@/integrations/supabase/hooks"; // Adjust based on your project
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Users, Briefcase, Star } from "lucide-react";
-import { Link, Navigate } from "react-router-dom";
+import { Link } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
 
 const Home = () => {
 
   // Redirect to dashboard if already logged in
-  const { session, loading } = useSupabaseSession();
+  const { user, isLoading } = useAuth();
   const navigate = useNavigate();
 
   // START: REMOVE THIS BEFORE DEPLOYING
-  console.log('Loading:', loading, 'Session:', session);
+  console.log('user:', user);
+  console.log('isLoading:', isLoading)
   // END: REMOVE THIS BEFORE DEPLOYING
 
   useEffect(() => {
-    if (!loading && session) {
+    if (!isLoading && user) {
       navigate('/dashboard', { replace: true });
     }
-  }, [session, loading, navigate]);
+  }, [user, isLoading, navigate]);
   
-  // Can load spinner instead of this, but it's not needed for now
-  if (loading) return null;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100">

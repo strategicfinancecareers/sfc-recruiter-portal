@@ -11,7 +11,6 @@ import { Plus, Edit2, Trash2, MapPin, DollarSign, Clock, Loader2 } from "lucide-
 
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { useSupabaseSession } from "@/integrations/supabase/hooks";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface Job {
@@ -31,8 +30,7 @@ interface Job {
 
 const Jobs = () => {
   const { toast } = useToast();
-  const { session } = useSupabaseSession();
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);

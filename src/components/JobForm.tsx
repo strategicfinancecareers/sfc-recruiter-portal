@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { useSupabaseSession } from "@/integrations/supabase/hooks";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface JobFormData {
   title: string;
@@ -45,7 +45,7 @@ interface JobFormProps {
 
 export function JobForm({ open, onOpenChange, onJobCreated, editingJob }: JobFormProps) {
   const { toast } = useToast();
-  const { session } = useSupabaseSession();
+  const { session } = useAuth();
   const [submitting, setSubmitting] = useState(false);
 
 const [formData, setFormData] = useState<JobFormData>({

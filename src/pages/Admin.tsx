@@ -16,6 +16,7 @@ import { Plus, Edit2, Trash2, Users, UserPlus, Eye, Settings, Mail, UserX, X, Ch
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import LoaderScreen from '@/components/LoaderScreen';
 
 interface User {
   id: string;
@@ -719,13 +720,7 @@ setCandidates(transformedCandidates);
   };
 
   if (loading) {
-    return (
-      <div className="flex-1 overflow-auto">
-        <div className="p-6">
-          <div className="text-center">Loading admin data...</div>
-        </div>
-      </div>
-    );
+    return <LoaderScreen />;
   }
 
   return (

@@ -8,21 +8,8 @@ import { useAuth } from "../contexts/AuthContext";
 
 const Home = () => {
 
-  // Redirect to dashboard if already logged in
   const { user, isLoading } = useAuth();
   const navigate = useNavigate();
-
-  // START: REMOVE THIS BEFORE DEPLOYING
-  console.log('user:', user);
-  console.log('isLoading:', isLoading)
-  // END: REMOVE THIS BEFORE DEPLOYING
-
-  useEffect(() => {
-    if (!isLoading && user) {
-      navigate('/dashboard', { replace: true });
-    }
-  }, [user, isLoading, navigate]);
-  
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100">

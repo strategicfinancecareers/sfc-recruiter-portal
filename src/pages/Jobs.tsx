@@ -11,8 +11,8 @@ import { Plus, Edit2, Trash2, MapPin, DollarSign, Clock, Loader2 } from "lucide-
 
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { useSupabaseSession } from "@/integrations/supabase/hooks";
 import { useAuth } from "@/contexts/AuthContext";
+import LoaderScreen from "@/components/LoaderScreen";
 
 interface Job {
   id: string;
@@ -31,8 +31,7 @@ interface Job {
 
 const Jobs = () => {
   const { toast } = useToast();
-  const { session } = useSupabaseSession();
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -267,15 +266,7 @@ const handleOpenForm = (job?: Job) => {
   };
 
   if (loading) {
-    return (
-      <div className="flex-1 overflow-auto">
-        <div className="p-6">
-          <div className="flex items-center justify-center h-64">
-            <Loader2 className="h-8 w-8 animate-spin" />
-          </div>
-        </div>
-      </div>
-    );
+    return <LoaderScreen />;
   }
 
   return (

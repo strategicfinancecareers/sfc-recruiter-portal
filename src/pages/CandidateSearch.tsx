@@ -12,6 +12,7 @@ import { Heart, Handshake, Search, Filter, MapPin, GraduationCap, Calendar, Eye,
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import TermsDialog from "../components/TermsDialog";
+import LoaderScreen from "../components/LoaderScreen";
 import RedactedResume from "../components/RedactedResume";
 import { useCandidates, type Candidate } from "../hooks/useCandidates";
 import { supabase } from "@/integrations/supabase/client";
@@ -273,13 +274,6 @@ const { data: inserted, error } = await supabase
     setSkillsFilter('');
   };
 
-  if (loading) {
-    return (
-      <div className="flex-1 flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin" />
-      </div>
-    );
-  }
 
   return (
     <>
@@ -376,9 +370,12 @@ const { data: inserted, error } = await supabase
               </div>
             )}
           </div>
+          
+          {/* Loading State */}
+          {loading && <LoaderScreen />}
 
           {/* Selection Controls */}
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+          {!loading && <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
             <div className="flex items-center space-x-4">
               <Button
                 variant={selectMode ? "default" : "outline"}
@@ -409,9 +406,10 @@ const { data: inserted, error } = await supabase
               {filteredCandidates.length} candidates found
             </div>
           </div>
+          }
 
           {/* Candidates Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+          {!loading &&<div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
             {filteredCandidates.map((candidate) => (
               <Card
                 key={candidate.id}
@@ -513,9 +511,9 @@ const { data: inserted, error } = await supabase
                 </CardContent>
               </Card>
             ))}
-          </div>
+          </div>}
 
-          {filteredCandidates.length === 0 && (
+          {!loading && filteredCandidates.length === 0 && (
             <div className="text-center py-12">
               <div className="text-muted-foreground mb-4">
                 <Search className="h-12 w-12 mx-auto" />

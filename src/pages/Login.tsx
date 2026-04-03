@@ -8,6 +8,7 @@ import { Briefcase, Chrome, AlertCircle } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import LoaderScreen from "../components/LoaderScreen";
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -26,11 +27,11 @@ const Login = () => {
   // Redirect if already logged in
   useEffect(() => {
     if (user) {
-      navigate('/dashboard');
-    } else {
-      console.log("not logged in!")
+      navigate('/dashboard', { replace: true });
     }
   }, [user, navigate]);
+
+  if (isLoading) return <LoaderScreen />;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

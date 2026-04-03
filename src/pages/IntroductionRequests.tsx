@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import RedactedResume from "@/components/RedactedResume";
+import LoaderScreen from "@/components/LoaderScreen";
 import { CheckCircle, XCircle, Clock, Loader2, ArrowUpDown } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
@@ -86,11 +87,7 @@ const IntroductionRequests = () => {
   };
 
   if (loading) {
-    return (
-      <div className="flex-1 flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin" />
-      </div>
-    );
+    return <LoaderScreen />;
   }
 
   return (

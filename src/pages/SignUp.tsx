@@ -8,6 +8,7 @@ import { Briefcase, Chrome } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import LoaderScreen from "../components/LoaderScreen";
 
 const SignUp = () => {
   const [firstName, setFirstName] = useState('');
@@ -16,18 +17,18 @@ const SignUp = () => {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [localLoading, setLocalLoading] = useState(false);
-  const { signup, signInWithGoogle, signInWithMicrosoft, user } = useAuth();
+  const { signup, signInWithGoogle, signInWithMicrosoft, user, isLoading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
   // Redirect if already logged in
   useEffect(() => {
     if (user) {
-      navigate('/dashboard');
-    } else {
-      console.log("not logged in!")
+      navigate('/dashboard', { replace: true });
     }
   }, [user, navigate]);
+
+  if (isLoading) return <LoaderScreen />;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -1,24 +1,15 @@
 
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Users, Briefcase, Star } from "lucide-react";
 import { Link } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
 
 const Home = () => {
 
-  // Redirect to dashboard if already logged in
   const { user, isLoading } = useAuth();
   const navigate = useNavigate();
-
-  useEffect(() => {
-    if (!isLoading && user) {
-      navigate('/dashboard', { replace: true });
-    }
-  }, [user, isLoading, navigate]);
-  
-  if (isLoading) return null;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100">

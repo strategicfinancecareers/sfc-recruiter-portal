@@ -6,6 +6,8 @@ import { useAuth } from "../contexts/AuthContext";
 const Dashboard = () => {
   const { user } = useAuth();
 
+  console.log('user:', user)
+
   // Mock data for demonstration
   const recruiterStats = {
     introductionsSent: 12,

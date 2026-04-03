@@ -27,6 +27,7 @@ interface AuthContextType {
   acceptTerms: () => void;
   setAdminNotifications: (value: boolean) => Promise<void>;
   isLoading: boolean;
+  isProfileLoading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -43,7 +44,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<Profile | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isProfileLoading, setIsProfileLoading] = useState(false);
   const { toast } = useToast();
+
+  const minimalProfileFromSession = (session: Session): Profile => ({
+    id: session.user.id,
+    email: session.user.email ?? '',
+    role: 'recruiter',
+    created_at: '',
+    updated_at: '',
+  });
 
   const fetchProfile = async (userId: string) => {
     try {
@@ -85,32 +95,54 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     let mounted = true;
 
-    // onAuthStateChange is the single source of truth for auth state.
-    // It fires on every session change AND on initial load, so we always
-    // call setIsLoading(false) after it resolves.
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (!mounted) return;
+    const { 
+      data: { subscription } 
+    } = supabase.auth.onAuthStateChange((event, session) => {
+        if (!mounted) return;
 
-      setSession(session);
+        console.log('Auth state change:', event, !!session);
+        setSession(session);
 
-      if (session?.user) {
-        const profile = await fetchProfile(session.user.id);
-        if (mounted) setUser(profile);
-      } else {
-        if (mounted) setUser(null);
+        if (session?.user) {
+          setUser(minimalProfileFromSession(session));
+          setIsLoading(false);
+          setIsProfileLoading(true);
+          fetchProfile(session.user.id).then((profile) => {
+            if (mounted) setUser(profile);
+          }).finally(() => {
+            if (mounted) setIsProfileLoading(false);
+          });
+        } else {
+          setUser(null);
+          setIsLoading(false);
+          setIsProfileLoading(false);
+        }
       }
+    );
 
-      if (mounted) setIsLoading(false);
-    });
-
-    // Fallback: if there's no session at all, onAuthStateChange may not fire
-    // quickly enough. getSession ensures we don't hang on the loading state.
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!mounted) return;
+      setSession(session);
       if (!session) {
+        setUser(null);
         setIsLoading(false);
+        setIsProfileLoading(false);
+      } else {
+        setUser(minimalProfileFromSession(session));
+        setIsLoading(false);
+        setIsProfileLoading(true);
+        fetchProfile(session.user.id).then((profile) => {
+          if (mounted) setUser(profile);
+        }).finally(() => {
+          if (mounted) setIsProfileLoading(false);
+        });
+      }
+    }).catch((err) => {
+      console.error('getSession error:', err);
+      if (mounted) {
+        setUser(null);
+        setIsLoading(false);
+        setIsProfileLoading(false);
       }
     });
 
@@ -314,7 +346,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       logout,
       acceptTerms,
       setAdminNotifications,
-      isLoading
+      isLoading,
+      isProfileLoading
     }}>
       {children}
     </AuthContext.Provider>

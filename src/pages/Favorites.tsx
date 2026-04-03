@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useCandidates } from "../hooks/useCandidates";
 import { supabase } from "@/integrations/supabase/client";
 import TermsDialog from "../components/TermsDialog";
+import LoaderScreen from "../components/LoaderScreen";
 
 interface LocalCandidate {
   isSelected: boolean;
@@ -172,11 +173,7 @@ const Favorites = () => {
           </div>
 
           {/* Loading State */}
-          {loading && (
-            <div className="flex justify-center items-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            </div>
-          )}
+          {loading && <LoaderScreen />}
 
           {/* Selection Controls */}
           {!loading && favoriteCandidates.length > 0 && (

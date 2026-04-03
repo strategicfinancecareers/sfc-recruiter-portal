@@ -57,7 +57,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const fetchProfile = async (userId: string) => {
     try {
-      console.log('Fetching profile for user ID:', userId);
       const { data, error } = await supabase
         .from('users')
         .select(`
@@ -69,18 +68,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .eq('id', userId)
         .maybeSingle();
 
-      if (error) {
-        console.error('Profile fetch error:', error);
-        throw error;
-      }
+      if (error) throw error;
       
       if (data) {
-        console.log('Profile found:', data);
-        
-        // Check if user is active
         if (data.is_active === false) {
-          console.log('User account is deactivated');
-          // Sign out the deactivated user
           await supabase.auth.signOut();
           toast({
             title: "Account Deactivated",
@@ -91,12 +82,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
         
         const role = data.roles?.name as 'recruiter' | 'admin' | 'owner' | 'candidate' || 'recruiter';
-        return {
-          ...data,
-          role
-        };
+        return { ...data, role };
       } else {
-        console.log('No profile found for user');
         return null;
       }
     } catch (error) {
@@ -167,10 +154,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
 
       if (error) {
         toast({
@@ -197,7 +181,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signup = async (email: string, password: string, firstName: string, lastName: string): Promise<boolean> => {
-    setIsLoading(true);
     try {
       const { error } = await supabase.auth.signUp({
         email,
@@ -232,13 +215,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         variant: "destructive",
       });
       return false;
-    } finally {
-      setIsLoading(false);
     }
   };
 
   const signInWithGoogle = async (): Promise<boolean> => {
-    setIsLoading(true);
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
@@ -253,11 +233,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           description: error.message,
           variant: "destructive",
         });
-        setIsLoading(false);
         return false;
       }
 
-      // Don't set loading to false here - the redirect will handle it
       return true;
     } catch (error: any) {
       toast({
@@ -265,13 +243,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         description: error.message,
         variant: "destructive",
       });
-      setIsLoading(false);
       return false;
     }
   };
 
   const signInWithMicrosoft = async (): Promise<boolean> => {
-    setIsLoading(true);
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'azure',
@@ -297,8 +273,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         variant: "destructive",
       });
       return false;
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -330,9 +304,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         if (error) throw error;
 
-        // Update local state
-        const updatedUser = { ...user, has_accepted_terms: true, updated_at: new Date().toISOString() };
-        setUser(updatedUser);
+        setUser({ ...user, has_accepted_terms: true, updated_at: new Date().toISOString() });
       } catch (error) {
         console.error('Error accepting terms:', error);
       }
@@ -363,7 +335,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-return (
+  return (
     <AuthContext.Provider value={{
       user,
       session,

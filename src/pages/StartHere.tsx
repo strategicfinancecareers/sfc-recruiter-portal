@@ -1,4 +1,4 @@
-import { Search, Handshake, CalendarCheck, BadgeCheck, ShieldCheck, ArrowRight, Clock } from 'lucide-react';
+import { Search, Handshake, CalendarCheck, BadgeCheck, ShieldCheck, ArrowRight, Clock, AlertCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const steps = [
@@ -9,8 +9,8 @@ const steps = [
   },
   {
     icon: Handshake,
-    title: 'Request an Introduction',
-    description: "Found someone interesting? Submit an introduction request and tell us about the role you're hiring for. We review every request personally.",
+    title: 'Post Your Job & Request an Introduction',
+    description: "Before requesting an introduction, you'll need to post the role you're hiring for — including a salary range (required). This helps us match the right candidates and ensures a serious, transparent process.",
   },
   {
     icon: Clock,
@@ -65,6 +65,17 @@ const StartHere = () => {
               </div>
             );
           })}
+        </div>
+
+        {/* Job Posting Requirement Box */}
+        <div className="flex items-start gap-4 p-6 bg-amber-50 border border-amber-200 rounded-xl mb-4">
+          <AlertCircle className="h-6 w-6 text-amber-500 flex-shrink-0 mt-0.5" />
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900 mb-1">Before You Request an Introduction</h3>
+            <p className="text-sm text-gray-600 leading-relaxed">
+              You must have an active job posting to request a candidate introduction. Salary range is required — candidates value transparency, and it helps us find the right match faster.
+            </p>
+          </div>
         </div>
 
         {/* Privacy Info Box */}

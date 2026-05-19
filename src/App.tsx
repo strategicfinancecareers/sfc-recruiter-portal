@@ -16,6 +16,7 @@ import Jobs from "./pages/Jobs";
 import Favorites from "./pages/Favorites";
 import Admin from "./pages/Admin";
 import IntroductionRequests from "./pages/IntroductionRequests";
+import StartHere from "./pages/StartHere";
 import Layout from "./components/Layout";
 import ProtectedRoute from "./components/ProtectedRoute";
 import NotFound from "./pages/NotFound";
@@ -39,6 +40,7 @@ const App = () => (
                 <Layout />
               </ProtectedRoute>
             }>
+              <Route path="start-here" element={<StartHere />} />
               <Route path="dashboard" element={<Dashboard />} />
               <Route path="browse" element={<CandidateSearch />} />
               <Route path="account" element={<Account />} />

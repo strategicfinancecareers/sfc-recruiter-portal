@@ -1,7 +1,7 @@
 
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
-import { Briefcase, Users, Heart, Settings, LogOut, Gauge, Menu, Handshake } from "lucide-react";
+import { Briefcase, Users, Heart, Settings, LogOut, Gauge, Menu, Handshake, Sparkles } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { useState } from 'react';
 
@@ -12,6 +12,7 @@ const Layout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const navigation = [
+    { name: 'Start Here', href: '/start-here', icon: Sparkles },
     { name: 'Dashboard', href: '/dashboard', icon: Gauge },
     { name: 'Browse Candidates', href: '/browse', icon: Users },
     { name: 'Favorites', href: '/favorites', icon: Heart },

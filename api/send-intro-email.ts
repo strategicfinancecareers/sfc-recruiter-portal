@@ -56,6 +56,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const yesUrl = `${baseUrl}/api/respond-to-intro?introId=${introId}&response=yes`;
     const noUrl = `${baseUrl}/api/respond-to-intro?introId=${introId}&response=no`;
 
+    // Build the job detail block: link if URL exists, else clean summary
+    const jobDetailBlock = job?.job_description_url
+      ? `<div style="margin: 20px 0;">
+           <a href="${job.job_description_url}" style="background: #0F6E56; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 15px;">View Job Posting →</a>
+         </div>`
+      : `<div style="background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 8px; padding: 16px; margin: 20px 0;">
+           <table style="border-collapse: collapse; width: 100%;">
+             <tr><td style="padding: 4px 0; color: #666; font-size: 14px; width: 110px;">Job Title</td><td style="padding: 4px 0; font-size: 14px; font-weight: 600;">${job?.title ?? '—'}</td></tr>
+             <tr><td style="padding: 4px 0; color: #666; font-size: 14px;">Company</td><td style="padding: 4px 0; font-size: 14px;">${job?.company ?? '—'}</td></tr>
+             <tr><td style="padding: 4px 0; color: #666; font-size: 14px;">Location</td><td style="padding: 4px 0; font-size: 14px;">${job?.location ?? '—'}</td></tr>
+             ${job?.salary_range ? `<tr><td style="padding: 4px 0; color: #666; font-size: 14px;">Salary</td><td style="padding: 4px 0; font-size: 14px;">${job.salary_range}</td></tr>` : ''}
+           </table>
+         </div>`;
+
     console.log('[send-intro-email] sending email to:', candidate?.email);
     const emailResult = await resend.emails.send({
       from: 'SFC Talent <noreply@strategicfinancecareers.com>',
@@ -66,11 +80,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           <img src="https://sfc-recruiter-portal.vercel.app/logo.png" height="40" style="margin-bottom: 24px;" />
           <h2 style="color: #0F6E56;">You have a new opportunity</h2>
           <p>Hi there,</p>
-          <p>A company is interested in connecting with you about a <strong>${job?.title}</strong> role at <strong>${job?.company}</strong> in <strong>${job?.location}</strong>.</p>
-          ${job?.salary_range ? `<p>💰 Salary range: <strong>${job?.salary_range}</strong></p>` : ''}
-          ${intro.message ? `<p>Message from the recruiter: <em>"${intro.message}"</em></p>` : ''}
+          <p>A company is interested in connecting with you about a <strong>${job?.title}</strong> role at <strong>${job?.company}</strong>.</p>
+          ${intro.message ? `<p style="color: #555; font-style: italic;">"${intro.message}"</p>` : ''}
+          ${jobDetailBlock}
           <p>Are you open to connecting?</p>
-          <div style="margin: 32px 0;">
+          <div style="margin: 32px 0; display: flex; gap: 12px;">
             <a href="${yesUrl}" style="background: #0F6E56; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 16px; margin-right: 12px;">✅ Yes, I'm interested</a>
             <a href="${noUrl}" style="background: #f3f4f6; color: #333; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 16px;">❌ No thanks</a>
           </div>

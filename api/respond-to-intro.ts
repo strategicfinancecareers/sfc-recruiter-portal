@@ -8,6 +8,8 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 );
 
+const RECRUITER_EMAIL = 'lillian.daya@gmail.com';
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { introId, response } = req.query;
 
@@ -33,57 +35,74 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .update({ status: accepted ? 'approved' : 'rejected' })
       .eq('id', introId);
 
-    // Fetch candidate, job, and recruiter separately to avoid FK ambiguity
+    // Fetch candidate and job separately to avoid FK ambiguity
     const [{ data: candidate }, { data: job }] = await Promise.all([
       supabase.from('candidates').select('*').eq('id', intro.candidate_id).single(),
-      supabase.from('jobs').select('*, users:user_id(*)').eq('id', intro.job_id).single(),
+      supabase.from('jobs').select('*').eq('id', intro.job_id).single(),
     ]);
 
-    // Email the recruiter
-    const recruiterEmail = (job?.users as any)?.email;
-    const candidateName = candidate?.display_name;
+    const candidateName = candidate?.name || candidate?.display_name || 'The candidate';
     const jobTitle = job?.title;
     const company = job?.company;
 
-    if (recruiterEmail) {
-      if (accepted) {
-        await resend.emails.send({
-          from: 'SFC Talent <noreply@strategicfinancecareers.com>',
-          to: recruiterEmail,
-          subject: `✅ ${candidateName} is interested in your ${jobTitle} role`,
-          html: `
-            <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 24px;">
-              <img src="https://sfc-recruiter-portal.vercel.app/logo.png" height="40" style="margin-bottom: 24px;" />
-              <h2 style="color: #0F6E56;">Great news — they're interested!</h2>
-              <p><strong>${candidateName}</strong> has accepted your introduction request for the <strong>${jobTitle}</strong> role at <strong>${company}</strong>.</p>
-              <div style="background: #f0faf6; border-left: 4px solid #0F6E56; padding: 16px; border-radius: 4px; margin: 24px 0;">
-                <p style="margin: 0 0 8px;"><strong>Contact Details:</strong></p>
-                <p style="margin: 0;">📧 ${candidate?.email}</p>
-                ${candidate?.phone ? `<p style="margin: 4px 0 0;">📱 ${candidate?.phone}</p>` : ''}
-              </div>
-              <p style="color: #666; font-size: 14px;">We recommend reaching out within 24 hours while their interest is fresh.</p>
-              <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;" />
-              <p style="color: #999; font-size: 12px;">SFC Talent · strategicfinancecareers.com</p>
-            </div>
-          `
-        });
-      } else {
-        await resend.emails.send({
-          from: 'SFC Talent <noreply@strategicfinancecareers.com>',
-          to: recruiterEmail,
-          subject: `${candidateName} passed on the ${jobTitle} role`,
-          html: `
-            <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 24px;">
-              <img src="https://sfc-recruiter-portal.vercel.app/logo.png" height="40" style="margin-bottom: 24px;" />
-              <h2 style="color: #333;">Update on your introduction request</h2>
-              <p><strong>${candidateName}</strong> has passed on the <strong>${jobTitle}</strong> opportunity at this time.</p>
-              <p>Don't worry — there are more great candidates available. <a href="https://sfc-recruiter-portal.vercel.app/browse" style="color: #0F6E56;">Browse candidates</a> to find your next match.</p>
-              <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;" />
-              <p style="color: #999; font-size: 12px;">SFC Talent · strategicfinancecareers.com</p>
-            </div>
-          `
-        });
+    if (accepted) {
+      // Build attachments array — attach resume PDF if available
+      const attachments: Array<{ filename: string; content: string }> = [];
+
+      if (candidate?.resume_full_url) {
+        try {
+          const resumeResponse = await fetch(candidate.resume_full_url);
+          const resumeBuffer = await resumeResponse.arrayBuffer();
+          const resumeBase64 = Buffer.from(resumeBuffer).toString('base64');
+          const safeName = (candidate.name || 'Candidate').replace(/\s+/g, '_');
+          attachments.push({
+            filename: `${safeName}_Resume.pdf`,
+            content: resumeBase64,
+          });
+        } catch (err) {
+          console.error('[respond-to-intro] Failed to fetch resume:', err);
+        }
       }
+
+      await resend.emails.send({
+        from: 'SFC Talent <noreply@strategicfinancecareers.com>',
+        to: RECRUITER_EMAIL,
+        subject: `✅ ${candidateName} is interested in your ${jobTitle} role`,
+        attachments,
+        html: `
+          <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 24px;">
+            <img src="https://sfc-recruiter-portal.vercel.app/logo.png" height="40" style="margin-bottom: 24px;" />
+            <h2 style="color: #0F6E56;">Great news — they're interested!</h2>
+            <p><strong>${candidateName}</strong> has accepted your introduction request for the <strong>${jobTitle}</strong> role at <strong>${company}</strong>.</p>
+            <div style="background: #f0faf6; border-left: 4px solid #0F6E56; padding: 16px; border-radius: 4px; margin: 24px 0;">
+              <p style="margin: 0 0 10px;"><strong>Candidate Details:</strong></p>
+              <p style="margin: 0 0 6px;">👤 <strong>${candidateName}</strong></p>
+              <p style="margin: 0 0 6px;">📧 <a href="mailto:${candidate?.email}" style="color: #0F6E56;">${candidate?.email}</a></p>
+              ${candidate?.phone ? `<p style="margin: 0;">📱 <a href="tel:${candidate?.phone}" style="color: #0F6E56;">${candidate?.phone}</a></p>` : ''}
+            </div>
+            ${attachments.length > 0 ? `<p style="color: #555; font-size: 14px;">📎 Resume attached to this email.</p>` : ''}
+            <p style="color: #666; font-size: 14px;">We recommend reaching out within 24 hours while their interest is fresh.</p>
+            <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;" />
+            <p style="color: #999; font-size: 12px;">SFC Talent · strategicfinancecareers.com</p>
+          </div>
+        `
+      });
+    } else {
+      await resend.emails.send({
+        from: 'SFC Talent <noreply@strategicfinancecareers.com>',
+        to: RECRUITER_EMAIL,
+        subject: `${candidateName} passed on the ${jobTitle} role`,
+        html: `
+          <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 24px;">
+            <img src="https://sfc-recruiter-portal.vercel.app/logo.png" height="40" style="margin-bottom: 24px;" />
+            <h2 style="color: #333;">Update on your introduction request</h2>
+            <p><strong>${candidateName}</strong> has passed on the <strong>${jobTitle}</strong> opportunity at this time.</p>
+            <p>Don't worry — there are more great candidates available. <a href="https://sfc-recruiter-portal.vercel.app/browse" style="color: #0F6E56;">Browse candidates</a> to find your next match.</p>
+            <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;" />
+            <p style="color: #999; font-size: 12px;">SFC Talent · strategicfinancecareers.com</p>
+          </div>
+        `
+      });
     }
 
     // Return a clean HTML response page

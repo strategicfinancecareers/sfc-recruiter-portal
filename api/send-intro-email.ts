@@ -58,41 +58,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Build the job detail block: link if URL exists, else clean summary
     const jobDetailBlock = job?.job_description_url
-      ? `<div style="margin: 20px 0;">
-           <a href="${job.job_description_url}" style="background: #0F6E56; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 15px;">View Job Posting →</a>
-         </div>`
-      : `<div style="background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 8px; padding: 16px; margin: 20px 0;">
-           <table style="border-collapse: collapse; width: 100%;">
-             <tr><td style="padding: 4px 0; color: #666; font-size: 14px; width: 110px;">Job Title</td><td style="padding: 4px 0; font-size: 14px; font-weight: 600;">${job?.title ?? '—'}</td></tr>
-             <tr><td style="padding: 4px 0; color: #666; font-size: 14px;">Company</td><td style="padding: 4px 0; font-size: 14px;">${job?.company ?? '—'}</td></tr>
-             <tr><td style="padding: 4px 0; color: #666; font-size: 14px;">Location</td><td style="padding: 4px 0; font-size: 14px;">${job?.location ?? '—'}</td></tr>
-             ${job?.salary_range ? `<tr><td style="padding: 4px 0; color: #666; font-size: 14px;">Salary</td><td style="padding: 4px 0; font-size: 14px;">${job.salary_range}</td></tr>` : ''}
-           </table>
-         </div>`;
+      ? `<div style="margin:20px 0"><a href="${job.job_description_url}" style="display:inline-block;background:#0F6E56;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px">View Job Posting →</a></div>`
+      : `<div style="background:#f8f9fa;border:1px solid #e9ecef;border-radius:8px;padding:16px;margin:20px 0"><table style="border-collapse:collapse;width:100%"><tr><td style="padding:4px 0;color:#666;font-size:14px;width:110px">Job Title</td><td style="padding:4px 0;font-size:14px;font-weight:600">${job?.title ?? '—'}</td></tr><tr><td style="padding:4px 0;color:#666;font-size:14px">Company</td><td style="padding:4px 0;font-size:14px">${job?.company ?? '—'}</td></tr><tr><td style="padding:4px 0;color:#666;font-size:14px">Location</td><td style="padding:4px 0;font-size:14px">${job?.location ?? '—'}</td></tr>${job?.salary_range ? `<tr><td style="padding:4px 0;color:#666;font-size:14px">Salary</td><td style="padding:4px 0;font-size:14px">${job.salary_range}</td></tr>` : ''}</table></div>`;
 
     console.log('[send-intro-email] sending email to:', candidate?.email);
+    const html = '<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">'
+      + '<img src="https://sfc-recruiter-portal.vercel.app/logo.png" height="40" style="margin-bottom:24px" />'
+      + '<h2 style="color:#0F6E56">You have a new opportunity</h2>'
+      + '<p>Hi there,</p>'
+      + `<p>A company is interested in connecting with you about a <strong>${job?.title}</strong> role at <strong>${job?.company}</strong>.</p>`
+      + (intro.message ? `<p style="color:#555;font-style:italic">"${intro.message}"</p>` : '')
+      + jobDetailBlock
+      + '<p>Are you open to connecting?</p>'
+      + '<table style="border-collapse:collapse;margin:28px 0"><tr>'
+      + `<td style="padding-right:12px"><a href="${yesUrl}" style="display:inline-block;background:#0F6E56;color:white;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px">✅ Yes, I&#39;m interested</a></td>`
+      + `<td><a href="${noUrl}" style="display:inline-block;background:#f3f4f6;color:#333;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px">❌ No thanks</a></td>`
+      + '</tr></table>'
+      + '<p style="color:#666;font-size:14px">This introduction was facilitated by SFC Talent. Your contact details will only be shared if you click Yes.</p>'
+      + '<hr style="border:none;border-top:1px solid #eee;margin:24px 0" />'
+      + '<p style="color:#999;font-size:12px">SFC Talent · strategicfinancecareers.com</p>'
+      + '</div>';
+
     const emailResult = await resend.emails.send({
       from: 'SFC Talent <noreply@strategicfinancecareers.com>',
       to: candidate?.email,
       subject: `New opportunity: ${job?.title} at ${job?.company}`,
-      html: `
-        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 24px;">
-          <img src="https://sfc-recruiter-portal.vercel.app/logo.png" height="40" style="margin-bottom: 24px;" />
-          <h2 style="color: #0F6E56;">You have a new opportunity</h2>
-          <p>Hi there,</p>
-          <p>A company is interested in connecting with you about a <strong>${job?.title}</strong> role at <strong>${job?.company}</strong>.</p>
-          ${intro.message ? `<p style="color: #555; font-style: italic;">"${intro.message}"</p>` : ''}
-          ${jobDetailBlock}
-          <p>Are you open to connecting?</p>
-          <div style="margin: 32px 0; display: flex; gap: 12px;">
-            <a href="${yesUrl}" style="background: #0F6E56; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 16px; margin-right: 12px;">✅ Yes, I'm interested</a>
-            <a href="${noUrl}" style="background: #f3f4f6; color: #333; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 16px;">❌ No thanks</a>
-          </div>
-          <p style="color: #666; font-size: 14px;">This introduction was facilitated by SFC Talent. Your contact details will only be shared if you click Yes.</p>
-          <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;" />
-          <p style="color: #999; font-size: 12px;">SFC Talent · strategicfinancecareers.com</p>
-        </div>
-      `
+      html,
     });
 
     console.log('[send-intro-email] Resend result:', JSON.stringify(emailResult));

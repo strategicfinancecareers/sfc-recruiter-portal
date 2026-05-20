@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import TermsDialog from "../components/TermsDialog";
 import LoaderScreen from "../components/LoaderScreen";
 import RedactedResume from "../components/RedactedResume";
+import PricingModal from "../components/PricingModal";
 import { useCandidates, type Candidate } from "../hooks/useCandidates";
 import { supabase } from "@/integrations/supabase/client";
 import { JobForm } from "@/components/JobForm";
@@ -68,6 +69,7 @@ export default function CandidateSearch() {
   const [isSubmittingIntro, setIsSubmittingIntro] = useState(false);
   const [showJobForm, setShowJobForm] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [showPricingModal, setShowPricingModal] = useState(false);
 
   // Filters
   const [experienceFilter, setExperienceFilter] = useState('');
@@ -182,19 +184,28 @@ export default function CandidateSearch() {
   };
 
   const handleIntroduceMe = (candidate: Candidate) => {
-    // Check if user is admin
+    // Admins can't request intros
     if (user?.role === 'admin') {
       setShowAdminWarningDialog(true);
       return;
     }
 
+    // Terms check
     if (!user?.has_accepted_terms) {
       setShowTermsDialog(true);
       setCurrentCandidateForIntro(candidate);
       return;
     }
-    
-    // Show job selection dialog
+
+    // Subscription check — show pricing modal if not subscribed
+    const isSubscribed = (user as any)?.is_subscribed === true;
+    if (!isSubscribed) {
+      setCurrentCandidateForIntro(candidate);
+      setShowPricingModal(true);
+      return;
+    }
+
+    // Subscribed — go straight to job selection
     setCurrentCandidateForIntro(candidate);
     setShowJobSelectionDialog(true);
   };
@@ -202,7 +213,12 @@ export default function CandidateSearch() {
   const handleTermsAccepted = () => {
     setShowTermsDialog(false);
     if (currentCandidateForIntro) {
-      setShowJobSelectionDialog(true);
+      const isSubscribed = (user as any)?.is_subscribed === true;
+      if (!isSubscribed) {
+        setShowPricingModal(true);
+      } else {
+        setShowJobSelectionDialog(true);
+      }
     }
   };
 
@@ -309,12 +325,20 @@ const { data: inserted, error } = await supabase
 
   return (
     <>
-      <TermsDialog 
-        open={showTermsDialog} 
-        onOpenChange={(open) => {
-          setShowTermsDialog(open);
-        }}
+      <TermsDialog
+        open={showTermsDialog}
+        onOpenChange={(open) => { setShowTermsDialog(open); }}
         onAccept={handleTermsAccepted}
+      />
+
+      <PricingModal
+        open={showPricingModal}
+        onOpenChange={(open) => {
+          setShowPricingModal(open);
+          if (!open) setCurrentCandidateForIntro(null);
+        }}
+        userId={user?.id}
+        userEmail={user?.email}
       />
       
       <div className="flex-1 overflow-auto">

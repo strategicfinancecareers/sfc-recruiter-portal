@@ -28,7 +28,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.log('[send-intro-email] fetching intro from Supabase...');
     const { data: intro, error: dbError } = await supabase
       .from('introduction_requests')
-      .select(`*, candidates(*), jobs(*)`)
+      .select(`*, candidates!candidate_id(*), jobs!job_id(*)`)
       .eq('id', introId)
       .single();
 

@@ -21,8 +21,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .from('introduction_requests')
       .select(`
         *,
-        candidates(*),
-        jobs(*, users:user_id(*))
+        candidates!candidate_id(*),
+        jobs!job_id(*, users:user_id(*))
       `)
       .eq('id', introId)
       .single();

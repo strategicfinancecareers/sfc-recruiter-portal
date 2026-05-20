@@ -26,40 +26,48 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     console.log('[send-intro-email] fetching intro from Supabase...');
-    const { data: intro, error: dbError } = await supabase
+    const { data: intro, error: introError } = await supabase
       .from('introduction_requests')
-      .select(`*, candidates!candidate_id(*), jobs!job_id(*)`)
+      .select('*')
       .eq('id', introId)
       .single();
 
-    if (dbError) {
-      console.error('[send-intro-email] Supabase error:', JSON.stringify(dbError));
-      return res.status(500).json({ error: 'DB error', detail: dbError.message });
+    if (introError) {
+      console.error('[send-intro-email] intro fetch error:', JSON.stringify(introError));
+      return res.status(500).json({ error: 'DB error', detail: introError.message });
     }
-
     if (!intro) {
       console.error('[send-intro-email] intro not found for id:', introId);
       return res.status(404).json({ error: 'Not found' });
     }
 
-    console.log('[send-intro-email] intro loaded — candidate email:', intro.candidates?.email, '| job:', intro.jobs?.title, '@', intro.jobs?.company);
+    // Fetch candidate and job separately to avoid FK ambiguity
+    const [{ data: candidate, error: candError }, { data: job, error: jobError }] = await Promise.all([
+      supabase.from('candidates').select('*').eq('id', intro.candidate_id).single(),
+      supabase.from('jobs').select('*').eq('id', intro.job_id).single(),
+    ]);
+
+    if (candError) console.error('[send-intro-email] candidate fetch error:', JSON.stringify(candError));
+    if (jobError) console.error('[send-intro-email] job fetch error:', JSON.stringify(jobError));
+
+    console.log('[send-intro-email] intro loaded — candidate email:', candidate?.email, '| job:', job?.title, '@', job?.company);
 
     const baseUrl = 'https://sfc-recruiter-portal.vercel.app';
     const yesUrl = `${baseUrl}/api/respond-to-intro?introId=${introId}&response=yes`;
     const noUrl = `${baseUrl}/api/respond-to-intro?introId=${introId}&response=no`;
 
-    console.log('[send-intro-email] sending email to:', intro.candidates?.email);
+    console.log('[send-intro-email] sending email to:', candidate?.email);
     const emailResult = await resend.emails.send({
       from: 'SFC Talent <noreply@strategicfinancecareers.com>',
-      to: intro.candidates?.email,
-      subject: `New opportunity: ${intro.jobs?.title} at ${intro.jobs?.company}`,
+      to: candidate?.email,
+      subject: `New opportunity: ${job?.title} at ${job?.company}`,
       html: `
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 24px;">
           <img src="https://sfc-recruiter-portal.vercel.app/logo.png" height="40" style="margin-bottom: 24px;" />
           <h2 style="color: #0F6E56;">You have a new opportunity</h2>
           <p>Hi there,</p>
-          <p>A company is interested in connecting with you about a <strong>${intro.jobs?.title}</strong> role at <strong>${intro.jobs?.company}</strong> in <strong>${intro.jobs?.location}</strong>.</p>
-          ${intro.jobs?.salary_range ? `<p>💰 Salary range: <strong>${intro.jobs?.salary_range}</strong></p>` : ''}
+          <p>A company is interested in connecting with you about a <strong>${job?.title}</strong> role at <strong>${job?.company}</strong> in <strong>${job?.location}</strong>.</p>
+          ${job?.salary_range ? `<p>💰 Salary range: <strong>${job?.salary_range}</strong></p>` : ''}
           ${intro.message ? `<p>Message from the recruiter: <em>"${intro.message}"</em></p>` : ''}
           <p>Are you open to connecting?</p>
           <div style="margin: 32px 0;">

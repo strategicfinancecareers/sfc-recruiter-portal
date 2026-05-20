@@ -16,14 +16,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    // Get intro request with candidate and job details
+    // Get intro request
     const { data: intro } = await supabase
       .from('introduction_requests')
-      .select(`
-        *,
-        candidates!candidate_id(*),
-        jobs!job_id(*, users:user_id(*))
-      `)
+      .select('*')
       .eq('id', introId)
       .single();
 
@@ -37,11 +33,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .update({ status: accepted ? 'approved' : 'rejected' })
       .eq('id', introId);
 
+    // Fetch candidate, job, and recruiter separately to avoid FK ambiguity
+    const [{ data: candidate }, { data: job }] = await Promise.all([
+      supabase.from('candidates').select('*').eq('id', intro.candidate_id).single(),
+      supabase.from('jobs').select('*, users:user_id(*)').eq('id', intro.job_id).single(),
+    ]);
+
     // Email the recruiter
-    const recruiterEmail = intro.jobs?.users?.email;
-    const candidateName = intro.candidates?.display_name;
-    const jobTitle = intro.jobs?.title;
-    const company = intro.jobs?.company;
+    const recruiterEmail = (job?.users as any)?.email;
+    const candidateName = candidate?.display_name;
+    const jobTitle = job?.title;
+    const company = job?.company;
 
     if (recruiterEmail) {
       if (accepted) {
@@ -56,8 +58,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               <p><strong>${candidateName}</strong> has accepted your introduction request for the <strong>${jobTitle}</strong> role at <strong>${company}</strong>.</p>
               <div style="background: #f0faf6; border-left: 4px solid #0F6E56; padding: 16px; border-radius: 4px; margin: 24px 0;">
                 <p style="margin: 0 0 8px;"><strong>Contact Details:</strong></p>
-                <p style="margin: 0;">📧 ${intro.candidates?.email}</p>
-                ${intro.candidates?.phone ? `<p style="margin: 4px 0 0;">📱 ${intro.candidates?.phone}</p>` : ''}
+                <p style="margin: 0;">📧 ${candidate?.email}</p>
+                ${candidate?.phone ? `<p style="margin: 4px 0 0;">📱 ${candidate?.phone}</p>` : ''}
               </div>
               <p style="color: #666; font-size: 14px;">We recommend reaching out within 24 hours while their interest is fresh.</p>
               <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;" />

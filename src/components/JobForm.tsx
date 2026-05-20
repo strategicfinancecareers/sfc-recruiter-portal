@@ -47,41 +47,46 @@ export function JobForm({ open, onOpenChange, onJobCreated, editingJob }: JobFor
   const { toast } = useToast();
   const { session } = useAuth();
   const [submitting, setSubmitting] = useState(false);
+
+  // 'import' = step 1 (URL input only), 'form' = step 2 (full form)
+  const [step, setStep] = useState<'import' | 'form'>(editingJob ? 'form' : 'import');
   const [importUrl, setImportUrl] = useState('');
   const [importing, setImporting] = useState(false);
-  const [showImport, setShowImport] = useState(!editingJob);
   const [importSuccess, setImportSuccess] = useState(false);
   const [importError, setImportError] = useState('');
 
-const [formData, setFormData] = useState<JobFormData>({
-  title: editingJob?.title || '',
-  company: editingJob?.company || '',
-  location: editingJob?.location || '',
-  type: editingJob?.type || 'full-time',
-  salaryRange: editingJob?.salary_range || '',
-  jobDescriptionUrl: editingJob?.job_description_url || '',
-  description: editingJob?.description || '',
-  requirements: editingJob?.requirements || '',
-});
-
-const resetForm = () => {
-  setFormData({
-    title: '',
-    company: '',
-    location: '',
-    type: 'full-time',
-    salaryRange: '',
-    jobDescriptionUrl: '',
-    description: '',
-    requirements: '',
+  const [formData, setFormData] = useState<JobFormData>({
+    title: editingJob?.title || '',
+    company: editingJob?.company || '',
+    location: editingJob?.location || '',
+    type: editingJob?.type || 'full-time',
+    salaryRange: editingJob?.salary_range || '',
+    jobDescriptionUrl: editingJob?.job_description_url || '',
+    description: editingJob?.description || '',
+    requirements: editingJob?.requirements || '',
   });
-};
+
+  const resetForm = () => {
+    setFormData({
+      title: '',
+      company: '',
+      location: '',
+      type: 'full-time',
+      salaryRange: '',
+      jobDescriptionUrl: '',
+      description: '',
+      requirements: '',
+    });
+    setStep('import');
+    setImportUrl('');
+    setImportSuccess(false);
+    setImportError('');
+  };
 
   const handleImport = async () => {
     if (!importUrl.trim()) return;
     setImporting(true);
     setImportError('');
-    setImportSuccess(false);
 
     try {
       const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -95,8 +100,8 @@ const resetForm = () => {
         body: JSON.stringify({
           model: 'claude-sonnet-4-20250514',
           max_tokens: 1000,
-          system: 'You are a job posting parser. Extract job details from the provided URL content and return ONLY a JSON object with these exact fields: title, company, location, type (must be one of: full-time, part-time, contract, remote), salary_range, description, requirements. If a field cannot be determined, use null. Return only valid JSON, no other text.',
-          messages: [{ role: 'user', content: `Parse this job posting URL and extract the job details: ${importUrl}` }],
+          system: 'You are a job posting parser. Extract job details and return ONLY valid JSON with fields: title, company, location, type (one of: full-time, part-time, contract, remote), salary_range, description, requirements. Use null for unknown fields.',
+          messages: [{ role: 'user', content: `Extract job details from this URL: ${importUrl}` }],
         }),
       });
 
@@ -107,21 +112,22 @@ const resetForm = () => {
       const parsed = JSON.parse(text);
       const validTypes = ['full-time', 'part-time', 'contract', 'remote'];
 
-      setFormData(prev => ({
-        ...prev,
-        title: parsed.title || prev.title,
-        company: parsed.company || prev.company,
-        location: parsed.location || prev.location,
-        type: validTypes.includes(parsed.type) ? parsed.type as JobFormData['type'] : prev.type,
-        salaryRange: parsed.salary_range || prev.salaryRange,
-        description: parsed.description || prev.description,
-        requirements: parsed.requirements || prev.requirements,
-      }));
+      setFormData({
+        title: parsed.title || '',
+        company: parsed.company || '',
+        location: parsed.location || '',
+        type: validTypes.includes(parsed.type) ? parsed.type as JobFormData['type'] : 'full-time',
+        salaryRange: parsed.salary_range || '',
+        jobDescriptionUrl: importUrl,
+        description: parsed.description || '',
+        requirements: parsed.requirements || '',
+      });
 
       setImportSuccess(true);
-      setShowImport(false);
+      setStep('form');
     } catch {
-      setImportError("Couldn't read that URL. Please fill in the details manually.");
+      setImportError("Couldn't read that URL — please fill in manually.");
+      setStep('form');
     } finally {
       setImporting(false);
     }
@@ -130,9 +136,9 @@ const resetForm = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!session?.user) return;
-    
+
     setSubmitting(true);
-    
+
     try {
       console.log('[JobForm] handleSubmit start', { editing: !!editingJob });
       const jobData = {
@@ -182,7 +188,7 @@ const resetForm = () => {
 
         onJobCreated?.(data as unknown as Job);
       }
-      
+
       onOpenChange(false);
       resetForm();
       console.log('[JobForm] handleSubmit success');
@@ -200,167 +206,184 @@ const resetForm = () => {
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(o) => { if (!o) resetForm(); onOpenChange(o); }}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{editingJob ? 'Edit Job' : 'Create New Job'}</DialogTitle>
-          <DialogDescription>
-            {editingJob ? 'Update the job posting details' : 'Fill in the details for your job posting'}
-          </DialogDescription>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
 
-          {/* URL Import */}
-          {showImport && (
-            <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
-              <p className="text-sm font-semibold text-gray-900 mb-0.5">Import from job posting</p>
-              <p className="text-xs text-gray-500 mb-3">
-                Paste a link from LinkedIn, Greenhouse, Lever, Workday, Indeed, Glassdoor, BambooHR, Rippling, Ashby, or JazzHR to auto-fill this form
-              </p>
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Paste job posting URL..."
-                  value={importUrl}
-                  onChange={(e) => setImportUrl(e.target.value)}
-                  className="flex-1"
-                />
-                <Button
-                  type="button"
-                  onClick={handleImport}
-                  disabled={importing || !importUrl.trim()}
-                >
-                  {importing ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Reading...
-                    </>
-                  ) : 'Import'}
-                </Button>
-              </div>
-              {importError && (
-                <p className="text-xs text-red-600 mt-2">{importError}</p>
-              )}
-              <button
+        {/* Step 1: URL import only */}
+        {step === 'import' && (
+          <>
+            <DialogHeader>
+              <DialogTitle>Create a Job Posting</DialogTitle>
+              <DialogDescription>
+                Import from an existing job posting or fill in manually
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-6 space-y-4">
+              <Input
+                placeholder="Paste a job URL from LinkedIn, Greenhouse, Lever, Workday, Indeed..."
+                value={importUrl}
+                onChange={(e) => setImportUrl(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleImport()}
+                className="w-full"
+              />
+              <Button
                 type="button"
-                onClick={() => setShowImport(false)}
-                className="text-xs text-gray-400 hover:text-gray-600 mt-2 underline"
+                onClick={handleImport}
+                disabled={importing || !importUrl.trim()}
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+                size="lg"
               >
-                Skip, fill manually
-              </button>
+                {importing ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Reading job posting...
+                  </>
+                ) : 'Import Job'}
+              </Button>
+              <div className="text-center">
+                <button
+                  type="button"
+                  onClick={() => { setImportError(''); setStep('form'); }}
+                  className="text-sm text-gray-400 hover:text-gray-600 underline"
+                >
+                  Skip — fill in manually →
+                </button>
+              </div>
             </div>
-          )}
+          </>
+        )}
 
-          {importSuccess && (
-            <div className="flex items-center gap-2 p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-sm text-emerald-700">
-              <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
-              Job details imported! Review and edit below before saving.
-            </div>
-          )}
+        {/* Step 2: Full form */}
+        {step === 'form' && (
+          <>
+            <DialogHeader>
+              <DialogTitle>{editingJob ? 'Edit Job' : 'Create a Job Posting'}</DialogTitle>
+              <DialogDescription>
+                {editingJob ? 'Update the job posting details' : 'Review and edit the details below'}
+              </DialogDescription>
+            </DialogHeader>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="title">Job Title *</Label>
-              <Input
-                id="title"
-                value={formData.title}
-                onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-                required
-              />
-            </div>
-            <div>
-              <Label htmlFor="company">Company *</Label>
-              <Input
-                id="company"
-                value={formData.company}
-                onChange={(e) => setFormData(prev => ({ ...prev, company: e.target.value }))}
-                required
-              />
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="location">Location *</Label>
-              <Input
-                id="location"
-                value={formData.location}
-                onChange={(e) => setFormData(prev => ({ ...prev, location: e.target.value }))}
-                placeholder="e.g., San Francisco, CA or Remote"
-                required
-              />
-            </div>
-            <div>
-              <Label htmlFor="type">Job Type *</Label>
-              <Select
-                value={formData.type}
-                onValueChange={(value: JobFormData['type']) => setFormData(prev => ({ ...prev, type: value }))}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="full-time">Full-time</SelectItem>
-                  <SelectItem value="part-time">Part-time</SelectItem>
-                  <SelectItem value="contract">Contract</SelectItem>
-                  <SelectItem value="remote">Remote</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+            {importSuccess && (
+              <div className="flex items-center gap-2 p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-sm text-emerald-700">
+                <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
+                Job imported successfully — review and edit below
+              </div>
+            )}
 
-<div>
-  <Label htmlFor="salaryRange">Salary Range</Label>
-  <Input
-    id="salaryRange"
-    value={formData.salaryRange}
-    onChange={(e) => setFormData(prev => ({ ...prev, salaryRange: e.target.value }))}
-    placeholder="e.g., $80k - $120k"
-  />
-</div>
+            {importError && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+                {importError}
+              </div>
+            )}
 
-<div>
-  <Label htmlFor="jobDescriptionUrl">Job Description URL</Label>
-  <Input
-    id="jobDescriptionUrl"
-    type="url"
-    placeholder="https://example.com/job-description"
-    value={formData.jobDescriptionUrl}
-    onChange={(e) => setFormData(prev => ({ ...prev, jobDescriptionUrl: e.target.value }))}
-  />
-</div>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="title">Job Title *</Label>
+                  <Input
+                    id="title"
+                    value={formData.title}
+                    onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+                    required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="company">Company *</Label>
+                  <Input
+                    id="company"
+                    value={formData.company}
+                    onChange={(e) => setFormData(prev => ({ ...prev, company: e.target.value }))}
+                    required
+                  />
+                </div>
+              </div>
 
-          <div>
-            <Label htmlFor="description">Job Description</Label>
-            <Textarea
-              id="description"
-              value={formData.description}
-              onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-              rows={4}
-              placeholder="Describe the role and responsibilities..."
-            />
-          </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="location">Location *</Label>
+                  <Input
+                    id="location"
+                    value={formData.location}
+                    onChange={(e) => setFormData(prev => ({ ...prev, location: e.target.value }))}
+                    placeholder="e.g., San Francisco, CA or Remote"
+                    required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="type">Job Type *</Label>
+                  <Select
+                    value={formData.type}
+                    onValueChange={(value: JobFormData['type']) => setFormData(prev => ({ ...prev, type: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="full-time">Full-time</SelectItem>
+                      <SelectItem value="part-time">Part-time</SelectItem>
+                      <SelectItem value="contract">Contract</SelectItem>
+                      <SelectItem value="remote">Remote</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
 
-          <div>
-            <Label htmlFor="requirements">Requirements (comma-separated)</Label>
-            <Textarea
-              id="requirements"
-              value={formData.requirements}
-              onChange={(e) => setFormData(prev => ({ ...prev, requirements: e.target.value }))}
-              placeholder="e.g., React, TypeScript, 3+ years experience"
-              rows={3}
-            />
-          </div>
+              <div>
+                <Label htmlFor="salaryRange">Salary Range</Label>
+                <Input
+                  id="salaryRange"
+                  value={formData.salaryRange}
+                  onChange={(e) => setFormData(prev => ({ ...prev, salaryRange: e.target.value }))}
+                  placeholder="e.g., $80k - $120k"
+                />
+              </div>
 
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={submitting}>
-              {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {editingJob ? 'Update Job' : 'Create Job'}
-            </Button>
-          </DialogFooter>
-        </form>
+              <div>
+                <Label htmlFor="jobDescriptionUrl">Job Description URL</Label>
+                <Input
+                  id="jobDescriptionUrl"
+                  type="url"
+                  placeholder="https://example.com/job-description"
+                  value={formData.jobDescriptionUrl}
+                  onChange={(e) => setFormData(prev => ({ ...prev, jobDescriptionUrl: e.target.value }))}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="description">Job Description</Label>
+                <Textarea
+                  id="description"
+                  value={formData.description}
+                  onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                  rows={4}
+                  placeholder="Describe the role and responsibilities..."
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="requirements">Requirements (comma-separated)</Label>
+                <Textarea
+                  id="requirements"
+                  value={formData.requirements}
+                  onChange={(e) => setFormData(prev => ({ ...prev, requirements: e.target.value }))}
+                  placeholder="e.g., React, TypeScript, 3+ years experience"
+                  rows={3}
+                />
+              </div>
+
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={submitting}>
+                  {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {editingJob ? 'Update Job' : 'Create Job'}
+                </Button>
+              </DialogFooter>
+            </form>
+          </>
+        )}
+
       </DialogContent>
     </Dialog>
   );

@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Heart, Handshake, Search, Filter, MapPin, GraduationCap, Calendar, Eye, Loader2 } from "lucide-react";
+import { Heart, Handshake, Search, Filter, MapPin, GraduationCap, Calendar, Eye, Loader2, LayoutGrid, LayoutList } from "lucide-react";
 
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -32,6 +32,21 @@ interface Job {
   user_id: string;
 }
 
+function getInitials(label: string): string {
+  const words = label.trim().split(/\s+/);
+  if (words.length === 1) return words[0].replace(/[^A-Za-z]/g, '').slice(0, 2).toUpperCase();
+  if (words[0].length <= 5 || words[0].includes('&')) return words[0].replace(/[^A-Za-z]/g, '').slice(0, 2).toUpperCase();
+  return (words[0][0] + words[1][0]).toUpperCase();
+}
+
+function getLabelColor(label: string): string {
+  const l = label.toLowerCase();
+  if (l.includes('private equity') || l.includes('venture') || /\bpe\b/.test(l) || /\bvc\b/.test(l)) return '#0F6E56';
+  if (l.includes('investment banking') || l.includes('banking')) return '#1e40af';
+  if (l.includes('fp&a') || l.includes('fpa') || l.includes('finance')) return '#6d28d9';
+  return '#6b7280';
+}
+
 export default function CandidateSearch() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -52,6 +67,7 @@ export default function CandidateSearch() {
   const [showAdminWarningDialog, setShowAdminWarningDialog] = useState(false);
   const [isSubmittingIntro, setIsSubmittingIntro] = useState(false);
   const [showJobForm, setShowJobForm] = useState(false);
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
   // Filters
   const [experienceFilter, setExperienceFilter] = useState('');
@@ -402,116 +418,212 @@ const { data: inserted, error } = await supabase
                 </>
               )}
             </div>
-            <div className="text-sm text-muted-foreground">
-              {filteredCandidates.length} candidates found
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-muted-foreground">
+                {filteredCandidates.length} candidates found
+              </span>
+              <div className="flex items-center border rounded-md overflow-hidden">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setViewMode('grid')}
+                  className={`rounded-none px-2 h-8 ${viewMode === 'grid' ? 'bg-accent' : ''}`}
+                >
+                  <LayoutGrid className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setViewMode('list')}
+                  className={`rounded-none px-2 h-8 ${viewMode === 'list' ? 'bg-accent' : ''}`}
+                >
+                  <LayoutList className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           </div>
           }
 
           {/* Candidates Grid */}
-          {!loading &&<div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-            {filteredCandidates.map((candidate) => (
-              <Card
-                key={candidate.id}
-                className={`transition-all duration-200 hover:shadow-lg h-full flex flex-col ${
-                  candidate.is_favorite ? 'ring-2 ring-primary/20 bg-accent/50' : ''
-                } ${
-                  (pendingIntroductions.includes(candidate.id) || completedIntroductions.includes(candidate.id)) ? 'opacity-75 bg-muted/50' : ''
-                }`}
-              >
-                <CardHeader className="pb-3">
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <CardTitle className="text-lg font-heading">{candidate.display_name}</CardTitle>
-                      {user?.role === 'admin' && (
-                        <p className="text-sm text-muted-foreground">{candidate.name}</p>
-                      )}
-                      <CardDescription className="text-primary font-medium">
-                        {candidate.label}
-                      </CardDescription>
+          {!loading && viewMode === 'grid' && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+              {filteredCandidates.map((candidate) => (
+                <Card
+                  key={candidate.id}
+                  className={`transition-all duration-200 hover:shadow-lg h-full flex flex-col ${
+                    candidate.is_favorite ? 'ring-2 ring-primary/20 bg-accent/50' : ''
+                  } ${
+                    (pendingIntroductions.includes(candidate.id) || completedIntroductions.includes(candidate.id)) ? 'opacity-75 bg-muted/50' : ''
+                  }`}
+                >
+                  <CardHeader className="pb-3">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <CardTitle className="text-lg font-heading">{candidate.display_name}</CardTitle>
+                        {user?.role === 'admin' && (
+                          <p className="text-sm text-muted-foreground">{candidate.name}</p>
+                        )}
+                        <CardDescription className="text-primary font-medium">
+                          {candidate.label}
+                        </CardDescription>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        {selectMode && (
+                          <Checkbox
+                            checked={selectedCandidates.includes(candidate.id)}
+                            onCheckedChange={() => toggleSelect(candidate.id)}
+                            disabled={!selectedCandidates.includes(candidate.id) && getSelectedCount() >= 5}
+                          />
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => toggleFavorite(candidate.id)}
+                          className={candidate.is_favorite ? 'text-destructive' : 'text-muted-foreground'}
+                        >
+                          <Heart className={`h-4 w-4 ${candidate.is_favorite ? 'fill-current' : ''}`} />
+                        </Button>
+                      </div>
                     </div>
-                    <div className="flex items-center space-x-2">
-                      {selectMode && (
-                        <Checkbox
-                          checked={selectedCandidates.includes(candidate.id)}
-                          onCheckedChange={() => toggleSelect(candidate.id)}
-                          disabled={!selectedCandidates.includes(candidate.id) && getSelectedCount() >= 5}
-                        />
+                  </CardHeader>
+                  <CardContent className="space-y-4 flex flex-col h-full">
+                    {candidate.profile_description && (
+                      <p className="text-sm text-muted-foreground">{candidate.profile_description}</p>
+                    )}
+                    <div className="space-y-2">
+                      <div className="flex items-center text-sm text-muted-foreground">
+                        <MapPin className="h-4 w-4 mr-1" />
+                        {candidate.location}
+                      </div>
+                      <div className="flex items-center text-sm text-muted-foreground">
+                        <Calendar className="h-4 w-4 mr-1" />
+                        {candidate.experience} years experience
+                      </div>
+                      <div className="flex items-center text-sm text-muted-foreground">
+                        <GraduationCap className="h-4 w-4 mr-1" />
+                        {candidate.education}
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {candidate.skills.slice(0, 3).map((skill) => (
+                        <Badge key={skill.id} variant="secondary" className="text-xs">
+                          {skill.skill}
+                        </Badge>
+                      ))}
+                      {candidate.skills.length > 3 && (
+                        <Badge variant="outline" className="text-xs">
+                          +{candidate.skills.length - 3} more
+                        </Badge>
                       )}
+                    </div>
+                    <div className="flex space-x-2 pt-2 mt-auto">
                       <Button
-                        variant="ghost"
+                        variant="outline"
                         size="sm"
-                        onClick={() => toggleFavorite(candidate.id)}
-                        className={candidate.is_favorite ? 'text-destructive' : 'text-muted-foreground'}
+                        onClick={() => setSelectedCandidate(candidate)}
+                        className="flex-1"
                       >
-                        <Heart className={`h-4 w-4 ${candidate.is_favorite ? 'fill-current' : ''}`} />
+                        <Eye className="mr-1 h-4 w-4" />
+                        View Profile
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => handleIntroduceMe(candidate)}
+                        disabled={pendingIntroductions.includes(candidate.id) || completedIntroductions.includes(candidate.id)}
+                        variant={(pendingIntroductions.includes(candidate.id) || completedIntroductions.includes(candidate.id)) ? "secondary" : "default"}
+                        className="flex-1"
+                      >
+                        <Handshake className="mr-1 h-4 w-4" />
+                        {pendingIntroductions.includes(candidate.id)
+                          ? 'Intro Requested'
+                          : completedIntroductions.includes(candidate.id)
+                            ? 'Intro Complete'
+                            : 'Introduce Me'}
                       </Button>
                     </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-4 flex flex-col h-full">
-                  {candidate.profile_description && (
-                    <p className="text-sm text-muted-foreground">{candidate.profile_description}</p>
-                  )}
-                  
-                  <div className="space-y-2">
-                    <div className="flex items-center text-sm text-muted-foreground">
-                      <MapPin className="h-4 w-4 mr-1" />
-                      {candidate.location}
-                    </div>
-                    <div className="flex items-center text-sm text-muted-foreground">
-                      <Calendar className="h-4 w-4 mr-1" />
-                      {candidate.experience} years experience
-                    </div>
-                    <div className="flex items-center text-sm text-muted-foreground">
-                      <GraduationCap className="h-4 w-4 mr-1" />
-                      {candidate.education}
-                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+
+          {/* Candidates List */}
+          {!loading && viewMode === 'list' && (
+            <div className="border border-gray-200 rounded-xl overflow-hidden bg-white">
+              {filteredCandidates.map((candidate) => (
+                <div
+                  key={candidate.id}
+                  className={`flex items-center gap-4 px-5 py-4 hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-b-0 ${
+                    (pendingIntroductions.includes(candidate.id) || completedIntroductions.includes(candidate.id)) ? 'opacity-60' : ''
+                  }`}
+                >
+                  {/* Initials circle */}
+                  <div
+                    className="flex-shrink-0 w-11 h-11 rounded-full flex items-center justify-center text-sm font-bold text-white"
+                    style={{ backgroundColor: getLabelColor(candidate.label) }}
+                  >
+                    {getInitials(candidate.label)}
                   </div>
 
-                  <div className="flex flex-wrap gap-1">
-                    {candidate.skills.slice(0, 3).map((skill) => (
-                      <Badge key={skill.id} variant="secondary" className="text-xs">
-                        {skill.skill}
+                  {/* Middle section */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <span className="font-semibold text-gray-900 text-sm">{candidate.display_name}</span>
+                      <Badge className="text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-50 font-normal">
+                        {candidate.label}
                       </Badge>
-                    ))}
-                    {candidate.skills.length > 3 && (
-                      <Badge variant="outline" className="text-xs">
-                        +{candidate.skills.length - 3} more
-                      </Badge>
+                    </div>
+                    {candidate.profile_description && (
+                      <p className="text-xs text-gray-500 truncate mb-1">{candidate.profile_description}</p>
                     )}
+                    <div className="flex flex-wrap items-center gap-1 mb-1">
+                      {candidate.skills.slice(0, 4).map((skill) => (
+                        <Badge key={skill.id} variant="secondary" className="text-xs px-1.5 py-0 font-normal">
+                          {skill.skill}
+                        </Badge>
+                      ))}
+                      {candidate.skills.length > 4 && (
+                        <span className="text-xs text-gray-400">+{candidate.skills.length - 4} more</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5 text-xs text-gray-400">
+                      <span>{candidate.location}</span>
+                      <span>·</span>
+                      <span>{candidate.experience} yrs exp</span>
+                      <span>·</span>
+                      <span>{candidate.education}</span>
+                    </div>
                   </div>
 
-
-                  <div className="flex space-x-2 pt-2 mt-auto">
+                  {/* Right side */}
+                  <div className="flex items-center gap-2 flex-shrink-0">
                     <Button
-                      variant="outline"
+                      variant="ghost"
                       size="sm"
-                      onClick={() => setSelectedCandidate(candidate)}
-                      className="flex-1"
+                      onClick={() => toggleFavorite(candidate.id)}
+                      className={candidate.is_favorite ? 'text-destructive' : 'text-muted-foreground'}
                     >
-                      <Eye className="mr-1 h-4 w-4" />
-                      View Profile
+                      <Heart className={`h-4 w-4 ${candidate.is_favorite ? 'fill-current' : ''}`} />
                     </Button>
                     <Button
                       size="sm"
                       onClick={() => handleIntroduceMe(candidate)}
                       disabled={pendingIntroductions.includes(candidate.id) || completedIntroductions.includes(candidate.id)}
                       variant={(pendingIntroductions.includes(candidate.id) || completedIntroductions.includes(candidate.id)) ? "secondary" : "default"}
-                      className="flex-1"
+                      className="whitespace-nowrap bg-emerald-600 hover:bg-emerald-700 text-white"
                     >
-                      <Handshake className="mr-1 h-4 w-4" />
+                      <Handshake className="mr-1.5 h-4 w-4" />
                       {pendingIntroductions.includes(candidate.id)
                         ? 'Intro Requested'
                         : completedIntroductions.includes(candidate.id)
                           ? 'Intro Complete'
-                          : 'Introduce Me'}
+                          : 'Request Introduction'}
                     </Button>
                   </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>}
+                </div>
+              ))}
+            </div>
+          )}
 
           {!loading && filteredCandidates.length === 0 && (
             <div className="text-center py-12">

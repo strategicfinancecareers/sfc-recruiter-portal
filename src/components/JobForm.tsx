@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2 } from "lucide-react";
+import { Loader2, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -47,6 +47,11 @@ export function JobForm({ open, onOpenChange, onJobCreated, editingJob }: JobFor
   const { toast } = useToast();
   const { session } = useAuth();
   const [submitting, setSubmitting] = useState(false);
+  const [importUrl, setImportUrl] = useState('');
+  const [importing, setImporting] = useState(false);
+  const [showImport, setShowImport] = useState(!editingJob);
+  const [importSuccess, setImportSuccess] = useState(false);
+  const [importError, setImportError] = useState('');
 
 const [formData, setFormData] = useState<JobFormData>({
   title: editingJob?.title || '',
@@ -71,6 +76,56 @@ const resetForm = () => {
     requirements: '',
   });
 };
+
+  const handleImport = async () => {
+    if (!importUrl.trim()) return;
+    setImporting(true);
+    setImportError('');
+    setImportSuccess(false);
+
+    try {
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': import.meta.env.VITE_ANTHROPIC_API_KEY,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true',
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1000,
+          system: 'You are a job posting parser. Extract job details from the provided URL content and return ONLY a JSON object with these exact fields: title, company, location, type (must be one of: full-time, part-time, contract, remote), salary_range, description, requirements. If a field cannot be determined, use null. Return only valid JSON, no other text.',
+          messages: [{ role: 'user', content: `Parse this job posting URL and extract the job details: ${importUrl}` }],
+        }),
+      });
+
+      if (!response.ok) throw new Error('API request failed');
+
+      const data = await response.json();
+      const text = data.content?.[0]?.text ?? '';
+      const parsed = JSON.parse(text);
+      const validTypes = ['full-time', 'part-time', 'contract', 'remote'];
+
+      setFormData(prev => ({
+        ...prev,
+        title: parsed.title || prev.title,
+        company: parsed.company || prev.company,
+        location: parsed.location || prev.location,
+        type: validTypes.includes(parsed.type) ? parsed.type as JobFormData['type'] : prev.type,
+        salaryRange: parsed.salary_range || prev.salaryRange,
+        description: parsed.description || prev.description,
+        requirements: parsed.requirements || prev.requirements,
+      }));
+
+      setImportSuccess(true);
+      setShowImport(false);
+    } catch {
+      setImportError("Couldn't read that URL. Please fill in the details manually.");
+    } finally {
+      setImporting(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -154,6 +209,54 @@ const resetForm = () => {
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
+
+          {/* URL Import */}
+          {showImport && (
+            <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+              <p className="text-sm font-semibold text-gray-900 mb-0.5">Import from job posting</p>
+              <p className="text-xs text-gray-500 mb-3">
+                Paste a link from LinkedIn, Greenhouse, Lever, Workday, Indeed, Glassdoor, BambooHR, Rippling, Ashby, or JazzHR to auto-fill this form
+              </p>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Paste job posting URL..."
+                  value={importUrl}
+                  onChange={(e) => setImportUrl(e.target.value)}
+                  className="flex-1"
+                />
+                <Button
+                  type="button"
+                  onClick={handleImport}
+                  disabled={importing || !importUrl.trim()}
+                >
+                  {importing ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Reading...
+                    </>
+                  ) : 'Import'}
+                </Button>
+              </div>
+              {importError && (
+                <p className="text-xs text-red-600 mt-2">{importError}</p>
+              )}
+              <button
+                type="button"
+                onClick={() => setShowImport(false)}
+                className="text-xs text-gray-400 hover:text-gray-600 mt-2 underline"
+              >
+                Skip, fill manually
+              </button>
+            </div>
+          )}
+
+          {importSuccess && (
+            <div className="flex items-center gap-2 p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-sm text-emerald-700">
+              <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
+              Job details imported! Review and edit below before saving.
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label htmlFor="title">Job Title *</Label>

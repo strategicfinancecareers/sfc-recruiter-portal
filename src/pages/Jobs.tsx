@@ -136,7 +136,21 @@ const handleImport = async () => {
   setImportError('');
 
   try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    // Step 1: Fetch page content via CORS proxy
+    const proxyRes = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(importUrl)}`);
+    if (!proxyRes.ok) throw new Error('Failed to fetch URL');
+    const proxyData = await proxyRes.json();
+    const rawHtml = proxyData.contents ?? '';
+
+    // Step 2: Strip HTML and truncate
+    const cleanText = rawHtml
+      .replace(/<[^>]*>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 3000);
+
+    // Step 3: Pass cleaned text to Claude
+    const claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -148,14 +162,14 @@ const handleImport = async () => {
         model: 'claude-sonnet-4-20250514',
         max_tokens: 1000,
         system: 'Extract job details and return ONLY valid JSON with fields: title, company, location, type (full-time/part-time/contract/remote), salary_range, description, requirements. Use null for unknown fields.',
-        messages: [{ role: 'user', content: `Extract job details from: ${importUrl}` }],
+        messages: [{ role: 'user', content: `Extract job details from this job posting text and return ONLY valid JSON with fields: title, company, location, type (full-time/part-time/contract/remote), salary_range, description, requirements. Use null for unknown fields. Job posting text: ${cleanText}` }],
       }),
     });
 
-    if (!response.ok) throw new Error('API error');
+    if (!claudeRes.ok) throw new Error('Claude API error');
 
-    const data = await response.json();
-    const parsed = JSON.parse(data.content?.[0]?.text ?? '{}');
+    const claudeData = await claudeRes.json();
+    const parsed = JSON.parse(claudeData.content?.[0]?.text ?? '{}');
     const validTypes = ['full-time', 'part-time', 'contract', 'remote'];
 
     setFormData({

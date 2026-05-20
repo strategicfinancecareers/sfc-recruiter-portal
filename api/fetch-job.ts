@@ -27,7 +27,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         'anthropic-version': '2023-06-01'
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-6',
         max_tokens: 1000,
         system: 'You are a job posting parser. Extract job details and return ONLY valid JSON with fields: title, company, location, type (one of: full-time, part-time, contract, remote), salary_range, description, requirements. Use null for unknown fields. No markdown, no explanation, just JSON.',
         messages: [{ role: 'user', content: `Extract job details from this text: ${text}` }]

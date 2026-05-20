@@ -388,3 +388,4 @@ export function JobForm({ open, onOpenChange, onJobCreated, editingJob }: JobFor
     </Dialog>
   );
 }
+

@@ -236,6 +236,17 @@ const { data: inserted, error } = await supabase
         console.error('notify-intro-created error:', fnErr);
       }
 
+      // Send intro email to candidate
+      try {
+        await fetch('/api/send-intro-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ introId: inserted?.id }),
+        });
+      } catch (emailErr) {
+        console.error('send-intro-email error:', emailErr);
+      }
+
       // Add to pending introductions
       setPendingIntroductions(prev => [...prev, currentCandidateForIntro.id]);
       

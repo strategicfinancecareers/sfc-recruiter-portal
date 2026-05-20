@@ -136,35 +136,12 @@ const handleImport = async () => {
   setImportError('');
 
   try {
-    // Step 1: Fetch and clean page content via serverless proxy
-    const proxyRes = await fetch(`/api/fetch-job?url=${encodeURIComponent(importUrl)}`);
-    if (!proxyRes.ok) throw new Error('Failed to fetch URL');
-    const proxyData = await proxyRes.json();
-    const cleanText = proxyData.text ?? '';
+    const res = await fetch(`/api/fetch-job?url=${encodeURIComponent(importUrl)}`);
+    if (!res.ok) throw new Error('Import failed');
+    const parsed = await res.json();
+    if (parsed.error) throw new Error(parsed.error);
 
-    // Step 2: Pass cleaned text to Claude
-    const claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': import.meta.env.VITE_ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true',
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1000,
-        system: 'Extract job details and return ONLY valid JSON with fields: title, company, location, type (full-time/part-time/contract/remote), salary_range, description, requirements. Use null for unknown fields.',
-        messages: [{ role: 'user', content: `Extract job details from this job posting text and return ONLY valid JSON with fields: title, company, location, type (full-time/part-time/contract/remote), salary_range, description, requirements. Use null for unknown fields. Job posting text: ${cleanText}` }],
-      }),
-    });
-
-    if (!claudeRes.ok) throw new Error('Claude API error');
-
-    const claudeData = await claudeRes.json();
-    const parsed = JSON.parse(claudeData.content?.[0]?.text ?? '{}');
     const validTypes = ['full-time', 'part-time', 'contract', 'remote'];
-
     setFormData({
       title: parsed.title || '',
       company: parsed.company || '',

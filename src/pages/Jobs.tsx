@@ -136,20 +136,13 @@ const handleImport = async () => {
   setImportError('');
 
   try {
-    // Step 1: Fetch page content via CORS proxy
-    const proxyRes = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(importUrl)}`);
+    // Step 1: Fetch and clean page content via serverless proxy
+    const proxyRes = await fetch(`/api/fetch-job?url=${encodeURIComponent(importUrl)}`);
     if (!proxyRes.ok) throw new Error('Failed to fetch URL');
     const proxyData = await proxyRes.json();
-    const rawHtml = proxyData.contents ?? '';
+    const cleanText = proxyData.text ?? '';
 
-    // Step 2: Strip HTML and truncate
-    const cleanText = rawHtml
-      .replace(/<[^>]*>/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .slice(0, 3000);
-
-    // Step 3: Pass cleaned text to Claude
+    // Step 2: Pass cleaned text to Claude
     const claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {

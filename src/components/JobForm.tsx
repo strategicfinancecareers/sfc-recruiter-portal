@@ -89,29 +89,12 @@ export function JobForm({ open, onOpenChange, onJobCreated, editingJob }: JobFor
     setImportError('');
 
     try {
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': import.meta.env.VITE_ANTHROPIC_API_KEY,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true',
-        },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1000,
-          system: 'You are a job posting parser. Extract job details and return ONLY valid JSON with fields: title, company, location, type (one of: full-time, part-time, contract, remote), salary_range, description, requirements. Use null for unknown fields.',
-          messages: [{ role: 'user', content: `Extract job details from this URL: ${importUrl}` }],
-        }),
-      });
+      const res = await fetch(`/api/fetch-job?url=${encodeURIComponent(importUrl)}`);
+      if (!res.ok) throw new Error('Import failed');
+      const parsed = await res.json();
+      if (parsed.error) throw new Error(parsed.error);
 
-      if (!response.ok) throw new Error('API request failed');
-
-      const data = await response.json();
-      const text = data.content?.[0]?.text ?? '';
-      const parsed = JSON.parse(text);
       const validTypes = ['full-time', 'part-time', 'contract', 'remote'];
-
       setFormData({
         title: parsed.title || '',
         company: parsed.company || '',

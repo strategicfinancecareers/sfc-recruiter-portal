@@ -9,24 +9,47 @@ const supabase = createClient(
 );
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  console.log('[send-intro-email] hit —', req.method, JSON.stringify(req.body));
+
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const { introId } = req.body;
+  console.log('[send-intro-email] introId:', introId);
+
+  if (!introId) {
+    console.error('[send-intro-email] missing introId');
+    return res.status(400).json({ error: 'introId required' });
+  }
+
+  // Check env vars are present
+  console.log('[send-intro-email] env check — RESEND_API_KEY:', !!process.env.RESEND_API_KEY, '| SUPABASE_URL:', !!process.env.SUPABASE_URL, '| SERVICE_ROLE_KEY:', !!process.env.SUPABASE_SERVICE_ROLE_KEY);
 
   try {
-    const { data: intro } = await supabase
+    console.log('[send-intro-email] fetching intro from Supabase...');
+    const { data: intro, error: dbError } = await supabase
       .from('introduction_requests')
       .select(`*, candidates(*), jobs(*)`)
       .eq('id', introId)
       .single();
 
-    if (!intro) return res.status(404).json({ error: 'Not found' });
+    if (dbError) {
+      console.error('[send-intro-email] Supabase error:', JSON.stringify(dbError));
+      return res.status(500).json({ error: 'DB error', detail: dbError.message });
+    }
+
+    if (!intro) {
+      console.error('[send-intro-email] intro not found for id:', introId);
+      return res.status(404).json({ error: 'Not found' });
+    }
+
+    console.log('[send-intro-email] intro loaded — candidate email:', intro.candidates?.email, '| job:', intro.jobs?.title, '@', intro.jobs?.company);
 
     const baseUrl = 'https://sfc-recruiter-portal.vercel.app';
     const yesUrl = `${baseUrl}/api/respond-to-intro?introId=${introId}&response=yes`;
     const noUrl = `${baseUrl}/api/respond-to-intro?introId=${introId}&response=no`;
 
-    await resend.emails.send({
+    console.log('[send-intro-email] sending email to:', intro.candidates?.email);
+    const emailResult = await resend.emails.send({
       from: 'SFC Talent <noreply@strategicfinancecareers.com>',
       to: intro.candidates?.email,
       subject: `New opportunity: ${intro.jobs?.title} at ${intro.jobs?.company}`,
@@ -50,9 +73,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       `
     });
 
-    return res.status(200).json({ success: true });
-  } catch (error) {
-    console.error('Error:', error);
-    return res.status(500).json({ error: 'Failed to send email' });
+    console.log('[send-intro-email] Resend result:', JSON.stringify(emailResult));
+    return res.status(200).json({ success: true, emailResult });
+  } catch (error: any) {
+    console.error('[send-intro-email] caught error:', error?.message || String(error));
+    return res.status(500).json({ error: 'Failed to send email', message: error?.message || String(error) });
   }
 }

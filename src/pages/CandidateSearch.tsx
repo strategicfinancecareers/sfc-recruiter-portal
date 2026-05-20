@@ -219,12 +219,14 @@ export default function CandidateSearch() {
         status: 'pending'
       };
 
+console.log('[submitIntro] inserting request:', requestData);
 const { data: inserted, error } = await supabase
         .from('introduction_requests')
         .insert(requestData)
         .select('id')
         .single();
 
+      console.log('[submitIntro] insert result — id:', inserted?.id, '| error:', error?.message ?? null);
       if (error) throw error;
 
       // Fire-and-forget notification to opted-in admins
@@ -238,13 +240,16 @@ const { data: inserted, error } = await supabase
 
       // Send intro email to candidate
       try {
-        await fetch('/api/send-intro-email', {
+        console.log('[submitIntro] calling /api/send-intro-email with introId:', inserted?.id);
+        const emailRes = await fetch('/api/send-intro-email', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ introId: inserted?.id }),
         });
+        const emailJson = await emailRes.json().catch(() => null);
+        console.log('[submitIntro] send-intro-email response:', emailRes.status, JSON.stringify(emailJson));
       } catch (emailErr) {
-        console.error('send-intro-email error:', emailErr);
+        console.error('[submitIntro] send-intro-email fetch error:', emailErr);
       }
 
       // Add to pending introductions

@@ -20,9 +20,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       currentRole, location, yearsExperience, education, educationLevel,
       bio, skills, sectors,
       // Background segmentation
-      primaryBackground, detailedExperience,
+      primaryBackground, secondaryBackgrounds, detailedExperience,
       // Availability
-      jobSearchStatus, targetComp, preferredLocations, targetRoles, openToRelocation,
+      jobSearchStatus, targetComp, workPreference, preferredCities, targetRoles,
       // Resume
       resumeBase64, resumeFileName,
     } = req.body;
@@ -50,10 +50,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const safeFileName = `${Date.now()}_${(firstName + '_' + lastName).replace(/\s+/g, '_')}.pdf`;
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from('resumes')
-          .upload(`candidates/${safeFileName}`, buffer, {
-            contentType: 'application/pdf',
-            upsert: false,
-          });
+          .upload(`candidates/${safeFileName}`, buffer, { contentType: 'application/pdf', upsert: false });
         if (!uploadError && uploadData) {
           const { data: urlData } = supabase.storage.from('resumes').getPublicUrl(uploadData.path);
           resumeUrl = urlData?.publicUrl || null;
@@ -65,59 +62,86 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
-    // Build anonymous display name
+    // Build display name and profile description — all fields have safe fallbacks
     const expNum = Number(yearsExperience) || 0;
     const expLabel = expNum >= 10 ? '10+' : expNum >= 5 ? '5+' : expNum >= 2 ? '2+' : '1+';
-    const displayName = currentRole
-      ? `${currentRole} · ${expLabel} yrs`
-      : `Finance Professional · ${expLabel} yrs`;
+    const safeRole = (currentRole || primaryBackground || 'Finance Professional').trim();
+    const safeSector = Array.isArray(sectors) && sectors.length > 0 ? sectors[0] : 'Finance';
+    const displayName = `${safeRole} — ${safeSector}`;
 
-    // Build profile description
     const availabilityNote = [
       jobSearchStatus ? `Job search status: ${jobSearchStatus}.` : '',
       targetComp ? `Target comp: ${targetComp}.` : '',
-      preferredLocations?.length ? `Open to: ${preferredLocations.join(', ')}.` : '',
-      openToRelocation ? 'Open to relocation.' : '',
+      workPreference ? `Work preference: ${workPreference}.` : '',
+      Array.isArray(preferredCities) && preferredCities.length > 0 ? `Preferred cities: ${preferredCities.join(', ')}.` : '',
     ].filter(Boolean).join(' ');
 
     const profileDescription = [bio, availabilityNote].filter(Boolean).join('\n\n');
 
-    // Insert candidate (status field requires migration: ALTER TABLE candidates ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active')
-    const { data: candidate, error: insertError } = await supabase
+    // ── Core insert payload (columns that definitely exist) ──────────────────
+    const corePayload = {
+      name: `${firstName} ${lastName}`.trim() || 'Anonymous',
+      display_name: displayName,
+      email,
+      phone: phone || null,
+      location: (location || 'United States').trim(),
+      experience: expNum,
+      education: (education || 'Not specified').trim(),
+      highest_education_level: educationLevel || null,
+      label: safeRole,
+      profile_description: profileDescription || null,
+      open_to_opportunities: true,
+      resume_full_url: resumeUrl,
+      resume_redacted_url: null,
+    };
+
+    // ── Extended payload (columns that require migrations) ───────────────────
+    const extendedPayload = {
+      ...corePayload,
+      status: 'pending_review',
+      primary_background: primaryBackground || null,
+      secondary_backgrounds: Array.isArray(secondaryBackgrounds) ? secondaryBackgrounds : [],
+      detailed_experience: Array.isArray(detailedExperience) ? detailedExperience : [],
+    };
+
+    // ── Attempt 1: full insert with all columns ───────────────────────────────
+    let candidateId: string | null = null;
+
+    const { data: candidate1, error: insertError1 } = await supabase
       .from('candidates')
-      .insert({
-        name: `${firstName} ${lastName}`,
-        display_name: displayName,
-        email,
-        phone: phone || null,
-        location: location || 'United States',
-        experience: expNum,
-        education: education || 'Finance',
-        highest_education_level: educationLevel || null,
-        label: currentRole || 'Finance Professional',
-        profile_description: profileDescription || null,
-        open_to_opportunities: true,
-        resume_full_url: resumeUrl,
-        resume_redacted_url: null,
-        status: 'pending_review',
-        primary_background: primaryBackground || null,
-        detailed_experience: Array.isArray(detailedExperience) ? detailedExperience : [],
-      } as any)
+      .insert(extendedPayload as any)
       .select('id')
       .single();
 
-    if (insertError) {
-      console.error('[submit-candidate] insert error:', insertError);
-      return res.status(500).json({ error: 'Failed to save application', detail: insertError.message });
+    if (insertError1) {
+      console.error('[submit-candidate] full insert failed:', JSON.stringify(insertError1));
+
+      // ── Attempt 2: core fields only (fallback if migrations not run) ─────────
+      const { data: candidate2, error: insertError2 } = await supabase
+        .from('candidates')
+        .insert(corePayload)
+        .select('id')
+        .single();
+
+      if (insertError2) {
+        console.error('[submit-candidate] core insert also failed:', JSON.stringify(insertError2));
+        return res.status(500).json({
+          error: 'Failed to save application',
+          detail: insertError2.message,
+          hint: 'Check required fields: name, display_name, email, location, experience, education, label',
+        });
+      }
+
+      candidateId = candidate2.id;
+      console.log('[submit-candidate] saved with core fields only (migrations pending)');
+    } else {
+      candidateId = candidate1.id;
     }
 
-    const candidateId = candidate.id;
-
-    // Insert skills
+    // ── Insert skills ─────────────────────────────────────────────────────────
     if (Array.isArray(skills) && skills.length > 0) {
       for (const skillName of skills) {
         if (!skillName?.trim()) continue;
-        // Upsert skill
         const { data: skillRow } = await supabase
           .from('skills')
           .upsert({ skill: skillName.trim() }, { onConflict: 'skill' })
@@ -132,23 +156,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
-    // Send notification email
-    const sectorList = Array.isArray(sectors) && sectors.length > 0
-      ? sectors.join(', ')
-      : 'Not specified';
-    const backgroundLabel = primaryBackground || 'Not specified';
-    const detailedList = Array.isArray(detailedExperience) && detailedExperience.length > 0
-      ? detailedExperience.join(', ')
-      : 'Not specified';
-    const roleList = Array.isArray(targetRoles) && targetRoles.length > 0
-      ? targetRoles.join(', ')
-      : 'Not specified';
+    // ── Send notification email ───────────────────────────────────────────────
+    const sectorList = Array.isArray(sectors) && sectors.length > 0 ? sectors.join(', ') : 'Not specified';
+    const detailedList = Array.isArray(detailedExperience) && detailedExperience.length > 0 ? detailedExperience.join(', ') : 'Not specified';
+    const secondaryList = Array.isArray(secondaryBackgrounds) && secondaryBackgrounds.length > 0 ? secondaryBackgrounds.join(', ') : '—';
+    const roleList = Array.isArray(targetRoles) && targetRoles.length > 0 ? targetRoles.join(', ') : 'Not specified';
+    const citiesList = Array.isArray(preferredCities) && preferredCities.length > 0 ? preferredCities.join(', ') : '—';
 
     const emailHtml = '<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">'
       + '<h2 style="color:#0F6E56;margin-bottom:4px">New Candidate Application</h2>'
       + '<p style="color:#666;margin-top:0">A new candidate has submitted their profile for review.</p>'
       + '<table style="width:100%;border-collapse:collapse;margin:20px 0">'
-      + '<tr><td style="padding:8px 0;border-bottom:1px solid #eee;color:#888;width:40%">Name</td><td style="padding:8px 0;border-bottom:1px solid #eee;font-weight:600">' + firstName + ' ' + lastName + '</td></tr>'
+      + '<tr><td style="padding:8px 0;border-bottom:1px solid #eee;color:#888;width:38%">Name</td><td style="padding:8px 0;border-bottom:1px solid #eee;font-weight:600">' + firstName + ' ' + lastName + '</td></tr>'
       + '<tr><td style="padding:8px 0;border-bottom:1px solid #eee;color:#888">Email</td><td style="padding:8px 0;border-bottom:1px solid #eee">' + email + '</td></tr>'
       + '<tr><td style="padding:8px 0;border-bottom:1px solid #eee;color:#888">Phone</td><td style="padding:8px 0;border-bottom:1px solid #eee">' + (phone || '—') + '</td></tr>'
       + '<tr><td style="padding:8px 0;border-bottom:1px solid #eee;color:#888">LinkedIn</td><td style="padding:8px 0;border-bottom:1px solid #eee">' + (linkedin || '—') + '</td></tr>'
@@ -156,10 +175,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       + '<tr><td style="padding:8px 0;border-bottom:1px solid #eee;color:#888">Location</td><td style="padding:8px 0;border-bottom:1px solid #eee">' + (location || '—') + '</td></tr>'
       + '<tr><td style="padding:8px 0;border-bottom:1px solid #eee;color:#888">Experience</td><td style="padding:8px 0;border-bottom:1px solid #eee">' + expNum + ' years</td></tr>'
       + '<tr><td style="padding:8px 0;border-bottom:1px solid #eee;color:#888">Education</td><td style="padding:8px 0;border-bottom:1px solid #eee">' + (education || '—') + '</td></tr>'
-      + '<tr><td style="padding:8px 0;border-bottom:1px solid #eee;color:#888">Target Comp</td><td style="padding:8px 0;border-bottom:1px solid #eee">' + (targetComp || '—') + '</td></tr>'
-      + '<tr><td style="padding:8px 0;border-bottom:1px solid #eee;color:#888">Background</td><td style="padding:8px 0;border-bottom:1px solid #eee">' + backgroundLabel + '</td></tr>'
+      + '<tr><td style="padding:8px 0;border-bottom:1px solid #eee;color:#888">Primary Background</td><td style="padding:8px 0;border-bottom:1px solid #eee">' + (primaryBackground || '—') + '</td></tr>'
+      + '<tr><td style="padding:8px 0;border-bottom:1px solid #eee;color:#888">Secondary</td><td style="padding:8px 0;border-bottom:1px solid #eee">' + secondaryList + '</td></tr>'
       + '<tr><td style="padding:8px 0;border-bottom:1px solid #eee;color:#888">Specialisms</td><td style="padding:8px 0;border-bottom:1px solid #eee">' + detailedList + '</td></tr>'
       + '<tr><td style="padding:8px 0;border-bottom:1px solid #eee;color:#888">Job Status</td><td style="padding:8px 0;border-bottom:1px solid #eee">' + (jobSearchStatus || '—') + '</td></tr>'
+      + '<tr><td style="padding:8px 0;border-bottom:1px solid #eee;color:#888">Target Comp</td><td style="padding:8px 0;border-bottom:1px solid #eee">' + (targetComp || '—') + '</td></tr>'
+      + '<tr><td style="padding:8px 0;border-bottom:1px solid #eee;color:#888">Work Preference</td><td style="padding:8px 0;border-bottom:1px solid #eee">' + (workPreference || '—') + '</td></tr>'
+      + '<tr><td style="padding:8px 0;border-bottom:1px solid #eee;color:#888">Preferred Cities</td><td style="padding:8px 0;border-bottom:1px solid #eee">' + citiesList + '</td></tr>'
       + '<tr><td style="padding:8px 0;border-bottom:1px solid #eee;color:#888">Sectors</td><td style="padding:8px 0;border-bottom:1px solid #eee">' + sectorList + '</td></tr>'
       + '<tr><td style="padding:8px 0;color:#888">Target Roles</td><td style="padding:8px 0">' + roleList + '</td></tr>'
       + '</table>'
@@ -175,14 +197,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       body: JSON.stringify({
         from: 'SFC Talent <noreply@strategicfinancecareers.com>',
         to: [NOTIFY_EMAIL],
-        subject: `New Candidate Application: ${firstName} ${lastName} — ${currentRole || 'Finance Professional'}`,
+        subject: `New Candidate Application: ${firstName} ${lastName} — ${safeRole}`,
         html: emailHtml,
       }),
     });
 
     return res.status(200).json({ success: true, candidateId });
   } catch (error: any) {
-    console.error('[submit-candidate] error:', error.message);
+    console.error('[submit-candidate] unhandled error:', error.message, JSON.stringify(error));
     return res.status(500).json({ error: error.message });
   }
 }

@@ -39,7 +39,10 @@ export function useCandidates() {
               skill
             )
           )
-        `);
+        `)
+        // Only show active candidates (pending_review are hidden until approved)
+        // Handles both before/after the status column migration
+        .or('status.eq.active,status.is.null');
 
       if (candidatesError) throw candidatesError;
 

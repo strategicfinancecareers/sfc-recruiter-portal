@@ -20,6 +20,7 @@ import StartHere from "./pages/StartHere";
 import Layout from "./components/Layout";
 import ProtectedRoute from "./components/ProtectedRoute";
 import NotFound from "./pages/NotFound";
+import CandidateApply from "./pages/CandidateApply";
 
 const queryClient = new QueryClient();
 
@@ -35,6 +36,7 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<SignUp />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/apply" element={<CandidateApply />} />
             <Route path="/" element={
               <ProtectedRoute>
                 <Layout />

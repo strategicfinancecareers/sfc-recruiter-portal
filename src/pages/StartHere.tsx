@@ -1,7 +1,11 @@
-import { Search, Handshake, CalendarCheck, BadgeCheck, ShieldCheck, ArrowRight, Clock, AlertCircle } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Search, Handshake, CalendarCheck, BadgeCheck, ShieldCheck, ArrowRight, Clock, AlertCircle, CheckCircle2, Circle, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
+import PricingModal from '../components/PricingModal';
 
-const steps = [
+const howItWorksSteps = [
   {
     icon: Search,
     title: 'Browse Anonymous Talent',
@@ -29,7 +33,91 @@ const steps = [
   },
 ];
 
+const PLAN_FEATURES_MONTHLY = [
+  'Unlimited introduction requests',
+  'Candidate responses within 24hrs',
+  'Full contact details + resume on acceptance',
+  'Cancel anytime',
+];
+
+const PLAN_FEATURES_ANNUAL = [
+  'Unlimited introduction requests',
+  'Candidate responses within 24hrs',
+  'Full contact details + resume on acceptance',
+  'Priority candidate matching',
+  'Dedicated account support',
+];
+
 const StartHere = () => {
+  const { user } = useAuth();
+  const [hasJobs, setHasJobs] = useState<boolean | null>(null);
+  const [hasIntros, setHasIntros] = useState<boolean | null>(null);
+  const [isSubscribed, setIsSubscribed] = useState<boolean>(false);
+  const [showPricingModal, setShowPricingModal] = useState(false);
+  const [pricingPlan, setPricingPlan] = useState<'monthly' | 'annual'>('monthly');
+
+  useEffect(() => {
+    if (!user?.id) return;
+
+    // Fetch subscription status
+    supabase.from('users').select('is_subscribed').eq('id', user.id).single()
+      .then(({ data }) => { if (data?.is_subscribed) setIsSubscribed(true); });
+
+    // Fetch job count
+    supabase.from('jobs').select('id', { count: 'exact', head: true }).eq('user_id', user.id)
+      .then(({ count }) => setHasJobs((count ?? 0) > 0));
+
+    // Fetch intro request count
+    supabase.from('introduction_requests').select('id', { count: 'exact', head: true }).eq('requester_id', user.id)
+      .then(({ count }) => setHasIntros((count ?? 0) > 0));
+  }, [user?.id]);
+
+  const openPricingModal = (plan: 'monthly' | 'annual') => {
+    setPricingPlan(plan);
+    setShowPricingModal(true);
+  };
+
+  const checklistSteps = [
+    {
+      label: 'Create Account',
+      done: true,
+    },
+    {
+      label: 'Start Membership',
+      done: isSubscribed,
+      action: !isSubscribed ? (
+        <button
+          onClick={() => openPricingModal('monthly')}
+          className="text-xs font-semibold text-emerald-700 underline underline-offset-2 hover:text-emerald-800 whitespace-nowrap"
+        >
+          Subscribe Now →
+        </button>
+      ) : null,
+    },
+    {
+      label: 'Post Your First Job',
+      done: hasJobs === true,
+      loading: hasJobs === null,
+      action: hasJobs === false ? (
+        <Link to="/jobs" className="text-xs font-semibold text-emerald-700 underline underline-offset-2 hover:text-emerald-800 whitespace-nowrap">
+          Post a Job →
+        </Link>
+      ) : null,
+    },
+    {
+      label: 'Request an Introduction',
+      done: hasIntros === true,
+      loading: hasIntros === null,
+      action: hasIntros === false ? (
+        <Link to="/browse" className="text-xs font-semibold text-emerald-700 underline underline-offset-2 hover:text-emerald-800 whitespace-nowrap">
+          Browse Candidates →
+        </Link>
+      ) : null,
+    },
+  ];
+
+  const completedCount = checklistSteps.filter(s => s.done).length;
+
   return (
     <div className="min-h-full bg-white px-6 py-12">
       <div className="max-w-5xl mx-auto">
@@ -47,9 +135,52 @@ const StartHere = () => {
           </p>
         </div>
 
-        {/* Steps */}
+        {/* Onboarding Checklist */}
+        <div className="mb-14">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-gray-900">Getting Started</h2>
+            <span className="text-sm text-gray-500">{completedCount} of {checklistSteps.length} complete</span>
+          </div>
+
+          {/* Progress bar */}
+          <div className="w-full h-1.5 bg-gray-100 rounded-full mb-6">
+            <div
+              className="h-1.5 bg-emerald-500 rounded-full transition-all duration-500"
+              style={{ width: `${(completedCount / checklistSteps.length) * 100}%` }}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {checklistSteps.map((step, i) => (
+              <div
+                key={i}
+                className={`flex flex-col gap-2 p-4 rounded-xl border ${step.done ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-gray-200'}`}
+              >
+                <div className="flex items-center gap-2">
+                  {step.loading ? (
+                    <Loader2 className="h-4 w-4 text-gray-400 animate-spin shrink-0" />
+                  ) : step.done ? (
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                  ) : (
+                    <Circle className="h-4 w-4 text-gray-300 shrink-0" />
+                  )}
+                  <span className={`text-xs font-medium ${step.done ? 'text-emerald-700' : 'text-gray-500'}`}>
+                    Step {i + 1}
+                  </span>
+                </div>
+                <p className={`text-sm font-semibold leading-snug ${step.done ? 'text-emerald-900' : 'text-gray-700'}`}>
+                  {step.label}
+                </p>
+                {step.action && <div className="mt-auto pt-1">{step.action}</div>}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* How It Works */}
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">How It Works</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-12">
-          {steps.map((step, i) => {
+          {howItWorksSteps.map((step, i) => {
             const Icon = step.icon;
             return (
               <div
@@ -65,6 +196,96 @@ const StartHere = () => {
               </div>
             );
           })}
+        </div>
+
+        {/* Pricing Section */}
+        <div className="mb-12">
+          <div className="text-center mb-8">
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Simple, Transparent Pricing</h2>
+            <p className="text-gray-500">Start browsing for free. Subscribe when you're ready to connect.</p>
+          </div>
+
+          {/* Active member banner */}
+          {isSubscribed && (
+            <div className="flex items-center gap-3 p-4 mb-6 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-sm font-medium">
+              <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0" />
+              You're an active SFC Talent member. Your introduction requests are unlimited.
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            {/* Monthly */}
+            <div className="border border-gray-200 rounded-xl p-6 flex flex-col gap-4">
+              <div className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Monthly</div>
+              <div>
+                <span className="text-4xl font-bold text-gray-900">$500</span>
+                <span className="text-gray-500 text-sm">/mo</span>
+              </div>
+              <p className="text-sm text-gray-500">Billed monthly</p>
+              <ul className="space-y-2 flex-1">
+                {PLAN_FEATURES_MONTHLY.map(f => (
+                  <li key={f} className="flex items-start gap-2 text-sm text-gray-600">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500 mt-0.5 shrink-0" />
+                    {f}
+                  </li>
+                ))}
+              </ul>
+              {isSubscribed ? (
+                <div className="flex items-center gap-2 text-sm font-semibold text-emerald-700">
+                  <CheckCircle2 className="h-4 w-4" /> Your Current Plan
+                </div>
+              ) : (
+                <button
+                  onClick={() => openPricingModal('monthly')}
+                  className="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm transition-colors"
+                >
+                  Get Started Monthly
+                </button>
+              )}
+            </div>
+
+            {/* Annual */}
+            <div className="border-2 border-emerald-500 rounded-xl p-6 flex flex-col gap-4 relative">
+              <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-emerald-600 text-white text-xs font-bold px-3 py-1 rounded-full">
+                Best Value
+              </span>
+              <div className="text-sm font-semibold text-emerald-600 uppercase tracking-wide">Annual</div>
+              <div>
+                <span className="text-4xl font-bold text-gray-900">$300</span>
+                <span className="text-gray-500 text-sm">/mo</span>
+              </div>
+              <p className="text-sm text-gray-500">Billed annually · Save $2,400/year</p>
+              <ul className="space-y-2 flex-1">
+                {PLAN_FEATURES_ANNUAL.map(f => (
+                  <li key={f} className="flex items-start gap-2 text-sm text-gray-600">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500 mt-0.5 shrink-0" />
+                    {f}
+                  </li>
+                ))}
+              </ul>
+              {isSubscribed ? (
+                <div className="flex items-center gap-2 text-sm font-semibold text-emerald-700">
+                  <CheckCircle2 className="h-4 w-4" /> Active
+                </div>
+              ) : (
+                <button
+                  onClick={() => openPricingModal('annual')}
+                  className="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm transition-colors"
+                >
+                  Get Started Annually
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-4 text-center space-y-1">
+            <p className="text-xs text-gray-400">
+              * Plus 5% of candidate starting salary upon successful placement, including signing bonus.
+            </p>
+            <p className="text-xs text-gray-400">
+              All plans include full platform access. Cancel monthly plan anytime.
+            </p>
+          </div>
         </div>
 
         {/* Job Posting Requirement Box */}
@@ -102,6 +323,14 @@ const StartHere = () => {
         </div>
 
       </div>
+
+      <PricingModal
+        open={showPricingModal}
+        onOpenChange={setShowPricingModal}
+        userId={user?.id}
+        userEmail={user?.email}
+        defaultPlan={pricingPlan}
+      />
     </div>
   );
 };

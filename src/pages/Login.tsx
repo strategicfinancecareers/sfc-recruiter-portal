@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Briefcase, Chrome, AlertCircle } from "lucide-react";
+import { Briefcase, Chrome } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -16,18 +16,14 @@ const Login = () => {
   const [localLoading, setLocalLoading] = useState(false);
   const { login, signInWithGoogle, signInWithMicrosoft, isLoading, user } = useAuth();
   
-  // Debug loading states
-  console.log('user:', user)
-  console.log('localLoading:', localLoading)
-  console.log('isLoading:', isLoading)
-  console.log('combined:', localLoading || isLoading)
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  // Redirect if already logged in
+  // Smart redirect after login: subscribed → /browse, new user → /start-here
   useEffect(() => {
     if (user) {
-      navigate('/dashboard', { replace: true });
+      const dest = (user as any).is_subscribed ? '/browse' : '/start-here';
+      navigate(dest, { replace: true });
     }
   }, [user, navigate]);
 
@@ -77,19 +73,6 @@ const Login = () => {
           <CardDescription>Log in to your recruiter account</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="mb-4 p-3 bg-muted/50 rounded-lg border">
-            <h4 className="text-sm font-medium mb-2 text-center">Demo Credentials</h4>
-            <div className="space-y-2 text-xs">
-              <div>
-                <p className="font-medium">Admin Account:</p>
-                <p className="text-muted-foreground">admin@demo.com / admin123</p>
-              </div>
-              <div>
-                <p className="font-medium">Recruiter Account:</p>
-                <p className="text-muted-foreground">recruiter@demo.com / recruiter123</p>
-              </div>
-            </div>
-          </div>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>

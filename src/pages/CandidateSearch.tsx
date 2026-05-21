@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -52,6 +53,7 @@ export default function CandidateSearch() {
   const { user } = useAuth();
   const { toast } = useToast();
   const { candidates, loading, toggleFavorite } = useCandidates();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [filteredCandidates, setFilteredCandidates] = useState<Candidate[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [showFilters, setShowFilters] = useState(false);
@@ -70,6 +72,32 @@ export default function CandidateSearch() {
   const [showJobForm, setShowJobForm] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [showPricingModal, setShowPricingModal] = useState(false);
+  const [isSubscribed, setIsSubscribed] = useState<boolean>(false);
+
+  // Check ?subscribed=true after Stripe redirect
+  useEffect(() => {
+    if (searchParams.get('subscribed') === 'true') {
+      toast({
+        title: '🎉 Welcome to SFC Talent!',
+        description: 'Your membership is active. You can now request introductions.',
+      });
+      setIsSubscribed(true);
+      setSearchParams({}, { replace: true });
+    }
+  }, []);
+
+  // Fetch fresh subscription status from DB
+  useEffect(() => {
+    if (!user?.id) return;
+    supabase
+      .from('users')
+      .select('is_subscribed')
+      .eq('id', user.id)
+      .single()
+      .then(({ data }) => {
+        if (data?.is_subscribed) setIsSubscribed(true);
+      });
+  }, [user?.id]);
 
   // Filters
   const [experienceFilter, setExperienceFilter] = useState('');
@@ -198,7 +226,6 @@ export default function CandidateSearch() {
     }
 
     // Subscription check — show pricing modal if not subscribed
-    const isSubscribed = (user as any)?.is_subscribed === true;
     if (!isSubscribed) {
       setCurrentCandidateForIntro(candidate);
       setShowPricingModal(true);
@@ -213,7 +240,6 @@ export default function CandidateSearch() {
   const handleTermsAccepted = () => {
     setShowTermsDialog(false);
     if (currentCandidateForIntro) {
-      const isSubscribed = (user as any)?.is_subscribed === true;
       if (!isSubscribed) {
         setShowPricingModal(true);
       } else {
@@ -343,6 +369,19 @@ const { data: inserted, error } = await supabase
       
       <div className="flex-1 overflow-auto">
         <div className="p-4 sm:p-6">
+          {/* Free-mode banner */}
+          {!isSubscribed && user?.role !== 'admin' && (
+            <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              <span>🔓 You're browsing in free mode. Subscribe to request introductions.</span>
+              <button
+                onClick={() => setShowPricingModal(true)}
+                className="font-semibold underline underline-offset-2 hover:text-amber-900 whitespace-nowrap"
+              >
+                Subscribe Now
+              </button>
+            </div>
+          )}
+
           {/* Header */}
           <div className="mb-6">
             <h1 className="text-2xl sm:text-3xl font-bold font-heading text-foreground">Browse Candidates</h1>

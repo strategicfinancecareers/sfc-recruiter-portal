@@ -9,6 +9,7 @@ interface PricingModalProps {
   onOpenChange: (open: boolean) => void;
   userId?: string;
   userEmail?: string;
+  defaultPlan?: 'monthly' | 'annual';
 }
 
 const FEATURES = [

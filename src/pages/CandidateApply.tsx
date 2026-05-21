@@ -1,57 +1,56 @@
 import { useState, useRef } from 'react';
-import { CheckCircle2, Upload, Loader2, ChevronRight, ChevronLeft, X, Plus, Shield, Clock, Users } from 'lucide-react';
+import {
+  CheckCircle2, Upload, Loader2, ChevronRight, ChevronLeft,
+  X, Plus, Shield, MessageCircle, Check,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { supabase } from '@/integrations/supabase/client';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ─── Constants ────────────────────────────────────────────────────────────────
 
-type Screen = 'landing' | 'form' | 'disqualified' | 'success';
+const COMPANY_LOGOS = [
+  'Goldman Sachs', 'McKinsey', 'Google', 'Meta', 'Stripe',
+  'Blackstone', 'KKR', 'Citadel', 'JP Morgan', 'Bain', 'BCG', 'Sequoia',
+];
 
-interface FormState {
-  // Step 1 – Qualification
-  email: string;
-  phone: string;
-  background: string;
-  experience: string;
-  targetComp: string;
-  // Step 2 – Contact
-  firstName: string;
-  lastName: string;
-  linkedin: string;
-  committed: boolean;
-  // Step 3 – Resume
-  resumeFile: File | null;
-  resumeText: string;
-  resumeParsed: any | null;
-  resumeBase64: string;
-  // Step 4 – Review & Edit
-  currentRole: string;
-  location: string;
-  yearsExperience: string;
-  education: string;
-  educationLevel: string;
-  skills: string[];
-  bio: string;
-  sectors: string[];
-  // Step 5 – Availability
-  jobSearchStatus: string;
-  targetCompStep5: string;
-  preferredLocations: string[];
-  targetRoles: string[];
-  openToRelocation: boolean;
-}
+const PRIMARY_BACKGROUNDS = [
+  {
+    value: 'Capital Markets & Investing',
+    subtitle: 'Investment Banking, Private Equity, Venture Capital, Equity Research, Corporate Banking, Sales & Trading, Investor Relations',
+  },
+  {
+    value: 'Corporate Finance & FP&A',
+    subtitle: 'Strategic Finance, FP&A, Corporate Finance, Treasury, Commercial Finance, Business Finance, Corporate Development',
+  },
+  {
+    value: 'Strategy & Operations',
+    subtitle: 'Management Consulting, Business Operations, Strategy, Chief of Staff, Revenue Operations, Analytics',
+  },
+  {
+    value: 'Accounting & Compliance',
+    subtitle: 'Accounting, Audit, Tax, Bookkeeping, Payroll Operations, AP/AR, Compliance',
+  },
+];
 
-const INITIAL_FORM: FormState = {
-  email: '', phone: '', background: '', experience: '', targetComp: '',
-  firstName: '', lastName: '', linkedin: '', committed: false,
-  resumeFile: null, resumeText: '', resumeParsed: null, resumeBase64: '',
-  currentRole: '', location: '', yearsExperience: '', education: '',
-  educationLevel: '', skills: [], bio: '', sectors: [],
-  jobSearchStatus: '', targetCompStep5: '', preferredLocations: [],
-  targetRoles: [], openToRelocation: false,
+const DETAILED_EXPERIENCE_MAP: Record<string, string[]> = {
+  'Capital Markets & Investing': [
+    'Investment Banking', 'Private Equity', 'Venture Capital', 'Equity Research',
+    'Corporate Banking', 'M&A Advisory', 'Sales & Trading', 'Investor Relations',
+  ],
+  'Corporate Finance & FP&A': [
+    'Strategic Finance', 'FP&A', 'Corporate Finance', 'Treasury',
+    'Commercial Finance', 'Business Finance', 'Corporate Development',
+  ],
+  'Strategy & Operations': [
+    'Management Consulting', 'Business Operations', 'Strategy', 'Chief of Staff',
+    'Revenue Operations', 'Analytics', 'Data Analysis',
+  ],
+  'Accounting & Compliance': [
+    'Accounting', 'Audit', 'Tax', 'Bookkeeping',
+    'Payroll Operations', 'AP/AR', 'Compliance', 'Financial Reporting',
+  ],
 };
 
 const SECTORS = [
@@ -88,28 +87,71 @@ const JOB_STATUSES = [
   'Just networking — not actively seeking',
 ];
 
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+type Screen = 'landing' | 'form' | 'disqualified' | 'success';
+
+interface FormState {
+  // Step 1 – Qualification
+  email: string;
+  primaryBackground: string;
+  detailedExperience: string[];
+  experience: string;
+  targetComp: string;
+  // Step 2 – Contact
+  firstName: string;
+  lastName: string;
+  phone: string;
+  linkedin: string;
+  committed: boolean;
+  // Step 3 – Resume
+  resumeFile: File | null;
+  resumeParsed: any | null;
+  resumeBase64: string;
+  parseWarning: boolean;
+  // Step 4 – Review & Edit
+  currentRole: string;
+  location: string;
+  yearsExperience: string;
+  education: string;
+  educationLevel: string;
+  skills: string[];
+  bio: string;
+  sectors: string[];
+  // Step 5 – Availability
+  jobSearchStatus: string;
+  targetCompStep5: string;
+  preferredLocations: string[];
+  targetRoles: string[];
+  openToRelocation: boolean;
+}
+
+const INITIAL_FORM: FormState = {
+  email: '', primaryBackground: '', detailedExperience: [], experience: '', targetComp: '',
+  firstName: '', lastName: '', phone: '', linkedin: '', committed: false,
+  resumeFile: null, resumeParsed: null, resumeBase64: '', parseWarning: false,
+  currentRole: '', location: '', yearsExperience: '', education: '',
+  educationLevel: '', skills: [], bio: '', sectors: [],
+  jobSearchStatus: '', targetCompStep5: '', preferredLocations: [],
+  targetRoles: [], openToRelocation: false,
+};
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function isDisqualified(form: FormState): boolean {
-  if (form.background === 'no') return true;
   if (form.experience === 'under2') return true;
   if (form.targetComp === 'under-70k') return true;
   return false;
 }
 
 function extractTextFromPDF(buffer: ArrayBuffer): string {
-  // Simple byte-level text extraction from PDF
   const bytes = new Uint8Array(buffer);
   let text = '';
   for (let i = 0; i < bytes.length - 1; i++) {
     const c = bytes[i];
-    if (c >= 32 && c < 127) {
-      text += String.fromCharCode(c);
-    } else if (c === 10 || c === 13) {
-      text += ' ';
-    }
+    if (c >= 32 && c < 127) text += String.fromCharCode(c);
+    else if (c === 10 || c === 13) text += ' ';
   }
-  // Remove repeated spaces
   return text.replace(/\s{3,}/g, ' ').trim();
 }
 
@@ -132,14 +174,8 @@ function RadioGroup({ name, options, value, onChange }: {
               : 'border-gray-200 hover:border-gray-300'
           }`}
         >
-          <input
-            type="radio"
-            name={name}
-            value={opt.value}
-            checked={value === opt.value}
-            onChange={() => onChange(opt.value)}
-            className="sr-only"
-          />
+          <input type="radio" name={name} value={opt.value} checked={value === opt.value}
+            onChange={() => onChange(opt.value)} className="sr-only" />
           <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
             value === opt.value ? 'border-emerald-500' : 'border-gray-300'
           }`}>
@@ -157,9 +193,8 @@ function CheckboxGrid({ options, selected, onChange }: {
   selected: string[];
   onChange: (v: string[]) => void;
 }) {
-  const toggle = (val: string) => {
+  const toggle = (val: string) =>
     onChange(selected.includes(val) ? selected.filter(s => s !== val) : [...selected, val]);
-  };
   return (
     <div className="grid grid-cols-2 gap-2 mt-2">
       {options.map(opt => (
@@ -171,19 +206,42 @@ function CheckboxGrid({ options, selected, onChange }: {
               : 'border-gray-200 hover:border-gray-300 text-gray-700'
           }`}
         >
-          <input
-            type="checkbox"
-            checked={selected.includes(opt)}
-            onChange={() => toggle(opt)}
-            className="sr-only"
-          />
+          <input type="checkbox" checked={selected.includes(opt)}
+            onChange={() => toggle(opt)} className="sr-only" />
           <div className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 ${
             selected.includes(opt) ? 'border-emerald-500 bg-emerald-500' : 'border-gray-300'
           }`}>
-            {selected.includes(opt) && <CheckCircle2 className="w-3 h-3 text-white" />}
+            {selected.includes(opt) && <Check className="w-3 h-3 text-white" />}
           </div>
           {opt}
         </label>
+      ))}
+    </div>
+  );
+}
+
+function ChipGrid({ options, selected, onChange }: {
+  options: string[];
+  selected: string[];
+  onChange: (v: string[]) => void;
+}) {
+  const toggle = (val: string) =>
+    onChange(selected.includes(val) ? selected.filter(s => s !== val) : [...selected, val]);
+  return (
+    <div className="flex flex-wrap gap-2 mt-3">
+      {options.map(opt => (
+        <button
+          key={opt}
+          type="button"
+          onClick={() => toggle(opt)}
+          className={`px-3 py-1.5 rounded-full text-sm border font-medium transition-all ${
+            selected.includes(opt)
+              ? 'bg-emerald-600 text-white border-emerald-600'
+              : 'bg-white text-gray-700 border-gray-300 hover:border-emerald-400'
+          }`}
+        >
+          {opt}
+        </button>
       ))}
     </div>
   );
@@ -199,27 +257,54 @@ function SkillsInput({ skills, onChange }: { skills: string[]; onChange: (s: str
   return (
     <div>
       <div className="flex gap-2 mt-2">
-        <Input
-          value={inputVal}
-          onChange={e => setInputVal(e.target.value)}
+        <Input value={inputVal} onChange={e => setInputVal(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); add(); } }}
-          placeholder="e.g. Financial Modeling, LBO, SQL..."
-          className="flex-1"
-        />
+          placeholder="e.g. Financial Modeling, LBO, SQL..." className="flex-1" />
         <Button type="button" variant="outline" size="sm" onClick={add}>
           <Plus className="w-4 h-4" />
         </Button>
       </div>
       <div className="flex flex-wrap gap-2 mt-3">
         {skills.map(s => (
-          <span
-            key={s}
-            className="inline-flex items-center gap-1 px-3 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-full text-sm"
-          >
+          <span key={s} className="inline-flex items-center gap-1 px-3 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-full text-sm">
             {s}
             <button type="button" onClick={() => onChange(skills.filter(x => x !== s))}>
               <X className="w-3 h-3 hover:text-red-500" />
             </button>
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Logo scroll uses CSS animation injected inline
+function LogoScroll() {
+  const doubled = [...COMPANY_LOGOS, ...COMPANY_LOGOS];
+  return (
+    <div className="w-full overflow-hidden py-8 bg-gray-50 border-y border-gray-100">
+      <style>{`
+        @keyframes sfc-scroll {
+          0%   { transform: translateX(0); }
+          100% { transform: translateX(-50%); }
+        }
+        .sfc-logo-track {
+          display: flex;
+          width: max-content;
+          animation: sfc-scroll 28s linear infinite;
+        }
+        .sfc-logo-track:hover { animation-play-state: paused; }
+      `}</style>
+      <p className="text-center text-xs font-semibold text-gray-400 uppercase tracking-widest mb-5">
+        Trusted by professionals from
+      </p>
+      <div className="sfc-logo-track">
+        {doubled.map((name, i) => (
+          <span
+            key={i}
+            className="mx-8 text-sm font-semibold text-gray-400 whitespace-nowrap select-none"
+          >
+            {name}
           </span>
         ))}
       </div>
@@ -236,7 +321,6 @@ export default function CandidateApply() {
   const [step, setStep] = useState(1);
   const [form, setForm] = useState<FormState>(INITIAL_FORM);
   const [parsing, setParsing] = useState(false);
-  const [parseError, setParseError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -244,31 +328,33 @@ export default function CandidateApply() {
   const set = (field: keyof FormState, value: any) =>
     setForm(prev => ({ ...prev, [field]: value }));
 
-  // ── Navigation ──────────────────────────────────────────────────────────────
+  // ── Validation ──────────────────────────────────────────────────────────────
 
-  const canProceedStep1 = form.background && form.experience && form.targetComp && form.email;
-  const canProceedStep2 = form.firstName && form.lastName && form.committed;
+  const detailOptions = DETAILED_EXPERIENCE_MAP[form.primaryBackground] ?? [];
+
+  const canProceedStep1 =
+    form.email &&
+    form.primaryBackground &&
+    form.detailedExperience.length > 0 &&
+    form.experience &&
+    form.targetComp;
+
+  const canProceedStep2 =
+    form.firstName && form.lastName && form.phone.trim().length >= 7 && form.committed;
+
+  // Step 3: can proceed if resume was uploaded (parsed or parse-errored)
   const canProceedStep3 = form.resumeParsed !== null;
+
   const canProceedStep4 = form.currentRole && form.location && form.yearsExperience;
   const canProceedStep5 = form.jobSearchStatus && form.targetCompStep5;
 
-  const canProceed = [
-    null,
-    canProceedStep1,
-    canProceedStep2,
-    canProceedStep3,
-    canProceedStep4,
-    canProceedStep5,
-    true, // Step 6 preview — always can submit
-  ][step];
+  const canProceed = [null, canProceedStep1, canProceedStep2, canProceedStep3, canProceedStep4, canProceedStep5, true][step];
+
+  // ── Navigation ──────────────────────────────────────────────────────────────
 
   const handleNext = () => {
     if (step === 1) {
-      if (isDisqualified(form)) {
-        setScreen('disqualified');
-        return;
-      }
-      // Pre-fill targetCompStep5 from step 1
+      if (isDisqualified(form)) { setScreen('disqualified'); return; }
       if (!form.targetCompStep5) set('targetCompStep5', form.targetComp);
     }
     if (step < TOTAL_STEPS) setStep(s => s + 1);
@@ -283,11 +369,12 @@ export default function CandidateApply() {
 
   const handleResumeUpload = async (file: File) => {
     set('resumeFile', file);
+    set('resumeParsed', null);
+    set('parseWarning', false);
     setParsing(true);
-    setParseError('');
 
     try {
-      // Extract text: try readAsText first, then byte fallback
+      // 1) Extract text
       let text = '';
       try {
         text = await new Promise<string>((resolve, reject) => {
@@ -296,61 +383,52 @@ export default function CandidateApply() {
           reader.onerror = reject;
           reader.readAsText(file);
         });
-      } catch {
-        text = '';
-      }
+      } catch { text = ''; }
 
       if (text.length < 100) {
-        // Fallback: byte-level extraction
-        const buffer = await file.arrayBuffer();
-        text = extractTextFromPDF(buffer);
+        const buf = await file.arrayBuffer();
+        text = extractTextFromPDF(buf);
       }
 
-      // Get base64 for later upload
+      // 2) Get base64 for upload
       const base64 = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
-        reader.onload = e => {
-          const result = e.target?.result as string;
-          // Strip the data URL prefix
-          resolve(result.split(',')[1] || '');
-        };
+        reader.onload = e => resolve(((e.target?.result as string) || '').split(',')[1] || '');
         reader.onerror = reject;
         reader.readAsDataURL(file);
       });
       set('resumeBase64', base64);
 
-      if (text.length < 50) {
-        setParseError('Could not extract text from your PDF. Please try a text-based PDF or paste your resume text below.');
-        setParsing(false);
-        return;
-      }
-
-      // Parse via API
+      // 3) Call parse API (always returns 200 now)
       const res = await fetch('/api/parse-resume', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ resumeText: text }),
+        body: JSON.stringify({ resumeText: text.slice(0, 6000) }),
       });
 
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || 'Parse failed');
-      }
-
       const parsed = await res.json();
-      set('resumeParsed', parsed);
 
-      // Pre-fill review fields
-      if (parsed.currentRole) set('currentRole', parsed.currentRole);
-      if (parsed.location) set('location', parsed.location);
-      if (parsed.yearsExperience != null) set('yearsExperience', String(parsed.yearsExperience));
-      if (parsed.education) set('education', parsed.education);
-      if (parsed.educationLevel) set('educationLevel', parsed.educationLevel);
-      if (parsed.bio) set('bio', parsed.bio);
-      if (Array.isArray(parsed.skills) && parsed.skills.length > 0) set('skills', parsed.skills);
-      if (Array.isArray(parsed.sectors) && parsed.sectors.length > 0) set('sectors', parsed.sectors);
+      // 4) Handle parse error flag
+      if (parsed.parseError) {
+        set('parseWarning', true);
+        set('resumeParsed', parsed); // still set so canProceedStep3 becomes true
+      } else {
+        set('resumeParsed', parsed);
+        // Pre-fill fields
+        if (parsed.currentRole) set('currentRole', parsed.currentRole);
+        if (parsed.location) set('location', parsed.location);
+        if (parsed.yearsExperience != null) set('yearsExperience', String(parsed.yearsExperience));
+        if (parsed.education) set('education', parsed.education);
+        if (parsed.educationLevel) set('educationLevel', parsed.educationLevel);
+        if (parsed.bio) set('bio', parsed.bio);
+        if (Array.isArray(parsed.skills) && parsed.skills.length > 0) set('skills', parsed.skills);
+        if (Array.isArray(parsed.sectors) && parsed.sectors.length > 0) set('sectors', parsed.sectors);
+      }
     } catch (err: any) {
-      setParseError(err.message || 'Failed to parse resume. Please try again.');
+      // Even on network error, allow the candidate to continue manually
+      console.warn('[parse-resume] error:', err.message);
+      set('parseWarning', true);
+      set('resumeParsed', { parseError: true });
     } finally {
       setParsing(false);
     }
@@ -369,7 +447,7 @@ export default function CandidateApply() {
           firstName: form.firstName,
           lastName: form.lastName,
           email: form.email,
-          phone: form.phone || null,
+          phone: form.phone,
           linkedin: form.linkedin || null,
           currentRole: form.currentRole,
           location: form.location,
@@ -379,6 +457,8 @@ export default function CandidateApply() {
           bio: form.bio,
           skills: form.skills,
           sectors: form.sectors,
+          primaryBackground: form.primaryBackground,
+          detailedExperience: form.detailedExperience,
           jobSearchStatus: form.jobSearchStatus,
           targetComp: form.targetCompStep5,
           preferredLocations: form.preferredLocations,
@@ -402,69 +482,85 @@ export default function CandidateApply() {
     }
   };
 
-  // ── Screens ─────────────────────────────────────────────────────────────────
+  // ── Landing Screen ──────────────────────────────────────────────────────────
 
   if (screen === 'landing') {
     return (
       <div className="min-h-screen bg-white">
-        {/* Nav bar */}
-        <div className="border-b px-6 py-4 flex items-center justify-between">
+        {/* Nav */}
+        <div className="border-b px-6 py-4 flex items-center">
           <span className="font-bold text-lg text-gray-900 tracking-tight">SFC Talent</span>
         </div>
 
         {/* Hero */}
-        <div className="max-w-2xl mx-auto px-6 py-20 text-center">
+        <div className="max-w-2xl mx-auto px-6 pt-20 pb-14 text-center">
           <span className="inline-block mb-5 px-3 py-1 text-xs font-semibold tracking-wide text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full uppercase">
-            Finance & Investing Professionals
+            Finance Professionals
           </span>
           <h1 className="text-4xl font-bold text-gray-900 mb-5 leading-tight tracking-tight">
             Get Matched With Top Finance Roles — Privately
           </h1>
           <p className="text-lg text-gray-500 mb-10 leading-relaxed">
-            Join SFC Talent to access exclusive opportunities at leading companies. Your identity stays
-            anonymous until you choose to connect.
+            Join SFC Talent to access exclusive opportunities at leading companies. Your identity
+            stays anonymous until you choose to connect.
           </p>
           <Button
             size="lg"
             className="bg-emerald-600 hover:bg-emerald-700 text-white px-10 py-3 text-base font-semibold"
-            onClick={() => setScreen('form')}
+            onClick={() => { setScreen('form'); setStep(1); }}
           >
-            Apply Now <ChevronRight className="ml-2 w-4 h-4" />
+            Join Now <ChevronRight className="ml-2 w-4 h-4" />
           </Button>
-          <p className="text-sm text-gray-400 mt-4">Takes about 5 minutes · 100% free</p>
+          <p className="text-sm text-gray-400 mt-4">
+            Takes about 5 minutes · 100% free · Fully anonymous
+          </p>
         </div>
 
-        {/* Value props */}
-        <div className="max-w-4xl mx-auto px-6 pb-20 grid grid-cols-1 sm:grid-cols-3 gap-6">
-          {[
-            {
-              icon: Shield,
-              title: 'Completely Anonymous',
-              desc: 'Your name, company, and contact info stay private until you approve an introduction.',
-            },
-            {
-              icon: Users,
-              title: 'Curated Opportunities',
-              desc: 'Only top-tier companies actively seeking strategic finance talent reach out to you.',
-            },
-            {
-              icon: Clock,
-              title: 'Fast Process',
-              desc: 'Most candidates hear back within 24 hours. No job boards, no cold applications.',
-            },
-          ].map(({ icon: Icon, title, desc }) => (
-            <div key={title} className="p-6 border border-gray-100 rounded-xl bg-gray-50">
-              <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center mb-4">
-                <Icon className="w-5 h-5 text-emerald-600" />
+        {/* Logo scroll */}
+        <LogoScroll />
+
+        {/* How It Works */}
+        <div className="max-w-4xl mx-auto px-6 py-16">
+          <h2 className="text-2xl font-bold text-gray-900 text-center mb-10">How It Works</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+            {[
+              {
+                icon: MessageCircle,
+                title: 'Curated opportunities delivered directly',
+                desc: 'Recruiters send introduction requests straight to your inbox. No job boards, no cold outreach.',
+                step: '1',
+              },
+              {
+                icon: Shield,
+                title: 'Your identity stays protected',
+                desc: 'Your profile is completely anonymous. Your name, employer, and contact details are never revealed without your consent.',
+                step: '2',
+              },
+              {
+                icon: CheckCircle2,
+                title: 'You stay in control',
+                desc: 'Accept or decline any opportunity within 48 hours. No pressure, no obligation.',
+                step: '3',
+              },
+            ].map(({ icon: Icon, title, desc, step: s }) => (
+              <div key={s} className="p-6 border border-gray-100 rounded-xl bg-gray-50">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-xs font-bold text-emerald-700">
+                    {s}
+                  </div>
+                  <Icon className="w-5 h-5 text-emerald-600" />
+                </div>
+                <h3 className="font-semibold text-gray-900 mb-2 text-sm leading-snug">{title}</h3>
+                <p className="text-sm text-gray-500 leading-relaxed">{desc}</p>
               </div>
-              <h3 className="font-semibold text-gray-900 mb-2">{title}</h3>
-              <p className="text-sm text-gray-500 leading-relaxed">{desc}</p>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </div>
     );
   }
+
+  // ── Disqualified Screen ─────────────────────────────────────────────────────
 
   if (screen === 'disqualified') {
     return (
@@ -476,22 +572,18 @@ export default function CandidateApply() {
           <h2 className="text-2xl font-bold text-gray-900 mb-3">Not Quite a Fit Right Now</h2>
           <p className="text-gray-500 mb-6 leading-relaxed">
             Thank you for your interest in SFC Talent. At the moment, our platform is focused on
-            finance and investing professionals with at least 2 years of experience and a target
-            compensation above $70k. We hope to expand our reach in the future.
+            finance professionals with at least 2 years of experience and a target compensation
+            above $70k. We hope to expand our reach in the future.
           </p>
           <p className="text-gray-500 mb-8 text-sm">
             We've noted your interest — if our criteria expand, we may be in touch.
           </p>
-          <Button
-            variant="outline"
-            onClick={() => { setScreen('form'); setStep(1); }}
-            className="mr-3"
-          >
+          <Button variant="outline" onClick={() => { setScreen('form'); setStep(1); }} className="mr-3">
             Go Back
           </Button>
           <Button
             className="bg-emerald-600 hover:bg-emerald-700 text-white"
-            onClick={() => window.location.href = 'https://strategicfinancecareers.com'}
+            onClick={() => { window.location.href = 'https://strategicfinancecareers.com'; }}
           >
             Visit SFC
           </Button>
@@ -500,6 +592,8 @@ export default function CandidateApply() {
     );
   }
 
+  // ── Success Screen ──────────────────────────────────────────────────────────
+
   if (screen === 'success') {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center px-6">
@@ -507,9 +601,7 @@ export default function CandidateApply() {
           <div className="w-16 h-16 rounded-full bg-emerald-50 flex items-center justify-center mx-auto mb-6">
             <CheckCircle2 className="w-8 h-8 text-emerald-600" />
           </div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-3">
-            You're in, {form.firstName}!
-          </h2>
+          <h2 className="text-2xl font-bold text-gray-900 mb-3">You're in, {form.firstName}!</h2>
           <p className="text-gray-500 mb-4 leading-relaxed">
             Your anonymous profile has been submitted for review. Our team will review it within
             1–2 business days.
@@ -520,7 +612,7 @@ export default function CandidateApply() {
           </p>
           <Button
             className="bg-emerald-600 hover:bg-emerald-700 text-white"
-            onClick={() => window.location.href = 'https://strategicfinancecareers.com'}
+            onClick={() => { window.location.href = 'https://strategicfinancecareers.com'; }}
           >
             Back to SFC
           </Button>
@@ -555,10 +647,12 @@ export default function CandidateApply() {
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Quick Fit Check</h2>
             <p className="text-gray-500 mb-8 text-sm leading-relaxed">
               SFC Talent connects curated professionals with top companies. We're currently focused
-              on finance and investing roles — here's a quick check to make sure we're a good match.
+              on finance roles — here's a quick check to make sure we're a good match.
             </p>
 
-            <div className="space-y-6">
+            <div className="space-y-7">
+
+              {/* Email */}
               <div>
                 <Label>Email address <span className="text-red-500">*</span></Label>
                 <Input
@@ -570,33 +664,64 @@ export default function CandidateApply() {
                 />
               </div>
 
+              {/* Part A — Primary background (large cards) */}
               <div>
-                <Label>Phone number <span className="text-gray-400 text-xs font-normal">(optional)</span></Label>
-                <Input
-                  type="tel"
-                  value={form.phone}
-                  onChange={e => set('phone', e.target.value)}
-                  placeholder="+1 (555) 000-0000"
-                  className="mt-2"
-                />
+                <Label className="text-sm font-semibold text-gray-800">
+                  Which best describes your professional background? <span className="text-red-500">*</span>
+                </Label>
+                <div className="space-y-3 mt-3">
+                  {PRIMARY_BACKGROUNDS.map(bg => (
+                    <button
+                      key={bg.value}
+                      type="button"
+                      onClick={() => {
+                        set('primaryBackground', bg.value);
+                        // Reset detailed if category changes
+                        set('detailedExperience', []);
+                      }}
+                      className={`w-full text-left p-4 border-2 rounded-xl transition-all ${
+                        form.primaryBackground === bg.value
+                          ? 'border-emerald-500 bg-emerald-50'
+                          : 'border-gray-200 hover:border-gray-300 bg-white'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                          form.primaryBackground === bg.value ? 'border-emerald-500' : 'border-gray-300'
+                        }`}>
+                          {form.primaryBackground === bg.value && (
+                            <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                          )}
+                        </div>
+                        <span className={`font-semibold text-sm ${
+                          form.primaryBackground === bg.value ? 'text-emerald-900' : 'text-gray-800'
+                        }`}>
+                          {bg.value}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-500 leading-relaxed ml-6">{bg.subtitle}</p>
+                    </button>
+                  ))}
+                </div>
               </div>
 
-              <div>
-                <Label>Do you have a background in finance, accounting, or investing?</Label>
-                <RadioGroup
-                  name="background"
-                  value={form.background}
-                  onChange={v => set('background', v)}
-                  options={[
-                    { value: 'yes_finance', label: 'Yes — finance, accounting, FP&A, banking, PE, or similar' },
-                    { value: 'adjacent', label: 'Adjacent — strategy, ops, or related field' },
-                    { value: 'no', label: 'No — different background' },
-                  ]}
-                />
-              </div>
+              {/* Part B — Detailed experience chips (shown after Part A) */}
+              {form.primaryBackground && detailOptions.length > 0 && (
+                <div>
+                  <Label className="text-sm font-semibold text-gray-800">
+                    Select all areas that apply to your experience: <span className="text-red-500">*</span>
+                  </Label>
+                  <ChipGrid
+                    options={detailOptions}
+                    selected={form.detailedExperience}
+                    onChange={v => set('detailedExperience', v)}
+                  />
+                </div>
+              )}
 
+              {/* Experience */}
               <div>
-                <Label>Years of full-time professional experience?</Label>
+                <Label>Years of full-time professional experience? <span className="text-red-500">*</span></Label>
                 <RadioGroup
                   name="experience"
                   value={form.experience}
@@ -610,8 +735,9 @@ export default function CandidateApply() {
                 />
               </div>
 
+              {/* Comp target */}
               <div>
-                <Label>What is your total cash compensation target?</Label>
+                <Label>What is your total cash compensation target? <span className="text-red-500">*</span></Label>
                 <RadioGroup
                   name="targetComp"
                   value={form.targetComp}
@@ -628,58 +754,52 @@ export default function CandidateApply() {
           <div>
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Contact Information</h2>
             <p className="text-gray-500 mb-8 text-sm">
-              This is kept private and only shared with your explicit consent.
+              Kept private — only shared with your explicit consent.
             </p>
 
             <div className="space-y-5">
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label>First name <span className="text-red-500">*</span></Label>
-                  <Input
-                    value={form.firstName}
-                    onChange={e => set('firstName', e.target.value)}
-                    placeholder="Jane"
-                    className="mt-2"
-                  />
+                  <Input value={form.firstName} onChange={e => set('firstName', e.target.value)}
+                    placeholder="Jane" className="mt-2" />
                 </div>
                 <div>
                   <Label>Last name <span className="text-red-500">*</span></Label>
-                  <Input
-                    value={form.lastName}
-                    onChange={e => set('lastName', e.target.value)}
-                    placeholder="Smith"
-                    className="mt-2"
-                  />
+                  <Input value={form.lastName} onChange={e => set('lastName', e.target.value)}
+                    placeholder="Smith" className="mt-2" />
                 </div>
+              </div>
+
+              <div>
+                <Label>Phone number <span className="text-red-500">*</span></Label>
+                <Input
+                  type="tel"
+                  value={form.phone}
+                  onChange={e => set('phone', e.target.value)}
+                  placeholder="+1 (555) 000-0000"
+                  className="mt-2"
+                />
+                <p className="text-xs text-gray-500 mt-1.5">
+                  Required — you must be reachable for introduction requests within 48 hours.
+                </p>
               </div>
 
               <div>
                 <Label>LinkedIn profile URL <span className="text-gray-400 text-xs font-normal">(optional)</span></Label>
-                <Input
-                  value={form.linkedin}
-                  onChange={e => set('linkedin', e.target.value)}
-                  placeholder="https://linkedin.com/in/janesmith"
-                  className="mt-2"
-                />
+                <Input value={form.linkedin} onChange={e => set('linkedin', e.target.value)}
+                  placeholder="https://linkedin.com/in/janesmith" className="mt-2" />
               </div>
 
               <div>
-                <Label className="block mb-1">Email address</Label>
-                <Input
-                  type="email"
-                  value={form.email}
-                  onChange={e => set('email', e.target.value)}
-                  className="mt-2 bg-gray-50"
-                />
+                <Label>Email address</Label>
+                <Input type="email" value={form.email} onChange={e => set('email', e.target.value)}
+                  className="mt-2 bg-gray-50" />
               </div>
 
               <label className="flex items-start gap-3 p-4 border rounded-lg cursor-pointer hover:border-emerald-300 transition-colors">
-                <input
-                  type="checkbox"
-                  checked={form.committed}
-                  onChange={e => set('committed', e.target.checked)}
-                  className="mt-0.5"
-                />
+                <input type="checkbox" checked={form.committed}
+                  onChange={e => set('committed', e.target.checked)} className="mt-0.5" />
                 <span className="text-sm text-gray-700">
                   I'm genuinely open to exploring new opportunities and can respond to introductions
                   within 48 hours.
@@ -697,7 +817,18 @@ export default function CandidateApply() {
               We'll use AI to extract your profile automatically. PDF format works best.
             </p>
 
-            {/* Upload area */}
+            {/* Parse warning banner */}
+            {form.parseWarning && form.resumeParsed && (
+              <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl mb-4">
+                <span className="text-amber-500 text-base mt-0.5">⚠️</span>
+                <p className="text-sm text-amber-800">
+                  We couldn't automatically parse your resume — no worries! Please fill in your
+                  details on the next step.
+                </p>
+              </div>
+            )}
+
+            {/* Upload area — shown when no resume yet */}
             {!form.resumeParsed && (
               <div
                 onClick={() => fileInputRef.current?.click()}
@@ -730,18 +861,25 @@ export default function CandidateApply() {
               </div>
             )}
 
-            {parseError && (
-              <p className="text-sm text-red-600 mt-3 p-3 bg-red-50 rounded-lg">{parseError}</p>
-            )}
-
-            {/* Success state */}
+            {/* Success / uploaded state */}
             {form.resumeParsed && (
               <div className="space-y-4">
-                <div className="flex items-center gap-3 p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
-                  <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                <div className={`flex items-center gap-3 p-4 border rounded-lg ${
+                  form.parseWarning
+                    ? 'bg-amber-50 border-amber-200'
+                    : 'bg-emerald-50 border-emerald-200'
+                }`}>
+                  {form.parseWarning
+                    ? <span className="text-amber-500 shrink-0">⚠️</span>
+                    : <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                  }
                   <div>
-                    <p className="text-sm font-semibold text-emerald-800">Resume parsed successfully!</p>
-                    <p className="text-xs text-emerald-600">{form.resumeFile?.name}</p>
+                    <p className={`text-sm font-semibold ${form.parseWarning ? 'text-amber-800' : 'text-emerald-800'}`}>
+                      {form.parseWarning ? 'Resume uploaded — fill details manually' : 'Resume parsed successfully!'}
+                    </p>
+                    <p className={`text-xs ${form.parseWarning ? 'text-amber-600' : 'text-emerald-600'}`}>
+                      {form.resumeFile?.name}
+                    </p>
                   </div>
                   <button
                     className="ml-auto text-xs text-gray-400 hover:text-gray-600 underline"
@@ -749,6 +887,7 @@ export default function CandidateApply() {
                       set('resumeParsed', null);
                       set('resumeFile', null);
                       set('resumeBase64', '');
+                      set('parseWarning', false);
                       if (fileInputRef.current) fileInputRef.current.value = '';
                     }}
                   >
@@ -756,34 +895,36 @@ export default function CandidateApply() {
                   </button>
                 </div>
 
-                {/* Preview of parsed data */}
-                <div className="p-4 border border-gray-200 rounded-xl space-y-2">
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Extracted Profile</p>
-                  {[
-                    ['Role', form.resumeParsed.currentRole],
-                    ['Location', form.resumeParsed.location],
-                    ['Experience', form.resumeParsed.yearsExperience != null ? `${form.resumeParsed.yearsExperience} years` : ''],
-                    ['Education', form.resumeParsed.education],
-                  ].filter(([, v]) => v).map(([label, value]) => (
-                    <div key={label} className="flex gap-2 text-sm">
-                      <span className="text-gray-400 w-24 shrink-0">{label}</span>
-                      <span className="text-gray-700 font-medium">{value}</span>
-                    </div>
-                  ))}
-                  {Array.isArray(form.resumeParsed.skills) && form.resumeParsed.skills.length > 0 && (
-                    <div className="flex gap-2 text-sm pt-1">
-                      <span className="text-gray-400 w-24 shrink-0">Skills</span>
-                      <div className="flex flex-wrap gap-1">
-                        {form.resumeParsed.skills.slice(0, 6).map((s: string) => (
-                          <span key={s} className="px-2 py-0.5 bg-gray-100 text-gray-700 rounded-full text-xs">{s}</span>
-                        ))}
-                        {form.resumeParsed.skills.length > 6 && (
-                          <span className="text-xs text-gray-400">+{form.resumeParsed.skills.length - 6} more</span>
-                        )}
+                {/* Parsed preview — only if no error */}
+                {!form.parseWarning && (
+                  <div className="p-4 border border-gray-200 rounded-xl space-y-2">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Extracted Profile</p>
+                    {[
+                      ['Role', form.resumeParsed.currentRole],
+                      ['Location', form.resumeParsed.location],
+                      ['Experience', form.resumeParsed.yearsExperience ? `${form.resumeParsed.yearsExperience} years` : ''],
+                      ['Education', form.resumeParsed.education],
+                    ].filter(([, v]) => v).map(([label, value]) => (
+                      <div key={label} className="flex gap-2 text-sm">
+                        <span className="text-gray-400 w-24 shrink-0">{label}</span>
+                        <span className="text-gray-700 font-medium">{value}</span>
                       </div>
-                    </div>
-                  )}
-                </div>
+                    ))}
+                    {Array.isArray(form.resumeParsed.skills) && form.resumeParsed.skills.length > 0 && (
+                      <div className="flex gap-2 text-sm pt-1">
+                        <span className="text-gray-400 w-24 shrink-0">Skills</span>
+                        <div className="flex flex-wrap gap-1">
+                          {form.resumeParsed.skills.slice(0, 6).map((s: string) => (
+                            <span key={s} className="px-2 py-0.5 bg-gray-100 text-gray-700 rounded-full text-xs">{s}</span>
+                          ))}
+                          {form.resumeParsed.skills.length > 6 && (
+                            <span className="text-xs text-gray-400">+{form.resumeParsed.skills.length - 6} more</span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -793,52 +934,39 @@ export default function CandidateApply() {
         {step === 4 && (
           <div>
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Review Your Profile</h2>
-            <p className="text-gray-500 mb-8 text-sm">
+            <p className="text-gray-500 mb-2 text-sm">
               Edit anything that doesn't look right. This is what recruiters will see (anonymously).
             </p>
+            {form.parseWarning && (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg mb-6 text-sm text-amber-800">
+                Your resume couldn't be auto-parsed — please fill in your details below.
+              </div>
+            )}
 
-            <div className="space-y-5">
+            <div className="space-y-5 mt-6">
               <div>
                 <Label>Current / most recent role <span className="text-red-500">*</span></Label>
-                <Input
-                  value={form.currentRole}
-                  onChange={e => set('currentRole', e.target.value)}
-                  placeholder="e.g. Senior Finance Manager"
-                  className="mt-2"
-                />
+                <Input value={form.currentRole} onChange={e => set('currentRole', e.target.value)}
+                  placeholder="e.g. Senior Finance Manager" className="mt-2" />
               </div>
 
               <div>
                 <Label>Location (city, state) <span className="text-red-500">*</span></Label>
-                <Input
-                  value={form.location}
-                  onChange={e => set('location', e.target.value)}
-                  placeholder="e.g. New York, NY"
-                  className="mt-2"
-                />
+                <Input value={form.location} onChange={e => set('location', e.target.value)}
+                  placeholder="e.g. New York, NY" className="mt-2" />
               </div>
 
               <div>
                 <Label>Years of experience <span className="text-red-500">*</span></Label>
-                <Input
-                  type="number"
-                  min={0}
-                  max={50}
-                  value={form.yearsExperience}
+                <Input type="number" min={0} max={50} value={form.yearsExperience}
                   onChange={e => set('yearsExperience', e.target.value)}
-                  placeholder="e.g. 5"
-                  className="mt-2"
-                />
+                  placeholder="e.g. 5" className="mt-2" />
               </div>
 
               <div>
                 <Label>Education (degree + field, no school name)</Label>
-                <Input
-                  value={form.education}
-                  onChange={e => set('education', e.target.value)}
-                  placeholder="e.g. MBA, Finance"
-                  className="mt-2"
-                />
+                <Input value={form.education} onChange={e => set('education', e.target.value)}
+                  placeholder="e.g. MBA, Finance" className="mt-2" />
               </div>
 
               <div>
@@ -858,13 +986,9 @@ export default function CandidateApply() {
 
               <div>
                 <Label>Anonymous bio (2–3 sentences, no company/school names)</Label>
-                <Textarea
-                  value={form.bio}
-                  onChange={e => set('bio', e.target.value)}
+                <Textarea value={form.bio} onChange={e => set('bio', e.target.value)}
                   placeholder="A finance professional with 5+ years of experience in FP&A and strategic planning, known for building scalable models and driving cost efficiencies..."
-                  rows={4}
-                  className="mt-2"
-                />
+                  rows={4} className="mt-2" />
               </div>
 
               <div>
@@ -875,11 +999,7 @@ export default function CandidateApply() {
 
               <div>
                 <Label>Industries / sectors (select all that apply)</Label>
-                <CheckboxGrid
-                  options={SECTORS}
-                  selected={form.sectors}
-                  onChange={v => set('sectors', v)}
-                />
+                <CheckboxGrid options={SECTORS} selected={form.sectors} onChange={v => set('sectors', v)} />
               </div>
             </div>
           </div>
@@ -889,47 +1009,33 @@ export default function CandidateApply() {
         {step === 5 && (
           <div>
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Your Preferences</h2>
-            <p className="text-gray-500 mb-8 text-sm">
-              Help us match you with the right opportunities.
-            </p>
+            <p className="text-gray-500 mb-8 text-sm">Help us match you with the right opportunities.</p>
 
             <div className="space-y-6">
               <div>
                 <Label>Current job search status <span className="text-red-500">*</span></Label>
-                <RadioGroup
-                  name="jobSearchStatus"
-                  value={form.jobSearchStatus}
+                <RadioGroup name="jobSearchStatus" value={form.jobSearchStatus}
                   onChange={v => set('jobSearchStatus', v)}
-                  options={JOB_STATUSES.map(s => ({ value: s, label: s }))}
-                />
+                  options={JOB_STATUSES.map(s => ({ value: s, label: s }))} />
               </div>
 
               <div>
                 <Label>Target total cash compensation (base + bonus) <span className="text-red-500">*</span></Label>
-                <RadioGroup
-                  name="targetCompStep5"
-                  value={form.targetCompStep5}
+                <RadioGroup name="targetCompStep5" value={form.targetCompStep5}
                   onChange={v => set('targetCompStep5', v)}
-                  options={COMP_OPTIONS}
-                />
+                  options={COMP_OPTIONS} />
               </div>
 
               <div>
                 <Label>Preferred locations (select all that apply)</Label>
-                <CheckboxGrid
-                  options={LOCATIONS}
-                  selected={form.preferredLocations}
-                  onChange={v => set('preferredLocations', v)}
-                />
+                <CheckboxGrid options={LOCATIONS} selected={form.preferredLocations}
+                  onChange={v => set('preferredLocations', v)} />
               </div>
 
               <div>
                 <Label>Target roles (select all that apply)</Label>
-                <CheckboxGrid
-                  options={TARGET_ROLES}
-                  selected={form.targetRoles}
-                  onChange={v => set('targetRoles', v)}
-                />
+                <CheckboxGrid options={TARGET_ROLES} selected={form.targetRoles}
+                  onChange={v => set('targetRoles', v)} />
               </div>
             </div>
           </div>
@@ -943,7 +1049,7 @@ export default function CandidateApply() {
               This is exactly what recruiters will see. Your identity is fully protected.
             </p>
 
-            {/* Anonymous profile card */}
+            {/* Profile card */}
             <div className="border border-gray-200 rounded-2xl p-6 bg-white shadow-sm mb-6">
               <div className="flex items-start gap-4 mb-4">
                 <div className="w-12 h-12 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center text-white font-bold text-lg shrink-0">
@@ -955,11 +1061,7 @@ export default function CandidateApply() {
                   <p className="text-xs text-gray-400 mt-0.5">{form.educationLevel ? `${form.educationLevel} · ` : ''}{form.education}</p>
                 </div>
               </div>
-
-              {form.bio && (
-                <p className="text-sm text-gray-600 leading-relaxed mb-4">{form.bio}</p>
-              )}
-
+              {form.bio && <p className="text-sm text-gray-600 leading-relaxed mb-4">{form.bio}</p>}
               {form.skills.length > 0 && (
                 <div className="flex flex-wrap gap-2 mb-4">
                   {form.skills.map(s => (
@@ -967,7 +1069,6 @@ export default function CandidateApply() {
                   ))}
                 </div>
               )}
-
               {form.sectors.length > 0 && (
                 <div className="flex flex-wrap gap-1.5">
                   {form.sectors.map(s => (
@@ -978,8 +1079,8 @@ export default function CandidateApply() {
             </div>
 
             <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800 mb-6">
-              <strong>Note:</strong> Your profile will be reviewed by our team before going live. We'll
-              email you at <strong>{form.email}</strong> once it's approved.
+              <strong>Note:</strong> Your profile will be reviewed by our team before going live.
+              We'll email you at <strong>{form.email}</strong> once it's approved.
             </div>
 
             {submitError && (
@@ -988,14 +1089,9 @@ export default function CandidateApply() {
           </div>
         )}
 
-        {/* Navigation buttons */}
+        {/* Nav buttons */}
         <div className="flex gap-3 mt-10">
-          <Button
-            variant="outline"
-            onClick={handleBack}
-            disabled={submitting}
-            className="flex-1"
-          >
+          <Button variant="outline" onClick={handleBack} disabled={submitting} className="flex-1">
             <ChevronLeft className="w-4 h-4 mr-1" /> Back
           </Button>
 
@@ -1003,7 +1099,7 @@ export default function CandidateApply() {
             <Button
               onClick={handleNext}
               disabled={!canProceed}
-              className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+              className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-40"
             >
               Continue <ChevronRight className="w-4 h-4 ml-1" />
             </Button>
@@ -1013,11 +1109,10 @@ export default function CandidateApply() {
               disabled={submitting}
               className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
             >
-              {submitting ? (
-                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Submitting…</>
-              ) : (
-                <>Submit Application <ChevronRight className="w-4 h-4 ml-1" /></>
-              )}
+              {submitting
+                ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Submitting…</>
+                : <>Submit Application <ChevronRight className="w-4 h-4 ml-1" /></>
+              }
             </Button>
           )}
         </div>

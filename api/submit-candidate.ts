@@ -19,6 +19,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // Parsed profile
       currentRole, location, yearsExperience, education, educationLevel,
       bio, skills, sectors,
+      // Background segmentation
+      primaryBackground, detailedExperience,
       // Availability
       jobSearchStatus, targetComp, preferredLocations, targetRoles, openToRelocation,
       // Resume
@@ -98,6 +100,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         resume_full_url: resumeUrl,
         resume_redacted_url: null,
         status: 'pending_review',
+        primary_background: primaryBackground || null,
+        detailed_experience: Array.isArray(detailedExperience) ? detailedExperience : [],
       } as any)
       .select('id')
       .single();
@@ -132,6 +136,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const sectorList = Array.isArray(sectors) && sectors.length > 0
       ? sectors.join(', ')
       : 'Not specified';
+    const backgroundLabel = primaryBackground || 'Not specified';
+    const detailedList = Array.isArray(detailedExperience) && detailedExperience.length > 0
+      ? detailedExperience.join(', ')
+      : 'Not specified';
     const roleList = Array.isArray(targetRoles) && targetRoles.length > 0
       ? targetRoles.join(', ')
       : 'Not specified';
@@ -149,6 +157,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       + '<tr><td style="padding:8px 0;border-bottom:1px solid #eee;color:#888">Experience</td><td style="padding:8px 0;border-bottom:1px solid #eee">' + expNum + ' years</td></tr>'
       + '<tr><td style="padding:8px 0;border-bottom:1px solid #eee;color:#888">Education</td><td style="padding:8px 0;border-bottom:1px solid #eee">' + (education || '—') + '</td></tr>'
       + '<tr><td style="padding:8px 0;border-bottom:1px solid #eee;color:#888">Target Comp</td><td style="padding:8px 0;border-bottom:1px solid #eee">' + (targetComp || '—') + '</td></tr>'
+      + '<tr><td style="padding:8px 0;border-bottom:1px solid #eee;color:#888">Background</td><td style="padding:8px 0;border-bottom:1px solid #eee">' + backgroundLabel + '</td></tr>'
+      + '<tr><td style="padding:8px 0;border-bottom:1px solid #eee;color:#888">Specialisms</td><td style="padding:8px 0;border-bottom:1px solid #eee">' + detailedList + '</td></tr>'
       + '<tr><td style="padding:8px 0;border-bottom:1px solid #eee;color:#888">Job Status</td><td style="padding:8px 0;border-bottom:1px solid #eee">' + (jobSearchStatus || '—') + '</td></tr>'
       + '<tr><td style="padding:8px 0;border-bottom:1px solid #eee;color:#888">Sectors</td><td style="padding:8px 0;border-bottom:1px solid #eee">' + sectorList + '</td></tr>'
       + '<tr><td style="padding:8px 0;color:#888">Target Roles</td><td style="padding:8px 0">' + roleList + '</td></tr>'

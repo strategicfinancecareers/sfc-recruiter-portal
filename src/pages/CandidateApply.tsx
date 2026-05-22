@@ -83,10 +83,19 @@ const COMP_OPTIONS = [
   { value: '300k-plus', label: '$300k+' },
 ];
 
-const JOB_STATUSES = [
-  'Actively looking — open to the right opportunity now',
-  'Passively exploring — not urgently searching',
-  'Just networking — not actively seeking',
+const AVAILABILITY_OPTIONS = [
+  {
+    value: 'Actively Looking',
+    emoji: '🟢',
+    label: 'Actively Looking',
+    desc: "I'm open to new opportunities right now",
+  },
+  {
+    value: 'Not Active',
+    emoji: '⏸️',
+    label: 'Not Active',
+    desc: "I'm not looking right now but want to stay in the network",
+  },
 ];
 
 const WORK_PREFERENCES = [
@@ -321,7 +330,7 @@ export default function CandidateApply() {
 
   const canProceedStep4 = form.currentRole && form.location && form.yearsExperience;
 
-  const canProceedStep5 = form.jobSearchStatus && form.targetCompStep5 && form.workPreference;
+  const canProceedStep5 = form.jobSearchStatus && form.workPreference;
 
   const canProceed = [null, canProceedStep1, canProceedStep2, canProceedStep3, canProceedStep4, canProceedStep5, true][step];
 
@@ -578,54 +587,59 @@ export default function CandidateApply() {
             </div>
             <h2 className="text-3xl font-bold text-gray-900 mb-3">You're in! 🎉</h2>
             <p className="text-gray-500 leading-relaxed">
-              Your profile is live and visible to recruiters right now.
-              When a recruiter requests an introduction, you'll receive an email like this:
+              Your profile is live and recruiters can now find you.
             </p>
           </div>
 
+          {/* Dashboard link box */}
+          <div className="border border-emerald-200 bg-emerald-50 rounded-xl p-5 mb-5">
+            <p className="text-sm font-semibold text-emerald-900 mb-1">Your Candidate Dashboard</p>
+            <p className="text-xs text-emerald-700 mb-3">
+              Manage your profile, update availability, and track introduction requests at:
+            </p>
+            <div className="bg-white border border-emerald-200 rounded-lg px-4 py-2 mb-3 text-sm text-gray-600 font-mono select-all">
+              sfc-recruiter-portal.vercel.app/candidate-dashboard
+            </div>
+            <Button
+              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+              onClick={() => window.open('/candidate-dashboard', '_blank')}
+            >
+              View Your Dashboard →
+            </Button>
+          </div>
+
           {/* Email preview mockup */}
+          <p className="text-sm text-gray-500 text-center mb-4">
+            When a recruiter is interested, you'll get an email like this:
+          </p>
           <div className="border border-gray-200 rounded-xl overflow-hidden mb-6 shadow-sm">
             <div className="bg-gray-50 border-b border-gray-200 px-4 py-3">
-              <div className="flex items-center gap-2 mb-1">
+              <div className="flex items-center gap-2">
                 <div className="w-3 h-3 rounded-full bg-red-400" />
                 <div className="w-3 h-3 rounded-full bg-yellow-400" />
                 <div className="w-3 h-3 rounded-full bg-green-400" />
               </div>
             </div>
             <div className="p-5 bg-white text-sm space-y-2">
-              <div className="flex gap-2 text-gray-500 text-xs border-b border-gray-100 pb-3 mb-3">
-                <div>
-                  <p><span className="font-semibold text-gray-700">From:</span> SFC Talent &lt;noreply@strategicfinancecareers.com&gt;</p>
-                  <p><span className="font-semibold text-gray-700">Subject:</span> New opportunity: VP of Finance at [Company]</p>
-                </div>
+              <div className="text-gray-500 text-xs border-b border-gray-100 pb-3 mb-3">
+                <p><span className="font-semibold text-gray-700">From:</span> SFC Talent &lt;noreply@strategicfinancecareers.com&gt;</p>
+                <p><span className="font-semibold text-gray-700">Subject:</span> New opportunity: VP Finance at [Company]</p>
               </div>
               <p className="text-gray-800">Hi {form.firstName || '[First Name]'},</p>
-              <p className="text-gray-600 leading-relaxed">
-                A company is interested in connecting with you about a <strong>VP of Finance</strong> role.
-                The position offers <strong>$180,000 – $220,000</strong> total compensation.
+              <p className="text-gray-600 leading-relaxed text-xs">
+                A company is interested in connecting with you about a <strong>VP Finance</strong> role
+                offering <strong>$180k–$220k</strong> total comp. You have 48 hours to respond.
               </p>
               <div className="flex gap-3 pt-2">
-                <span className="inline-block px-4 py-2 bg-emerald-600 text-white rounded-lg text-xs font-semibold cursor-default">
-                  ✅ Yes, I'm interested
-                </span>
-                <span className="inline-block px-4 py-2 bg-gray-100 text-gray-600 rounded-lg text-xs font-semibold cursor-default">
-                  ❌ No thanks
-                </span>
+                <span className="inline-block px-4 py-2 bg-emerald-600 text-white rounded-lg text-xs font-semibold cursor-default">✅ YES</span>
+                <span className="inline-block px-4 py-2 bg-gray-100 text-gray-600 rounded-lg text-xs font-semibold cursor-default">❌ NO</span>
               </div>
-              <p className="text-xs text-gray-400 pt-1">You have 48 hours to respond.</p>
             </div>
-          </div>
-
-          <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 mb-6 text-sm text-emerald-800 leading-relaxed">
-            <p className="font-semibold mb-1">📬 Check your inbox</p>
-            <p className="text-emerald-700 text-xs">
-              We sent a welcome email to <strong>{form.email}</strong> with a link to your candidate dashboard — where you can update your profile, manage availability, and track introduction requests.
-            </p>
           </div>
 
           <div className="text-center">
             <Button
-              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              variant="outline"
               onClick={() => { window.location.href = 'https://strategicfinancecareers.com'; }}
             >
               Back to SFC
@@ -812,13 +826,20 @@ export default function CandidateApply() {
                   className="mt-2 bg-gray-50" />
               </div>
 
-              <label className="flex items-start gap-3 p-4 border rounded-lg cursor-pointer hover:border-emerald-300 transition-colors">
-                <input type="checkbox" checked={form.committed}
-                  onChange={e => set('committed', e.target.checked)} className="mt-0.5" />
-                <span className="text-sm text-gray-700">
-                  I'm genuinely open to exploring new opportunities and can respond to introductions within 48 hours.
-                </span>
-              </label>
+              <div className="p-4 border border-gray-200 rounded-xl bg-gray-50">
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input type="checkbox" checked={form.committed}
+                    onChange={e => set('committed', e.target.checked)} className="mt-0.5 h-4 w-4 rounded border-gray-300 text-emerald-600" />
+                  <div>
+                    <p className="text-sm text-gray-700 font-medium leading-snug">
+                      I commit to responding to all introduction requests within 48 hours via email or text.
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1.5 leading-relaxed">
+                      Non-responses will result in your profile being deprioritized. Repeated non-responses may result in removal from the platform.
+                    </p>
+                  </div>
+                </label>
+              </div>
             </div>
           </div>
         )}
@@ -1033,17 +1054,32 @@ export default function CandidateApply() {
             <div className="space-y-6">
 
               <div>
-                <Label>Current job search status <span className="text-red-500">*</span></Label>
-                <RadioGroup name="jobSearchStatus" value={form.jobSearchStatus}
-                  onChange={v => set('jobSearchStatus', v)}
-                  options={JOB_STATUSES.map(s => ({ value: s, label: s }))} />
-              </div>
-
-              <div>
-                <Label>Target total cash compensation (base + bonus) <span className="text-red-500">*</span></Label>
-                <RadioGroup name="targetCompStep5" value={form.targetCompStep5}
-                  onChange={v => set('targetCompStep5', v)}
-                  options={COMP_OPTIONS} />
+                <Label>What's your current availability? <span className="text-red-500">*</span></Label>
+                <div className="grid grid-cols-2 gap-3 mt-3">
+                  {AVAILABILITY_OPTIONS.map(opt => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => set('jobSearchStatus', opt.value)}
+                      className={`p-4 border-2 rounded-xl text-left transition-all ${
+                        form.jobSearchStatus === opt.value
+                          ? 'border-emerald-500 bg-emerald-50'
+                          : 'border-gray-200 bg-white hover:border-gray-300'
+                      }`}
+                    >
+                      <div className="text-xl mb-2">{opt.emoji}</div>
+                      <p className={`text-sm font-semibold leading-tight ${form.jobSearchStatus === opt.value ? 'text-emerald-800' : 'text-gray-800'}`}>
+                        {opt.label}
+                      </p>
+                      <p className="text-xs text-gray-400 mt-1 leading-snug">{opt.desc}</p>
+                    </button>
+                  ))}
+                </div>
+                <div className="mt-3 p-3 bg-blue-50 border border-blue-100 rounded-lg">
+                  <p className="text-xs text-blue-700 leading-relaxed">
+                    We want to provide a great experience to both sides. Clear availability signals help recruiters move fast and respect your time.
+                  </p>
+                </div>
               </div>
 
               {/* Work preference — single select cards */}

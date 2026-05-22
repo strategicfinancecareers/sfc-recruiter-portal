@@ -935,7 +935,13 @@ const { data: inserted, error } = await supabase
                           { icon: '📍', label: 'Location', value: c.location },
                           { icon: '💼', label: 'Experience', value: `${c.experience} years` },
                           { icon: '🎓', label: 'Education', value: c.highest_education_level || c.education },
-                          { icon: '📊', label: 'Background', value: (c as any).primary_background || null },
+                          { icon: '📊', label: 'Primary Background', value: (c as any).primary_background || null },
+                          {
+                            icon: '📋', label: 'Secondary Background',
+                            value: Array.isArray((c as any).secondary_backgrounds) && (c as any).secondary_backgrounds.length > 0
+                              ? (c as any).secondary_backgrounds.join(' · ')
+                              : null,
+                          },
                           { icon: '✅', label: 'Availability', value: c.open_to_opportunities ? 'Open to opportunities' : null },
                         ].filter(row => row.value).map(row => (
                           <div key={row.label} className="flex items-start gap-2 text-sm pb-3 border-b border-gray-100 last:border-0 last:pb-0">

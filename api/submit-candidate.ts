@@ -138,20 +138,39 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       candidateId = candidate1.id;
     }
 
+    // ── Create Supabase auth account + magic link ────────────────────────────
+    let dashboardLink = 'https://sfc-recruiter-portal.vercel.app/candidate-dashboard';
+    try {
+      // Create auth user (ignore error if already exists)
+      await supabase.auth.admin.createUser({ email, email_confirm: true });
+      // Generate magic link
+      const { data: linkData } = await supabase.auth.admin.generateLink({
+        type: 'magiclink',
+        email,
+        options: { redirectTo: 'https://sfc-recruiter-portal.vercel.app/candidate-dashboard' },
+      });
+      if (linkData?.properties?.action_link) {
+        dashboardLink = linkData.properties.action_link;
+      }
+    } catch (authErr: any) {
+      console.warn('[submit-candidate] auth user/link creation failed:', authErr.message);
+    }
+
     // ── Welcome email to candidate ────────────────────────────────────────────
     const welcomeHtml = '<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">'
-      + '<h2 style="color:#0F6E56">You\'re live on SFC Talent 🎉</h2>'
+      + '<h2 style="color:#0F6E56">You\'re in! 🎉</h2>'
       + '<p>Hi ' + firstName + ',</p>'
-      + '<p>Your profile has been approved and is now visible to recruiters. Here\'s what happens next:</p>'
+      + '<p>Your profile is live on SFC Talent and visible to recruiters right now. Here\'s what happens next:</p>'
       + '<ul>'
       + '<li>Recruiters can browse your anonymous profile</li>'
-      + '<li>When a recruiter requests an introduction, you\'ll get an email and text</li>'
+      + '<li>When a recruiter requests an introduction, you\'ll get an email</li>'
       + '<li>You have <strong>48 hours to respond</strong> — just reply YES or NO</li>'
       + '</ul>'
       + '<div style="background:#f0faf6;border-left:4px solid #0F6E56;padding:16px;border-radius:4px;margin:24px 0">'
-      + '<p style="margin:0;font-weight:600">What an introduction request looks like:</p>'
-      + '<p style="margin:8px 0 0;color:#666;font-size:14px">Subject: New opportunity: VP Finance at [Company]</p>'
-      + '<p style="margin:4px 0 0;color:#666;font-size:14px">"A company is interested in connecting with you about a VP Finance role offering $180k-$220k total comp. Are you open to connecting? Reply YES or NO. You have 48 hours."</p>'
+      + '<p style="margin:0;font-weight:600">Manage your profile</p>'
+      + '<p style="margin:8px 0 12px;color:#666;font-size:14px">Update your bio, skills, and availability anytime from your candidate dashboard.</p>'
+      + '<a href="' + dashboardLink + '" style="display:inline-block;background:#0F6E56;color:white;text-decoration:none;padding:12px 24px;border-radius:6px;font-weight:600;font-size:14px">Open My Dashboard →</a>'
+      + '<p style="margin:12px 0 0;color:#999;font-size:12px">This link is one-time use. A new link will be emailed each time you sign in.</p>'
       + '</div>'
       + '<p style="color:#666;font-size:14px">Your identity is always protected. We never share your name, contact details, or employer without your explicit consent.</p>'
       + '<hr style="border:none;border-top:1px solid #eee;margin:24px 0">'

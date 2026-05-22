@@ -578,8 +578,8 @@ export default function CandidateApply() {
             </div>
             <h2 className="text-3xl font-bold text-gray-900 mb-3">You're in! 🎉</h2>
             <p className="text-gray-500 leading-relaxed">
-              We'll review your profile and be in touch within 2–3 business days. Once approved,
-              you'll start receiving introduction requests like this:
+              Your profile is live and visible to recruiters right now.
+              When a recruiter requests an introduction, you'll receive an email like this:
             </p>
           </div>
 
@@ -616,9 +616,12 @@ export default function CandidateApply() {
             </div>
           </div>
 
-          <p className="text-center text-sm text-gray-500 mb-8">
-            Reply YES or NO directly from your email or text. No login required.
-          </p>
+          <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 mb-6 text-sm text-emerald-800 leading-relaxed">
+            <p className="font-semibold mb-1">📬 Check your inbox</p>
+            <p className="text-emerald-700 text-xs">
+              We sent a welcome email to <strong>{form.email}</strong> with a link to your candidate dashboard — where you can update your profile, manage availability, and track introduction requests.
+            </p>
+          </div>
 
           <div className="text-center">
             <Button

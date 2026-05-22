@@ -98,7 +98,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // ── Extended payload (columns that require migrations) ───────────────────
     const extendedPayload = {
       ...corePayload,
-      status: 'pending_review',
+      status: 'active',
       primary_background: primaryBackground || null,
       secondary_backgrounds: Array.isArray(secondaryBackgrounds) ? secondaryBackgrounds : [],
       detailed_experience: Array.isArray(detailedExperience) ? detailedExperience : [],
@@ -137,6 +137,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     } else {
       candidateId = candidate1.id;
     }
+
+    // ── Welcome email to candidate ────────────────────────────────────────────
+    const welcomeHtml = '<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">'
+      + '<h2 style="color:#0F6E56">You\'re live on SFC Talent 🎉</h2>'
+      + '<p>Hi ' + firstName + ',</p>'
+      + '<p>Your profile has been approved and is now visible to recruiters. Here\'s what happens next:</p>'
+      + '<ul>'
+      + '<li>Recruiters can browse your anonymous profile</li>'
+      + '<li>When a recruiter requests an introduction, you\'ll get an email and text</li>'
+      + '<li>You have <strong>48 hours to respond</strong> — just reply YES or NO</li>'
+      + '</ul>'
+      + '<div style="background:#f0faf6;border-left:4px solid #0F6E56;padding:16px;border-radius:4px;margin:24px 0">'
+      + '<p style="margin:0;font-weight:600">What an introduction request looks like:</p>'
+      + '<p style="margin:8px 0 0;color:#666;font-size:14px">Subject: New opportunity: VP Finance at [Company]</p>'
+      + '<p style="margin:4px 0 0;color:#666;font-size:14px">"A company is interested in connecting with you about a VP Finance role offering $180k-$220k total comp. Are you open to connecting? Reply YES or NO. You have 48 hours."</p>'
+      + '</div>'
+      + '<p style="color:#666;font-size:14px">Your identity is always protected. We never share your name, contact details, or employer without your explicit consent.</p>'
+      + '<hr style="border:none;border-top:1px solid #eee;margin:24px 0">'
+      + '<p style="color:#999;font-size:12px">SFC Talent · strategicfinancecareers.com</p>'
+      + '</div>';
+
+    await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${RESEND_API_KEY}` },
+      body: JSON.stringify({
+        from: 'SFC Talent <noreply@strategicfinancecareers.com>',
+        to: [email],
+        subject: 'Welcome to SFC Talent — Your profile is live',
+        html: welcomeHtml,
+      }),
+    }).catch(err => console.warn('[submit-candidate] welcome email failed:', err.message));
 
     // ── Insert skills ─────────────────────────────────────────────────────────
     if (Array.isArray(skills) && skills.length > 0) {

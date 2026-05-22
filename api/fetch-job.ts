@@ -14,7 +14,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       headers: { 'User-Agent': 'Mozilla/5.0 (compatible; JobParser/1.0)' }
     });
     const html = await pageResponse.text();
-    const text = html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 4000);
+    const text = html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 8000);
 
     step = 'calling claude';
 
@@ -29,7 +29,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
         max_tokens: 1000,
-        system: 'You are a job posting parser. Extract job details and return ONLY valid JSON with fields: title, company, location, type (one of: full-time, part-time, contract, remote), salary_range, description, requirements. Use null for unknown fields. No markdown, no explanation, just JSON.',
+        system: 'You are a job posting parser. Extract ALL details from this job posting text and return ONLY valid JSON with these fields: title, company, location, type (one of: full-time, part-time, contract, remote), salary_range (look carefully for any compensation, salary, pay range, or total compensation mentioned anywhere in the posting — include the full range as a string like \'$150,000 - $200,000\'), description, requirements. If salary is truly not mentioned anywhere use null. Return only valid JSON, no markdown.',
         messages: [{ role: 'user', content: `Extract job details from this text: ${text}` }]
       })
     });

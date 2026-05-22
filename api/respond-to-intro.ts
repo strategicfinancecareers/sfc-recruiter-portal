@@ -8,10 +8,12 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 );
 
-const RECRUITER_EMAIL = 'lillian.daya@gmail.com';
+const TEST_CC_EMAIL = 'lillian.daya@gmail.com';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { introId, response } = req.query;
+
+  console.log('[respond-to-intro] introId:', introId, 'response:', response);
 
   if (!introId || !response) {
     return res.status(400).send('Invalid request');
@@ -19,27 +21,41 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     // Get intro request
-    const { data: intro } = await supabase
+    const { data: intro, error: introErr } = await supabase
       .from('introduction_requests')
       .select('*')
       .eq('id', introId)
       .single();
+
+    console.log('[respond-to-intro] intro:', JSON.stringify(intro), 'introErr:', JSON.stringify(introErr));
 
     if (!intro) return res.status(404).send('Not found');
 
     const accepted = response === 'yes';
 
     // Update status in database
-    await supabase
+    const { error: updateErr } = await supabase
       .from('introduction_requests')
       .update({ status: accepted ? 'approved' : 'rejected' })
       .eq('id', introId);
+    console.log('[respond-to-intro] status update error:', JSON.stringify(updateErr));
 
-    // Fetch candidate and job separately to avoid FK ambiguity
-    const [{ data: candidate }, { data: job }] = await Promise.all([
+    // Fetch candidate, job, and recruiter user in parallel
+    const [{ data: candidate }, { data: job }, { data: recruiterUser }] = await Promise.all([
       supabase.from('candidates').select('*').eq('id', intro.candidate_id).single(),
       supabase.from('jobs').select('*').eq('id', intro.job_id).single(),
+      intro.requester_id
+        ? supabase.from('users').select('email, first_name, last_name').eq('id', intro.requester_id).single()
+        : Promise.resolve({ data: null }),
     ]);
+
+    console.log('[respond-to-intro] recruiterUser:', JSON.stringify(recruiterUser));
+    console.log('[respond-to-intro] job:', JSON.stringify({ id: job?.id, title: job?.title, company: job?.company, user_id: job?.user_id }));
+
+    // Determine recruiter email: prefer user lookup, fallback to TEST_CC
+    const recruiterEmail: string = (recruiterUser as any)?.email || TEST_CC_EMAIL;
+    const toList = recruiterEmail === TEST_CC_EMAIL ? [TEST_CC_EMAIL] : [recruiterEmail, TEST_CC_EMAIL];
+    console.log('[respond-to-intro] sending email to:', JSON.stringify(toList));
 
     console.log('[respond-to-intro] candidate fields:', JSON.stringify({ name: candidate?.name, display_name: candidate?.display_name, email: candidate?.email, phone: candidate?.phone, has_resume: !!candidate?.resume_full_url }));
 
@@ -82,17 +98,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         + '<p style="color:#999;font-size:12px">SFC Talent · strategicfinancecareers.com</p>'
         + '</div>';
 
-      await resend.emails.send({
+      console.log('[respond-to-intro] sending YES email, attachments count:', attachments.length);
+      const { data: emailData, error: emailErr } = await resend.emails.send({
         from: 'SFC Talent <noreply@strategicfinancecareers.com>',
-        to: RECRUITER_EMAIL,
+        to: toList,
         subject: `✅ ${candidateName} is interested in your ${jobTitle} role`,
         attachments,
         html: yesHtml,
       });
+      console.log('[respond-to-intro] YES email result:', JSON.stringify({ emailData, emailErr }));
     } else {
-      await resend.emails.send({
+      console.log('[respond-to-intro] sending NO email');
+      const { data: noEmailData, error: noEmailErr } = await resend.emails.send({
         from: 'SFC Talent <noreply@strategicfinancecareers.com>',
-        to: RECRUITER_EMAIL,
+        to: toList,
         subject: `${candidateName} passed on the ${jobTitle} role`,
         html: '<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">'
           + '<img src="https://sfc-recruiter-portal.vercel.app/logo.png" height="40" style="margin-bottom:24px" />'
@@ -103,6 +122,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           + '<p style="color:#999;font-size:12px">SFC Talent · strategicfinancecareers.com</p>'
           + '</div>',
       });
+      console.log('[respond-to-intro] NO email result:', JSON.stringify({ noEmailData, noEmailErr }));
     }
 
     // Return a clean HTML response page

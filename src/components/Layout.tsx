@@ -13,11 +13,11 @@ const Layout = () => {
 
   const navigation = [
     { name: 'Start Here', href: '/start-here', icon: Sparkles },
-    { name: 'Dashboard', href: '/dashboard', icon: Gauge },
     { name: 'Browse Candidates', href: '/browse', icon: Users },
-    { name: 'Favorites', href: '/favorites', icon: Heart },
     { name: 'Jobs', href: '/jobs', icon: Briefcase },
+    { name: 'Favorites', href: '/favorites', icon: Heart },
     { name: 'Introduction Requests', href: '/introductions', icon: Handshake },
+    { name: 'Dashboard', href: '/dashboard', icon: Gauge },
   ];
 
   if (user?.role === 'admin') {

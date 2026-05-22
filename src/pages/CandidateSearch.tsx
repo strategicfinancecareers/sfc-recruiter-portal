@@ -560,7 +560,36 @@ const { data: inserted, error } = await supabase
           {/* Candidates Grid */}
           {!loading && viewMode === 'grid' && (
             <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-              {filteredCandidates.map((candidate) => (
+              {filteredCandidates.map((candidate, idx) => {
+                const locked = !isSubscribed && user?.role !== 'admin' && idx >= 6;
+                return locked ? (
+                  <div key={candidate.id} className="relative">
+                    <Card className="h-full flex flex-col pointer-events-none select-none" style={{ filter: 'blur(4px)' }}>
+                      <CardHeader className="pb-3">
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <CardTitle className="text-lg font-heading">{candidate.display_name}</CardTitle>
+                            <CardDescription className="text-primary font-medium">{candidate.label}</CardDescription>
+                          </div>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="space-y-4 flex flex-col h-full">
+                        <p className="text-sm text-muted-foreground line-clamp-2">{candidate.profile_description}</p>
+                        <div className="flex flex-wrap gap-1">
+                          {candidate.skills.slice(0, 3).map(s => (
+                            <Badge key={s.id} variant="secondary" className="text-xs">{s.skill}</Badge>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="bg-white/90 backdrop-blur-sm rounded-xl p-4 text-center shadow-lg border border-gray-200 max-w-[85%]">
+                        <div className="text-2xl mb-1">🔒</div>
+                        <p className="text-xs font-semibold text-gray-700 leading-snug">Subscribe to unlock</p>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
                 <Card
                   key={candidate.id}
                   className={`transition-all duration-200 hover:shadow-lg h-full flex flex-col ${
@@ -656,14 +685,50 @@ const { data: inserted, error } = await supabase
                     </div>
                   </CardContent>
                 </Card>
-              ))}
+                );
+              })}
+              {/* Unlock wall — shown after 6th card for unsubscribed */}
+              {!isSubscribed && user?.role !== 'admin' && filteredCandidates.length > 6 && (
+                <div className="col-span-full mt-2 flex flex-col items-center justify-center py-10 px-6 bg-white border border-gray-200 rounded-2xl text-center shadow-sm">
+                  <div className="text-3xl mb-3">🔒</div>
+                  <h3 className="text-lg font-bold text-gray-900 mb-1">Unlock the Full Talent Network</h3>
+                  <p className="text-sm text-gray-500 mb-4 max-w-xs">Subscribe to see all candidates and request introductions</p>
+                  <Button className="bg-emerald-600 hover:bg-emerald-700 text-white px-6" onClick={() => setShowPricingModal(true)}>
+                    View Pricing
+                  </Button>
+                </div>
+              )}
             </div>
           )}
 
           {/* Candidates List */}
           {!loading && viewMode === 'list' && (
             <div className="border border-gray-200 rounded-xl overflow-hidden bg-white">
-              {filteredCandidates.map((candidate) => (
+              {filteredCandidates.map((candidate, idx) => {
+                const locked = !isSubscribed && user?.role !== 'admin' && idx >= 6;
+                return locked ? (
+                  <div key={candidate.id} className="relative border-b border-gray-100 last:border-b-0">
+                    <div className="flex items-center gap-4 px-5 py-4 pointer-events-none select-none" style={{ filter: 'blur(4px)' }}>
+                      <div className="flex-shrink-0 w-11 h-11 rounded-full flex items-center justify-center text-sm font-bold text-white bg-gray-400">
+                        {getInitials(candidate.label)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <span className="font-semibold text-gray-900 text-sm">{candidate.display_name}</span>
+                        <div className="flex flex-wrap items-center gap-1 mt-1">
+                          {candidate.skills.slice(0, 3).map(s => (
+                            <Badge key={s.id} variant="secondary" className="text-xs px-1.5 py-0">{s.skill}</Badge>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="bg-white/90 backdrop-blur-sm rounded-xl px-4 py-2 shadow border border-gray-200 flex items-center gap-2">
+                        <span>🔒</span>
+                        <span className="text-xs font-semibold text-gray-700">Subscribe to unlock</span>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
                 <div
                   key={candidate.id}
                   className={`flex items-center gap-4 px-5 py-4 hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-b-0 ${
@@ -743,7 +808,19 @@ const { data: inserted, error } = await supabase
                     </Button>
                   </div>
                 </div>
-              ))}
+                );
+              })}
+              {/* Unlock wall for list view */}
+              {!isSubscribed && user?.role !== 'admin' && filteredCandidates.length > 6 && (
+                <div className="flex flex-col items-center justify-center py-10 px-6 text-center border-t border-gray-100">
+                  <div className="text-3xl mb-3">🔒</div>
+                  <h3 className="text-lg font-bold text-gray-900 mb-1">Unlock the Full Talent Network</h3>
+                  <p className="text-sm text-gray-500 mb-4 max-w-xs">Subscribe to see all candidates and request introductions</p>
+                  <Button className="bg-emerald-600 hover:bg-emerald-700 text-white px-6" onClick={() => setShowPricingModal(true)}>
+                    View Pricing
+                  </Button>
+                </div>
+              )}
             </div>
           )}
 

@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, Shield, CheckCircle2, MapPin, Briefcase, GraduationCap, Bell, Clock } from 'lucide-react';
+import {
+  Loader2, Shield, CheckCircle2, MapPin, Bell, Clock, AlertTriangle,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
@@ -37,8 +39,8 @@ function extractMeta(pd?: string) {
     targetComp: get('Target comp'),
     workPreference: get('Work preference'),
     preferredCities: get('Preferred cities')
-      ? get('Preferred cities').split(',').map(s => s.trim()).filter(Boolean)
-      : [],
+      ? get('Preferred cities').split(',').map((s: string) => s.trim()).filter(Boolean)
+      : [] as string[],
   };
 }
 
@@ -66,11 +68,18 @@ interface SkillRow {
   skills: { skill: string } | null;
 }
 
+interface IntroJob {
+  title: string | null;
+  company: string | null;
+  salary_range: string | null;
+}
+
 interface IntroRequest {
   id: string;
   created_at: string;
   status: string;
   notes?: string;
+  jobs?: IntroJob | null;
 }
 
 // ─── Email Gate ───────────────────────────────────────────────────────────────
@@ -89,44 +98,49 @@ function EmailGate({ onFound }: {
     setError('');
 
     try {
-      const { data: cand, error: err } = await supabase
+      // FIX 1: use nested skill select + status filter + maybeSingle
+      const { data: cand, error: queryErr } = await supabase
         .from('candidates')
-        .select('*')
+        .select(`
+          *,
+          candidate_skills(
+            skill_id,
+            skills(skill)
+          )
+        `)
         .eq('email', trimmed)
+        .or('status.eq.active,status.is.null')
         .maybeSingle();
 
-      if (err || !cand) {
+      if (queryErr) {
+        setError('Something went wrong. Please try again.');
+        return;
+      }
+      if (!cand) {
         setError('No profile found with that email. Please check the email you used when applying.');
-        setLoading(false);
         return;
       }
 
-      // Load skills
-      const { data: cs } = await supabase
-        .from('candidate_skills')
-        .select('skill_id, skills(skill)')
-        .eq('candidate_id', cand.id);
-
-      const skills: string[] = (cs as SkillRow[] || [])
+      // Extract skills from nested join
+      const skills: string[] = ((cand as any).candidate_skills as SkillRow[] || [])
         .map(r => r.skills?.skill || '')
         .filter(Boolean);
 
-      // Load intro requests
+      // FIX 6: load intro requests with job details
       let intros: IntroRequest[] = [];
       try {
         const { data: reqs } = await supabase
           .from('introduction_requests')
-          .select('id, created_at, status, notes')
+          .select('*, jobs(title, company, salary_range)')
           .eq('candidate_id', cand.id)
-          .order('created_at', { ascending: false })
-          .limit(20);
+          .order('created_at', { ascending: false });
         if (reqs) intros = reqs as IntroRequest[];
       } catch {
         // table may not exist yet
       }
 
       onFound(cand as CandidateRow, skills, intros);
-    } catch (e: any) {
+    } catch {
       setError('Something went wrong. Please try again.');
     } finally {
       setLoading(false);
@@ -138,7 +152,7 @@ function EmailGate({ onFound }: {
       <div className="max-w-md w-full">
         <div className="text-center mb-8">
           <span className="font-bold text-2xl text-gray-900 tracking-tight">SFC Talent</span>
-          <div className="mt-6 mb-2">
+          <div className="mt-6">
             <div className="w-14 h-14 rounded-full bg-emerald-50 flex items-center justify-center mx-auto mb-5">
               <Shield className="w-7 h-7 text-emerald-600" />
             </div>
@@ -148,7 +162,6 @@ function EmailGate({ onFound }: {
             </p>
           </div>
         </div>
-
         <div className="space-y-4">
           <Input
             type="email"
@@ -156,18 +169,20 @@ function EmailGate({ onFound }: {
             value={email}
             onChange={e => setEmail(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleAccess()}
-            className="text-base py-3"
+            className="text-base"
             autoFocus
           />
           {error && (
             <p className="text-sm text-red-500 bg-red-50 border border-red-100 rounded-lg px-4 py-3">{error}</p>
           )}
           <Button
-            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3 text-base"
+            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
             onClick={handleAccess}
             disabled={loading || !email.trim()}
           >
-            {loading ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Looking up your profile…</> : 'Access Dashboard'}
+            {loading
+              ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Looking up your profile…</>
+              : 'Access Dashboard'}
           </Button>
         </div>
       </div>
@@ -175,7 +190,7 @@ function EmailGate({ onFound }: {
   );
 }
 
-// ─── Profile Preview (read-only, as recruiters see it) ────────────────────────
+// ─── Profile Preview — matches recruiter view exactly ─────────────────────────
 
 function ProfilePreview({ candidate, skills }: { candidate: CandidateRow; skills: string[] }) {
   const bio = extractBio(candidate.profile_description);
@@ -183,37 +198,37 @@ function ProfilePreview({ candidate, skills }: { candidate: CandidateRow; skills
   const coreSkills = skills.filter(s => CORE_FINANCE.has(s.toLowerCase()));
   const techSkills = skills.filter(s => !CORE_FINANCE.has(s.toLowerCase()));
 
+  // Executive summary chips — same as recruiter portal
   const chips: string[] = [];
   if (candidate.experience) chips.push(`${candidate.experience} yrs exp`);
-  if (candidate.highest_education_level || candidate.education) chips.push(candidate.highest_education_level || candidate.education || '');
-  if ((candidate as any).primary_background) chips.push((candidate as any).primary_background);
+  if (candidate.highest_education_level || candidate.education)
+    chips.push(candidate.highest_education_level || candidate.education || '');
+  if (candidate.primary_background) chips.push(candidate.primary_background);
+  if (meta.workPreference) chips.push(meta.workPreference);
+  if (candidate.open_to_opportunities) chips.push('Open to opportunities');
 
   return (
     <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
       {/* Header */}
-      <div className="p-5 pb-4 border-b border-gray-50">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2 flex-wrap mb-2">
-              <h3 className="font-semibold text-gray-900 text-base leading-tight">
-                {candidate.label || 'Finance Professional'}
-              </h3>
-              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-                candidate.open_to_opportunities
-                  ? 'bg-emerald-50 text-emerald-700'
-                  : 'bg-gray-100 text-gray-500'
-              }`}>
-                <span className={`w-1.5 h-1.5 rounded-full ${candidate.open_to_opportunities ? 'bg-emerald-500' : 'bg-gray-400'}`} />
-                {candidate.open_to_opportunities ? 'Open to opportunities' : 'Not looking'}
-              </span>
-            </div>
-            <p className="text-xs text-gray-400 flex items-center gap-1">
-              <MapPin className="w-3 h-3" />{candidate.location || 'United States'}
-            </p>
-          </div>
+      <div className="p-5 pb-4 border-b border-gray-100">
+        <div className="flex items-start gap-3 flex-wrap mb-2">
+          <h3 className="font-semibold text-gray-900 text-base leading-tight">
+            {candidate.label || 'Finance Professional'}
+          </h3>
+          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium shrink-0 ${
+            candidate.open_to_opportunities
+              ? 'bg-emerald-50 text-emerald-700'
+              : 'bg-gray-100 text-gray-500'
+          }`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${candidate.open_to_opportunities ? 'bg-emerald-500' : 'bg-gray-400'}`} />
+            {candidate.open_to_opportunities ? 'Open to opportunities' : 'Not looking'}
+          </span>
         </div>
+        <p className="text-xs text-gray-400 flex items-center gap-1 mb-3">
+          <MapPin className="w-3 h-3" />{candidate.location || 'United States'}
+        </p>
         {chips.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mt-3">
+          <div className="flex flex-wrap gap-1.5">
             {chips.map(c => (
               <span key={c} className="px-2.5 py-1 bg-gray-100 text-gray-600 rounded-full text-xs font-medium">{c}</span>
             ))}
@@ -221,13 +236,16 @@ function ProfilePreview({ candidate, skills }: { candidate: CandidateRow; skills
         )}
       </div>
 
-      <div className="p-5 space-y-4">
-        {/* Bio */}
+      <div className="p-5 space-y-5">
+        {/* Professional Summary */}
         {bio && (
-          <p className="text-sm text-gray-600 leading-relaxed">{bio}</p>
+          <div>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Professional Summary</p>
+            <p className="text-sm text-gray-700 leading-relaxed">{bio}</p>
+          </div>
         )}
 
-        {/* Skills */}
+        {/* Core Expertise */}
         {coreSkills.length > 0 && (
           <div>
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Core Expertise</p>
@@ -238,6 +256,8 @@ function ProfilePreview({ candidate, skills }: { candidate: CandidateRow; skills
             </div>
           </div>
         )}
+
+        {/* Technical Skills */}
         {techSkills.length > 0 && (
           <div>
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Technical Skills</p>
@@ -249,29 +269,36 @@ function ProfilePreview({ candidate, skills }: { candidate: CandidateRow; skills
           </div>
         )}
 
-        {/* Candidate Snapshot */}
-        <div className="pt-2 border-t border-gray-100">
+        {/* Candidate Snapshot — same rows as recruiter portal */}
+        <div className="border-t border-gray-100 pt-4">
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Candidate Snapshot</p>
-          <div className="space-y-2">
+          <div className="space-y-2.5">
             {[
               { icon: '📍', label: 'Location', value: candidate.location },
               { icon: '💼', label: 'Experience', value: candidate.experience ? `${candidate.experience} years` : null },
               { icon: '🏢', label: 'Work Preference', value: meta.workPreference || null },
               { icon: '💰', label: 'Target Comp', value: meta.targetComp || null },
               { icon: '🏙️', label: 'Preferred Cities', value: meta.preferredCities.length ? meta.preferredCities.join(', ') : null },
-              { icon: '✅', label: 'Availability', value: candidate.open_to_opportunities ? 'Open to opportunities' : null },
+              { icon: '📊', label: 'Primary Background', value: candidate.primary_background || null },
+              {
+                icon: '📋', label: 'Secondary Background',
+                value: Array.isArray(candidate.secondary_backgrounds) && candidate.secondary_backgrounds.length > 0
+                  ? candidate.secondary_backgrounds.join(' · ')
+                  : null,
+              },
+              { icon: '✅', label: 'Availability', value: candidate.open_to_opportunities ? 'Open to opportunities' : 'Not looking' },
             ].filter(r => r.value).map(r => (
-              <div key={r.label} className="flex items-center gap-2 text-xs">
-                <span className="w-5 text-center">{r.icon}</span>
-                <span className="text-gray-400 w-28 shrink-0">{r.label}</span>
-                <span className="text-gray-700 font-medium">{r.value}</span>
+              <div key={r.label} className="flex items-start gap-2 text-xs">
+                <span className="w-5 text-center shrink-0 mt-0.5">{r.icon}</span>
+                <span className="text-gray-400 w-32 shrink-0">{r.label}</span>
+                <span className="text-gray-700 font-medium leading-snug">{r.value}</span>
               </div>
             ))}
           </div>
         </div>
 
         <div className="flex items-center gap-1.5 text-xs text-gray-400 pt-1 border-t border-gray-100">
-          <Shield className="w-3 h-3" />
+          <Shield className="w-3 h-3 shrink-0" />
           Your name and contact info are hidden from recruiters
         </div>
       </div>
@@ -279,7 +306,7 @@ function ProfilePreview({ candidate, skills }: { candidate: CandidateRow; skills
   );
 }
 
-// ─── Edit Profile Form ────────────────────────────────────────────────────────
+// ─── Edit Profile Section ─────────────────────────────────────────────────────
 
 function EditSection({
   candidate,
@@ -291,21 +318,53 @@ function EditSection({
   const meta = extractMeta(candidate.profile_description);
   const bio = extractBio(candidate.profile_description);
 
+  // FIX 4: availability — initialise from DB, update immediately on click
   const [availability, setAvailability] = useState<'active' | 'not-active'>(
     candidate.open_to_opportunities ? 'active' : 'not-active'
   );
-  const [committed, setCommitted] = useState(false);
+  const [availSaving, setAvailSaving] = useState(false);
+
+  // FIX 5: commitment — pre-checked (they agreed during intake)
+  const [committed, setCommitted] = useState(true);
+  const [showCommitWarning, setShowCommitWarning] = useState(false);
+
+  // Other fields
   const [workPref, setWorkPref] = useState(meta.workPreference || '');
   const [targetComp, setTargetComp] = useState(meta.targetComp || '');
+
+  // FIX 3: bio editable, pre-filled
   const [editBio, setEditBio] = useState(bio);
+
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
 
+  // FIX 4: immediate availability update
+  const handleAvailabilityChange = async (val: 'active' | 'not-active') => {
+    setAvailability(val);
+    setAvailSaving(true);
+    try {
+      await supabase
+        .from('candidates')
+        .update({ open_to_opportunities: val === 'active' } as any)
+        .eq('id', candidate.id);
+      onSaved({ open_to_opportunities: val === 'active' });
+    } finally {
+      setAvailSaving(false);
+    }
+  };
+
   const handleSave = async () => {
+    // FIX 5: warn if unchecked
+    if (!committed) {
+      setShowCommitWarning(true);
+      return;
+    }
+    setShowCommitWarning(false);
     setSaving(true);
     setError('');
     try {
+      // FIX 3: update bio + meta via save API (preserves metadata structure)
       const res = await fetch('/api/save-candidate-dashboard', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -320,7 +379,7 @@ function EditSection({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to save');
       setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
+      setTimeout(() => setSaved(false), 3500);
       onSaved({ open_to_opportunities: availability === 'active' });
     } catch (err: any) {
       setError(err.message);
@@ -331,48 +390,39 @@ function EditSection({
 
   return (
     <div className="bg-white border border-gray-200 rounded-2xl p-6 space-y-6">
-      <h2 className="font-semibold text-gray-900 text-base">Edit Profile</h2>
+      <h2 className="font-semibold text-gray-900">Edit Profile</h2>
 
-      {/* Availability status */}
+      {/* FIX 4: Availability cards */}
       <div>
-        <p className="text-sm font-semibold text-gray-700 mb-3">Availability Status</p>
+        <p className="text-sm font-semibold text-gray-700 mb-3">
+          Availability Status
+          {availSaving && <Loader2 className="w-3 h-3 animate-spin inline ml-2 text-gray-400" />}
+        </p>
         <div className="grid grid-cols-2 gap-3">
-          <button
-            type="button"
-            onClick={() => setAvailability('active')}
-            className={`p-4 border-2 rounded-xl text-left transition-all ${
-              availability === 'active'
-                ? 'border-emerald-500 bg-emerald-50'
-                : 'border-gray-200 bg-white hover:border-gray-300'
-            }`}
-          >
-            <div className="text-xl mb-1">🟢</div>
-            <p className={`text-sm font-semibold ${availability === 'active' ? 'text-emerald-800' : 'text-gray-700'}`}>
-              Actively Looking
-            </p>
-            <p className="text-xs text-gray-400 mt-0.5 leading-snug">
-              I'm open to new opportunities right now
-            </p>
-          </button>
-          <button
-            type="button"
-            onClick={() => setAvailability('not-active')}
-            className={`p-4 border-2 rounded-xl text-left transition-all ${
-              availability === 'not-active'
-                ? 'border-gray-400 bg-gray-50'
-                : 'border-gray-200 bg-white hover:border-gray-300'
-            }`}
-          >
-            <div className="text-xl mb-1">⏸️</div>
-            <p className={`text-sm font-semibold ${availability === 'not-active' ? 'text-gray-800' : 'text-gray-700'}`}>
-              Not Active
-            </p>
-            <p className="text-xs text-gray-400 mt-0.5 leading-snug">
-              Please hide my profile for now
-            </p>
-          </button>
+          {[
+            { val: 'active' as const, emoji: '🟢', label: 'Actively Looking', desc: "I'm open to new opportunities right now" },
+            { val: 'not-active' as const, emoji: '⏸️', label: 'Not Active', desc: 'Please hide my profile for now' },
+          ].map(opt => (
+            <button
+              key={opt.val}
+              type="button"
+              onClick={() => handleAvailabilityChange(opt.val)}
+              className={`p-4 border-2 rounded-xl text-left transition-all ${
+                availability === opt.val
+                  ? opt.val === 'active' ? 'border-emerald-500 bg-emerald-50' : 'border-gray-400 bg-gray-50'
+                  : 'border-gray-200 bg-white hover:border-gray-300'
+              }`}
+            >
+              <div className="text-xl mb-2">{opt.emoji}</div>
+              <p className={`text-sm font-semibold leading-tight ${
+                availability === opt.val
+                  ? opt.val === 'active' ? 'text-emerald-800' : 'text-gray-800'
+                  : 'text-gray-700'
+              }`}>{opt.label}</p>
+              <p className="text-xs text-gray-400 mt-1 leading-snug">{opt.desc}</p>
+            </button>
+          ))}
         </div>
-
         <div className="mt-3 p-3 bg-blue-50 border border-blue-100 rounded-lg">
           <p className="text-xs text-blue-700 leading-relaxed">
             We want to provide a great experience to both sides. Clear availability signals help recruiters move fast and respect your time.
@@ -380,24 +430,33 @@ function EditSection({
         </div>
       </div>
 
-      {/* Commitment checkbox */}
-      <div className="p-4 border border-gray-200 rounded-xl bg-gray-50">
+      {/* FIX 5: Commitment checkbox */}
+      <div className={`p-4 border rounded-xl ${showCommitWarning ? 'border-amber-300 bg-amber-50' : 'border-gray-200 bg-gray-50'}`}>
         <label className="flex items-start gap-3 cursor-pointer">
           <input
             type="checkbox"
             checked={committed}
-            onChange={e => setCommitted(e.target.checked)}
-            className="mt-0.5 h-4 w-4 rounded border-gray-300 text-emerald-600"
+            onChange={e => {
+              setCommitted(e.target.checked);
+              if (e.target.checked) setShowCommitWarning(false);
+            }}
+            className="mt-0.5 h-4 w-4 rounded border-gray-300 text-emerald-600 shrink-0"
           />
           <div>
-            <p className="text-sm text-gray-700 font-medium leading-snug">
-              I commit to responding to introduction requests within 48 hours via email or text.
+            <p className="text-sm font-medium text-gray-700 leading-snug">
+              ✓ I commit to responding to all introduction requests within 48 hours
             </p>
             <p className="text-xs text-gray-400 mt-1.5 leading-relaxed">
-              Candidates who don't respond will be gradually deprioritized and may eventually be hidden from the platform. We do this to ensure recruiters always get a timely response.
+              Non-responses will result in your profile being deprioritized. Repeated non-responses may result in removal from the platform.
             </p>
           </div>
         </label>
+        {showCommitWarning && (
+          <div className="mt-3 flex items-start gap-2 text-xs text-amber-700">
+            <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+            <span>Candidates who don't respond will be deprioritized and may be hidden from the platform.</span>
+          </div>
+        )}
       </div>
 
       {/* Work preference */}
@@ -427,7 +486,7 @@ function EditSection({
         <select
           value={targetComp}
           onChange={e => setTargetComp(e.target.value)}
-          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+          className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
         >
           <option value="">Select…</option>
           {COMP_OPTIONS.map(opt => (
@@ -436,14 +495,14 @@ function EditSection({
         </select>
       </div>
 
-      {/* Bio */}
+      {/* FIX 3: Bio textarea — editable, NOT grayed out */}
       <div>
         <p className="text-sm font-semibold text-gray-700 mb-2">Professional Bio</p>
         <textarea
           value={editBio}
           onChange={e => setEditBio(e.target.value)}
-          rows={4}
-          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
+          rows={5}
+          className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-800 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none leading-relaxed"
           placeholder="Describe your background and what you're looking for…"
         />
       </div>
@@ -462,32 +521,28 @@ function EditSection({
       <Button
         className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
         onClick={handleSave}
-        disabled={saving || !committed}
+        disabled={saving}
       >
         {saving ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Saving…</> : 'Save Changes'}
       </Button>
-      {!committed && (
-        <p className="text-xs text-center text-gray-400">Check the commitment box above to save</p>
-      )}
     </div>
   );
 }
 
-// ─── Introduction Requests ────────────────────────────────────────────────────
+// ─── Intro Requests Section ───────────────────────────────────────────────────
 
-function IntroRequests({ candidateId }: { candidateId: string }) {
+function IntroRequestsSection({ candidateId }: { candidateId: string }) {
   const [intros, setIntros] = useState<IntroRequest[] | null>(null);
 
-  // load on mount
-  useState(() => {
+  useEffect(() => {
+    // FIX 6: query with job details
     supabase
       .from('introduction_requests')
-      .select('id, created_at, status, notes')
+      .select('*, jobs(title, company, salary_range)')
       .eq('candidate_id', candidateId)
       .order('created_at', { ascending: false })
-      .limit(20)
       .then(({ data }) => setIntros((data as IntroRequest[]) || []));
-  });
+  }, [candidateId]);
 
   return (
     <div className="bg-white border border-gray-200 rounded-2xl p-6">
@@ -505,31 +560,49 @@ function IntroRequests({ candidateId }: { candidateId: string }) {
           <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
             <Clock className="w-5 h-5 text-gray-400" />
           </div>
-          <p className="text-sm text-gray-500">No introduction requests yet.</p>
-          <p className="text-xs text-gray-400 mt-1 leading-relaxed max-w-xs mx-auto">
+          <p className="text-sm text-gray-600 font-medium">No introduction requests yet.</p>
+          <p className="text-xs text-gray-400 mt-1.5 leading-relaxed max-w-xs mx-auto">
             You'll be notified by email when a recruiter is interested in connecting.
           </p>
         </div>
       ) : (
         <div className="space-y-3">
-          {intros.map(req => (
-            <div key={req.id} className="flex items-start justify-between p-4 bg-gray-50 rounded-xl">
-              <div>
-                <p className="text-sm font-medium text-gray-800">Introduction Request</p>
-                {req.notes && <p className="text-xs text-gray-500 mt-0.5">{req.notes}</p>}
-                <p className="text-xs text-gray-400 mt-1">
-                  {new Date(req.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                </p>
+          {intros.map(req => {
+            const job = req.jobs;
+            const statusMap: Record<string, { label: string; cls: string }> = {
+              approved: { label: 'Accepted', cls: 'bg-emerald-100 text-emerald-700' },
+              rejected: { label: 'Declined', cls: 'bg-gray-100 text-gray-500' },
+              pending:  { label: 'Pending',  cls: 'bg-amber-100  text-amber-700'  },
+            };
+            const s = statusMap[req.status] ?? { label: req.status || 'Pending', cls: 'bg-amber-100 text-amber-700' };
+
+            return (
+              <div key={req.id} className="flex items-start justify-between gap-3 p-4 bg-gray-50 rounded-xl">
+                <div className="min-w-0">
+                  {job?.title && (
+                    <p className="text-sm font-semibold text-gray-800 leading-snug">
+                      {job.title}{job.company ? ` — ${job.company}` : ''}
+                    </p>
+                  )}
+                  {!job?.title && (
+                    <p className="text-sm font-medium text-gray-700">Introduction Request</p>
+                  )}
+                  {job?.salary_range && (
+                    <p className="text-xs text-emerald-700 font-medium mt-0.5">{job.salary_range}</p>
+                  )}
+                  {req.notes && (
+                    <p className="text-xs text-gray-500 mt-0.5 leading-snug">{req.notes}</p>
+                  )}
+                  <p className="text-xs text-gray-400 mt-1">
+                    {new Date(req.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                  </p>
+                </div>
+                <span className={`text-xs px-2.5 py-1 rounded-full font-medium shrink-0 whitespace-nowrap ${s.cls}`}>
+                  {s.label}
+                </span>
               </div>
-              <span className={`text-xs px-2.5 py-1 rounded-full font-medium shrink-0 ml-3 ${
-                req.status === 'accepted' ? 'bg-emerald-100 text-emerald-700' :
-                req.status === 'declined' ? 'bg-gray-100 text-gray-500' :
-                'bg-amber-100 text-amber-700'
-              }`}>
-                {req.status || 'Pending'}
-              </span>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
@@ -541,15 +614,13 @@ function IntroRequests({ candidateId }: { candidateId: string }) {
 export default function CandidateDashboard() {
   const [candidate, setCandidate] = useState<CandidateRow | null>(null);
   const [skills, setSkills] = useState<string[]>([]);
-  const [intros, setIntros] = useState<IntroRequest[]>([]);
 
   if (!candidate) {
     return (
       <EmailGate
-        onFound={(cand, sk, ir) => {
+        onFound={(cand, sk) => {
           setCandidate(cand);
           setSkills(sk);
-          setIntros(ir);
         }}
       />
     );
@@ -562,7 +633,7 @@ export default function CandidateDashboard() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 px-6 py-4">
+      <header className="bg-white border-b border-gray-200 px-6 py-4 sticky top-0 z-10">
         <div className="max-w-2xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <span className="font-bold text-lg text-gray-900 tracking-tight">SFC Talent</span>
@@ -590,7 +661,7 @@ export default function CandidateDashboard() {
           )}
         </div>
 
-        {/* Section 1: Profile Preview */}
+        {/* Section 1 — Profile Preview */}
         <div>
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
             How Recruiters See Your Profile
@@ -598,58 +669,19 @@ export default function CandidateDashboard() {
           <ProfilePreview candidate={candidate} skills={skills} />
         </div>
 
-        {/* Section 2: Edit Profile */}
+        {/* Section 2 — Edit Profile */}
         <EditSection
           candidate={candidate}
           onSaved={updates => setCandidate(c => c ? { ...c, ...updates } : c)}
         />
 
-        {/* Section 3: Introduction Requests */}
+        {/* Section 3 — Introduction Requests */}
         <div>
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
-            Activity
-          </p>
-          <div className="bg-white border border-gray-200 rounded-2xl p-6">
-            <div className="flex items-center gap-2 mb-5">
-              <Bell className="w-4 h-4 text-gray-400" />
-              <h2 className="font-semibold text-gray-900">Introduction Requests</h2>
-            </div>
-            {intros.length === 0 ? (
-              <div className="text-center py-8">
-                <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
-                  <Clock className="w-5 h-5 text-gray-400" />
-                </div>
-                <p className="text-sm text-gray-500">No introduction requests yet.</p>
-                <p className="text-xs text-gray-400 mt-1 leading-relaxed max-w-xs mx-auto">
-                  You'll be notified by email when a recruiter is interested in connecting.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {intros.map(req => (
-                  <div key={req.id} className="flex items-start justify-between p-4 bg-gray-50 rounded-xl">
-                    <div>
-                      <p className="text-sm font-medium text-gray-800">Introduction Request</p>
-                      {req.notes && <p className="text-xs text-gray-500 mt-0.5">{req.notes}</p>}
-                      <p className="text-xs text-gray-400 mt-1">
-                        {new Date(req.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                      </p>
-                    </div>
-                    <span className={`text-xs px-2.5 py-1 rounded-full font-medium shrink-0 ml-3 ${
-                      req.status === 'accepted' ? 'bg-emerald-100 text-emerald-700' :
-                      req.status === 'declined' ? 'bg-gray-100 text-gray-500' :
-                      'bg-amber-100 text-amber-700'
-                    }`}>
-                      {req.status || 'Pending'}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Activity</p>
+          <IntroRequestsSection candidateId={candidate.id} />
         </div>
 
-        {/* Section 4: Quick Links */}
+        {/* Section 4 — Help */}
         <div className="bg-white border border-gray-100 rounded-2xl p-5 text-center">
           <p className="text-sm text-gray-500">
             Need help?{' '}

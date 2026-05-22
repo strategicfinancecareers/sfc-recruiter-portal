@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   CheckCircle2, Upload, Loader2, ChevronRight, ChevronLeft,
   X, Plus, Shield, MessageCircle, RefreshCw,
@@ -268,24 +268,337 @@ function SkillsInput({ skills, onChange }: { skills: string[]; onChange: (s: str
   );
 }
 
-function LogoScroll() {
-  const doubled = [...COMPANY_LOGOS, ...COMPANY_LOGOS];
+// ─── Landing sub-components ───────────────────────────────────────────────────
+
+const LANDING_LOGOS = [
+  'Goldman Sachs', 'McKinsey', 'Stripe', 'Blackstone', 'Google',
+  'KKR', 'JP Morgan', 'Bain', 'BCG', 'Sequoia', 'Citadel',
+  'Andreessen Horowitz', 'Two Sigma', 'Apollo',
+];
+
+const LANDING_CSS = `
+@keyframes sfc-marquee { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+@keyframes sfc-float { 0%,100% { transform: rotate(2deg) translateY(0); } 50% { transform: rotate(2deg) translateY(-3px); } }
+.sfc-marquee-track { display:flex; width:max-content; animation: sfc-marquee 30s linear infinite; }
+.sfc-marquee-track:hover { animation-play-state: paused; }
+.sfc-float-card { animation: sfc-float 4s ease-in-out infinite; }
+.sfc-fade { opacity:0; transform:translateY(12px); transition: opacity 0.5s ease, transform 0.5s ease; }
+.sfc-fade.visible { opacity:1; transform:translateY(0); }
+`;
+
+function useFadeIn() {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) { el.classList.add('visible'); obs.disconnect(); }
+    }, { threshold: 0.15 });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+  return ref;
+}
+
+function LandingSection({ onStart }: { onStart: () => void }) {
+  const s2 = useFadeIn(); const s3 = useFadeIn(); const s4 = useFadeIn();
+  const s5 = useFadeIn(); const s6 = useFadeIn();
+  const doubled = [...LANDING_LOGOS, ...LANDING_LOGOS];
+
   return (
-    <div className="w-full overflow-hidden py-8 bg-gray-50 border-y border-gray-100">
-      <style>{`
-        @keyframes sfc-scroll { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
-        .sfc-logo-track { display:flex; width:max-content; animation: sfc-scroll 28s linear infinite; }
-        .sfc-logo-track:hover { animation-play-state: paused; }
-      `}</style>
-      <p className="text-center text-xs font-semibold text-gray-400 uppercase tracking-widest mb-5">
-        Trusted by professionals from
-      </p>
-      <div className="sfc-logo-track">
-        {doubled.map((name, i) => (
-          <span key={i} className="mx-8 text-sm font-semibold text-gray-400 whitespace-nowrap select-none">
-            {name}
-          </span>
-        ))}
+    <div style={{ fontFamily: 'system-ui, -apple-system, sans-serif', backgroundColor: '#FFFFFF', color: '#0A0A0A' }}>
+      <style>{LANDING_CSS}</style>
+
+      {/* ── Nav ── */}
+      <nav style={{ padding: '20px 40px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #F3F4F6' }}>
+        <span style={{ fontWeight: 600, fontSize: 16, letterSpacing: '-0.01em', color: '#0A0A0A' }}>SFC Talent</span>
+        <button
+          onClick={onStart}
+          style={{ background: 'none', border: '1px solid #E5E7EB', borderRadius: 8, padding: '8px 20px', fontSize: 14, fontWeight: 500, color: '#374151', cursor: 'pointer' }}
+        >
+          Join the Network
+        </button>
+      </nav>
+
+      {/* ── SECTION 1: HERO ── */}
+      <section style={{ minHeight: 'calc(100vh - 65px)', display: 'flex', alignItems: 'center', padding: '80px 40px', maxWidth: 1200, margin: '0 auto' }}>
+        {/* Left */}
+        <div style={{ flex: 1, maxWidth: 580 }}>
+          {/* Badge */}
+          <div style={{ display: 'inline-block', marginBottom: 28, padding: '6px 14px', background: '#F0FDF4', border: '1px solid #D1FAE5', borderRadius: 100 }}>
+            <span style={{ fontSize: 12, fontWeight: 500, letterSpacing: '0.05em', color: '#065F46', textTransform: 'uppercase' }}>
+              Private Network · By Application Only
+            </span>
+          </div>
+
+          {/* Headline */}
+          <h1 style={{ fontSize: 'clamp(40px, 5vw, 64px)', fontWeight: 600, lineHeight: 1.1, marginBottom: 24, color: '#0A0A0A', letterSpacing: '-0.02em' }}>
+            Stay <span style={{ color: '#0F6E56' }}>Anonymous</span>.<br />
+            Get Introduced to<br />
+            <span style={{ color: '#0F6E56' }}>Top Finance Teams</span>.
+          </h1>
+
+          {/* Sub */}
+          <p style={{ fontSize: 18, fontWeight: 400, color: '#6B7280', lineHeight: 1.6, maxWidth: 520, marginBottom: 40 }}>
+            A curated private network for strategic finance professionals. No recruiters. No spam. Just selective introductions.
+          </p>
+
+          {/* CTA */}
+          <button
+            onClick={onStart}
+            style={{
+              background: '#0F6E56', color: 'white', border: 'none', borderRadius: 8,
+              padding: '14px 32px', fontSize: 15, fontWeight: 500, cursor: 'pointer',
+              transition: 'background 0.2s ease, transform 0.2s ease', marginBottom: 16,
+            }}
+            onMouseEnter={e => { (e.target as HTMLElement).style.background = '#0A5C47'; (e.target as HTMLElement).style.transform = 'translateY(-1px)'; }}
+            onMouseLeave={e => { (e.target as HTMLElement).style.background = '#0F6E56'; (e.target as HTMLElement).style.transform = 'translateY(0)'; }}
+          >
+            Join the Network
+          </button>
+
+          <p style={{ fontSize: 13, color: '#9CA3AF', marginTop: 4 }}>
+            Takes 5 minutes · 100% free · Fully anonymous
+          </p>
+        </div>
+
+        {/* Right — floating dark card (desktop) */}
+        <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }} className="hidden lg:flex">
+          <div
+            className="sfc-float-card"
+            style={{
+              background: '#0F172A', borderRadius: 16, padding: 28, width: 280,
+              border: '1px solid #1E293B',
+            }}
+          >
+            {/* Anonymous badge */}
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#052E16', border: '1px solid #166534', borderRadius: 100, padding: '4px 10px', marginBottom: 20 }}>
+              <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#22C55E' }} />
+              <span style={{ fontSize: 11, color: '#86EFAC', fontWeight: 500, letterSpacing: '0.04em' }}>ANONYMOUS</span>
+            </div>
+
+            {/* Avatar + role */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+              <div style={{ width: 44, height: 44, borderRadius: '50%', background: '#134E4A', display: 'flex', alignItems: 'center', justifyContent: 'center', filter: 'blur(2px)', flexShrink: 0 }}>
+                <span style={{ fontSize: 14, fontWeight: 600, color: '#5EEAD4' }}>SF</span>
+              </div>
+              <div>
+                <p style={{ fontSize: 16, fontWeight: 500, color: '#F1F5F9', lineHeight: 1.3, margin: 0 }}>VP Finance · Fintech</p>
+                <p style={{ fontSize: 12, color: '#64748B', margin: '2px 0 0', fontWeight: 400 }}>8 yrs experience</p>
+              </div>
+            </div>
+
+            {/* Skill chips */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 20 }}>
+              {['Strategic Finance', 'FP&A', 'M&A'].map(s => (
+                <span key={s} style={{ background: '#1E293B', color: '#E2E8F0', borderRadius: 100, padding: '4px 10px', fontSize: 12, fontWeight: 500 }}>{s}</span>
+              ))}
+            </div>
+
+            {/* Lock footer */}
+            <div style={{ borderTop: '1px solid #1E293B', paddingTop: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#475569" strokeWidth="2" strokeLinecap="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0110 0v4"/>
+              </svg>
+              <span style={{ fontSize: 12, color: '#64748B' }}>Identity protected</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── SECTION 2: LOGO MARQUEE ── */}
+      <section ref={s2} className="sfc-fade" style={{ background: '#F9FAFB', padding: '48px 0', overflow: 'hidden' }}>
+        <p style={{ textAlign: 'center', fontSize: 11, fontWeight: 500, letterSpacing: '0.1em', color: '#9CA3AF', textTransform: 'uppercase', marginBottom: 24 }}>
+          Professionals from
+        </p>
+        <div className="sfc-marquee-track">
+          {doubled.map((name, i) => (
+            <span
+              key={i}
+              style={{ margin: '0 36px', fontSize: 15, fontWeight: 600, color: '#D1D5DB', letterSpacing: '0.02em', whiteSpace: 'nowrap', cursor: 'default', transition: 'color 0.2s' }}
+              onMouseEnter={e => ((e.target as HTMLElement).style.color = '#6B7280')}
+              onMouseLeave={e => ((e.target as HTMLElement).style.color = '#D1D5DB')}
+            >
+              {name}
+            </span>
+          ))}
+        </div>
+      </section>
+
+      {/* ── SECTION 3: VALUE PROPS ── */}
+      <section ref={s3} className="sfc-fade" style={{ background: '#FFFFFF', padding: '96px 40px' }}>
+        <div style={{ maxWidth: 1100, margin: '0 auto', textAlign: 'center' }}>
+          <p style={{ fontSize: 11, fontWeight: 500, letterSpacing: '0.1em', color: '#9CA3AF', textTransform: 'uppercase', marginBottom: 16 }}>Why SFC Talent</p>
+          <h2 style={{ fontSize: 40, fontWeight: 600, color: '#0A0A0A', letterSpacing: '-0.02em', lineHeight: 1.15, marginBottom: 16 }}>Built for serious finance professionals.</h2>
+          <p style={{ fontSize: 18, color: '#6B7280', marginBottom: 64 }}>Not a job board. Not a recruiter. A private introduction network.</p>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 24 }}>
+            {[
+              {
+                icon: (
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0F6E56" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
+                  </svg>
+                ),
+                title: 'You stay anonymous',
+                body: 'Your name, employer, and contact details are never revealed to recruiters without your explicit consent.',
+              },
+              {
+                icon: (
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0F6E56" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+                  </svg>
+                ),
+                title: 'Curated, not broadcast',
+                body: 'Every introduction is reviewed and selective. You won\'t be mass-applied to roles or spammed by recruiters.',
+              },
+              {
+                icon: (
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0F6E56" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10"/><polyline points="9 12 11 14 15 10"/>
+                  </svg>
+                ),
+                title: 'You control every intro',
+                body: 'Accept or decline any introduction request within 48 hours. No pressure, no obligation, no awkward calls.',
+              },
+            ].map(card => (
+              <div
+                key={card.title}
+                style={{
+                  background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: 12,
+                  padding: 32, textAlign: 'left', transition: 'border-color 0.2s',
+                }}
+                onMouseEnter={e => ((e.currentTarget as HTMLElement).style.borderColor = '#0F6E56')}
+                onMouseLeave={e => ((e.currentTarget as HTMLElement).style.borderColor = '#E5E7EB')}
+              >
+                <div style={{ marginBottom: 16 }}>{card.icon}</div>
+                <h3 style={{ fontSize: 18, fontWeight: 600, color: '#0A0A0A', marginBottom: 12 }}>{card.title}</h3>
+                <p style={{ fontSize: 15, color: '#6B7280', lineHeight: 1.6, margin: 0 }}>{card.body}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── SECTION 4: HOW IT WORKS ── */}
+      <section ref={s4} className="sfc-fade" style={{ background: '#F9FAFB', padding: '96px 40px' }}>
+        <div style={{ maxWidth: 680, margin: '0 auto' }}>
+          <p style={{ fontSize: 11, fontWeight: 500, letterSpacing: '0.1em', color: '#9CA3AF', textTransform: 'uppercase', marginBottom: 16, textAlign: 'center' }}>How it works</p>
+          <h2 style={{ fontSize: 40, fontWeight: 600, color: '#0A0A0A', letterSpacing: '-0.02em', lineHeight: 1.15, marginBottom: 64, textAlign: 'center' }}>From anonymous to introduced in days.</h2>
+
+          <div style={{ position: 'relative', paddingLeft: 48 }}>
+            {/* Vertical line */}
+            <div style={{ position: 'absolute', left: 14, top: 14, bottom: 14, width: 1, background: '#E5E7EB' }} />
+
+            {[
+              { n: '1', title: 'Create your anonymous profile', body: 'Upload your resume. Our AI extracts your experience, skills, and background — no manual entry.', delay: 0 },
+              { n: '2', title: 'Get discovered by top companies', body: 'Recruiters browse anonymous profiles. They see your role, experience, and skills — never your identity.', delay: 100 },
+              { n: '3', title: 'Receive curated introduction requests', body: 'When a company is interested, you get a direct message. One tap to accept or decline.', delay: 200 },
+              { n: '4', title: 'Connect on your terms', body: 'Only if you accept does your contact information get shared. You stay in full control throughout.', delay: 300 },
+            ].map(step => (
+              <TimelineStep key={step.n} step={step} />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── SECTION 5: PRIVACY STATEMENT ── */}
+      <section ref={s5} className="sfc-fade" style={{ background: '#0A0A0A', padding: '80px 40px', textAlign: 'center' }}>
+        <div style={{ maxWidth: 680, margin: '0 auto' }}>
+          <h2 style={{ fontSize: 36, fontWeight: 600, color: '#FFFFFF', letterSpacing: '-0.02em', marginBottom: 24 }}>Your privacy is the product.</h2>
+          <p style={{ fontSize: 16, color: '#9CA3AF', lineHeight: 1.7, marginBottom: 56 }}>
+            Many candidates in our network are currently employed and exploring discreetly. We built SFC Talent around the principle that your career information belongs to you — not to recruiters, not to job boards, and not to us.
+          </p>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 64, flexWrap: 'wrap' }}>
+            {[
+              { stat: '100%', label: 'Anonymous by default' },
+              { stat: '0', label: 'Recruiter cold calls' },
+              { stat: '48hr', label: 'Response window' },
+            ].map(({ stat, label }) => (
+              <div key={label} style={{ textAlign: 'center' }}>
+                <p style={{ fontSize: 28, fontWeight: 600, color: '#FFFFFF', margin: '0 0 4px' }}>{stat}</p>
+                <p style={{ fontSize: 13, color: '#6B7280', margin: 0 }}>{label}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── SECTION 6: FINAL CTA ── */}
+      <section ref={s6} className="sfc-fade" style={{ background: '#FFFFFF', padding: '96px 40px', textAlign: 'center' }}>
+        <h2 style={{ fontSize: 48, fontWeight: 600, color: '#0A0A0A', letterSpacing: '-0.02em', marginBottom: 20 }}>Ready to be discovered?</h2>
+        <p style={{ fontSize: 18, color: '#6B7280', marginBottom: 40, maxWidth: 560, margin: '0 auto 40px' }}>
+          Join a network of strategic finance professionals being approached by top companies.
+        </p>
+        <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 24 }}>
+          <button
+            onClick={onStart}
+            style={{
+              background: '#0F6E56', color: 'white', border: 'none', borderRadius: 8,
+              padding: '14px 32px', fontSize: 15, fontWeight: 500, cursor: 'pointer',
+              transition: 'background 0.2s ease, transform 0.2s ease',
+            }}
+            onMouseEnter={e => { (e.target as HTMLElement).style.background = '#0A5C47'; (e.target as HTMLElement).style.transform = 'translateY(-1px)'; }}
+            onMouseLeave={e => { (e.target as HTMLElement).style.background = '#0F6E56'; (e.target as HTMLElement).style.transform = 'translateY(0)'; }}
+          >
+            Join the Network
+          </button>
+          <a
+            href="#how-it-works"
+            onClick={e => { e.preventDefault(); s4.current?.scrollIntoView({ behavior: 'smooth' }); }}
+            style={{
+              background: 'transparent', color: '#374151', border: '1px solid #E5E7EB', borderRadius: 8,
+              padding: '14px 32px', fontSize: 15, fontWeight: 500, cursor: 'pointer',
+              textDecoration: 'none', display: 'inline-block', transition: 'border-color 0.2s',
+            }}
+          >
+            Learn how it works
+          </a>
+        </div>
+        <p style={{ fontSize: 13, color: '#9CA3AF' }}>
+          Already have a profile?{' '}
+          <a href="/candidate-dashboard" style={{ color: '#9CA3AF', textDecoration: 'underline', textUnderlineOffset: 3 }}>
+            Access your dashboard →
+          </a>
+        </p>
+      </section>
+
+      {/* ── FOOTER ── */}
+      <footer style={{ background: '#FFFFFF', borderTop: '1px solid #F3F4F6', padding: '32px 40px', textAlign: 'center' }}>
+        <p style={{ fontSize: 13, color: '#9CA3AF', margin: 0 }}>
+          © 2025 SFC Talent · strategicfinancecareers.com · talent@strategicfinancecareers.com
+        </p>
+      </footer>
+    </div>
+  );
+}
+
+function TimelineStep({ step }: { step: { n: string; title: string; body: string; delay: number } }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) {
+        setTimeout(() => { el.style.opacity = '1'; el.style.transform = 'translateY(0)'; }, step.delay);
+        obs.disconnect();
+      }
+    }, { threshold: 0.2 });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [step.delay]);
+
+  return (
+    <div
+      ref={ref}
+      style={{ display: 'flex', gap: 24, marginBottom: 48, opacity: 0, transform: 'translateY(12px)', transition: 'opacity 0.4s ease, transform 0.4s ease' }}
+    >
+      <div style={{ flexShrink: 0, width: 28, height: 28, borderRadius: '50%', background: '#0F6E56', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600, marginTop: 2 }}>
+        {step.n}
+      </div>
+      <div>
+        <h3 style={{ fontSize: 17, fontWeight: 600, color: '#0A0A0A', marginBottom: 8, marginTop: 4 }}>{step.title}</h3>
+        <p style={{ fontSize: 15, color: '#6B7280', lineHeight: 1.6, margin: 0 }}>{step.body}</p>
       </div>
     </div>
   );
@@ -480,73 +793,7 @@ export default function CandidateApply() {
   // ── Landing ─────────────────────────────────────────────────────────────────
 
   if (screen === 'landing') {
-    return (
-      <div className="min-h-screen bg-white">
-        <div className="border-b px-6 py-4 flex items-center">
-          <span className="font-bold text-lg text-gray-900 tracking-tight">SFC Talent</span>
-        </div>
-
-        <div className="max-w-2xl mx-auto px-6 pt-20 pb-14 text-center">
-          <span className="inline-block mb-5 px-3 py-1 text-xs font-semibold tracking-wide text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full uppercase">
-            Finance Professionals
-          </span>
-          <h1 className="text-4xl font-bold text-gray-900 mb-5 leading-tight tracking-tight">
-            Get Matched With Top Finance Roles — Privately
-          </h1>
-          <p className="text-lg text-gray-500 mb-10 leading-relaxed">
-            Join SFC Talent to access exclusive opportunities at leading companies. Your identity
-            stays anonymous until you choose to connect.
-          </p>
-          <Button
-            size="lg"
-            className="bg-emerald-600 hover:bg-emerald-700 text-white px-10 py-3 text-base font-semibold"
-            onClick={() => { setScreen('form'); setStep(1); }}
-          >
-            Join Now <ChevronRight className="ml-2 w-4 h-4" />
-          </Button>
-          <p className="text-sm text-gray-400 mt-4">
-            Takes about 5 minutes · 100% free · Fully anonymous
-          </p>
-        </div>
-
-        <LogoScroll />
-
-        <div className="max-w-4xl mx-auto px-6 py-16">
-          <h2 className="text-2xl font-bold text-gray-900 text-center mb-10">How It Works</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-            {[
-              {
-                icon: MessageCircle,
-                step: '1',
-                title: 'Curated opportunities delivered directly',
-                desc: 'Recruiters send introduction requests straight to your inbox. No job boards, no cold outreach.',
-              },
-              {
-                icon: Shield,
-                step: '2',
-                title: 'Your identity stays protected',
-                desc: "Your profile is completely anonymous. Your name, employer, and contact details are never revealed without your consent.",
-              },
-              {
-                icon: CheckCircle2,
-                step: '3',
-                title: 'You stay in control',
-                desc: 'Accept or decline any opportunity within 48 hours. No pressure, no obligation.',
-              },
-            ].map(({ icon: Icon, step: s, title, desc }) => (
-              <div key={s} className="p-6 border border-gray-100 rounded-xl bg-gray-50">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-xs font-bold text-emerald-700">{s}</div>
-                  <Icon className="w-5 h-5 text-emerald-600" />
-                </div>
-                <h3 className="font-semibold text-gray-900 mb-2 text-sm leading-snug">{title}</h3>
-                <p className="text-sm text-gray-500 leading-relaxed">{desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
+    return <LandingSection onStart={() => { setScreen('form'); setStep(1); }} />;
   }
 
   // ── Disqualified ─────────────────────────────────────────────────────────────

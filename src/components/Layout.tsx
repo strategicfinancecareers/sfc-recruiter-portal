@@ -1,7 +1,7 @@
 
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
-import { Briefcase, Users, Heart, Settings, LogOut, Gauge, Menu, Handshake, Sparkles } from "lucide-react";
+import { Briefcase, Users, Heart, Settings, LogOut, Gauge, Menu, Handshake, Sparkles, CreditCard } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { useState } from 'react';
 
@@ -21,6 +21,7 @@ const Layout = () => {
   ];
 
   if (user?.role === 'admin') {
+    navigation.push({ name: 'Expenses', href: '/expenses', icon: CreditCard });
     navigation.push({ name: 'Admin', href: '/admin', icon: Users });
   }
 

@@ -22,6 +22,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import NotFound from "./pages/NotFound";
 import CandidateApply from "./pages/CandidateApply";
 import CandidateDashboard from "./pages/CandidateDashboard";
+import Expenses from "./pages/Expenses";
 
 const queryClient = new QueryClient();
 
@@ -51,6 +52,11 @@ const App = () => (
               <Route path="jobs" element={<Jobs />} />
               <Route path="introductions" element={<IntroductionRequests />} />
               <Route path="favorites" element={<Favorites />} />
+              <Route path="expenses" element={
+                <ProtectedRoute requireAdmin>
+                  <Expenses />
+                </ProtectedRoute>
+              } />
               <Route path="admin" element={
                 <ProtectedRoute requireAdmin>
                   <Admin />

@@ -107,7 +107,7 @@ const WORK_PREFERENCES = [
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Screen = 'landing' | 'form' | 'disqualified' | 'success';
+type Screen = 'landing' | 'auth' | 'form' | 'disqualified' | 'success';
 
 interface FormState {
   // Step 1 – Qualification
@@ -313,12 +313,20 @@ function LandingSection({ onStart, onSignIn }: { onStart: () => void; onSignIn: 
       {/* ── Nav ── */}
       <nav style={{ padding: '20px 40px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #F3F4F6' }}>
         <span style={{ fontWeight: 600, fontSize: 16, letterSpacing: '-0.01em', color: '#0A0A0A' }}>SFC Talent</span>
-        <button
-          onClick={onStart}
-          style={{ background: 'none', border: '1px solid #E5E7EB', borderRadius: 8, padding: '8px 20px', fontSize: 14, fontWeight: 500, color: '#374151', cursor: 'pointer' }}
-        >
-          Join the Network
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <button
+            onClick={onSignIn}
+            style={{ background: 'none', border: 'none', padding: '8px 16px', fontSize: 14, fontWeight: 500, color: '#6B7280', cursor: 'pointer' }}
+          >
+            Sign in
+          </button>
+          <button
+            onClick={onStart}
+            style={{ background: '#0F6E56', border: 'none', borderRadius: 8, padding: '8px 20px', fontSize: 14, fontWeight: 500, color: 'white', cursor: 'pointer' }}
+          >
+            Join the Network
+          </button>
+        </div>
       </nav>
 
       {/* ── SECTION 1: HERO ── */}
@@ -358,19 +366,22 @@ function LandingSection({ onStart, onSignIn }: { onStart: () => void; onSignIn: 
             Join the Network
           </button>
 
-          <p style={{ fontSize: 13, color: '#9CA3AF', marginTop: 4 }}>
+          <p style={{ fontSize: 13, color: '#9CA3AF', marginTop: 4, marginBottom: 20 }}>
             Takes 5 minutes · 100% free · Fully anonymous
           </p>
 
-          <p style={{ fontSize: 13, color: '#9CA3AF', marginTop: 12 }}>
-            Already have a profile?{' '}
-            <button
-              onClick={onSignIn}
-              style={{ background: 'none', border: 'none', padding: 0, fontSize: 13, color: '#6B7280', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3 }}
-            >
-              Sign in →
-            </button>
-          </p>
+          <button
+            onClick={onSignIn}
+            style={{
+              background: 'none', border: '1px solid #E5E7EB', borderRadius: 8,
+              padding: '12px 28px', fontSize: 14, fontWeight: 500, color: '#374151',
+              cursor: 'pointer', transition: 'border-color 0.2s',
+            }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = '#9CA3AF'; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = '#E5E7EB'; }}
+          >
+            Already have a profile? Sign in →
+          </button>
         </div>
 
         {/* Right — floating dark card (desktop) */}
@@ -566,15 +577,18 @@ function LandingSection({ onStart, onSignIn }: { onStart: () => void; onSignIn: 
             Learn how it works
           </a>
         </div>
-        <p style={{ fontSize: 13, color: '#9CA3AF' }}>
-          Already have a profile?{' '}
-          <button
-            onClick={onSignIn}
-            style={{ background: 'none', border: 'none', padding: 0, fontSize: 13, color: '#9CA3AF', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3 }}
-          >
-            Sign in →
-          </button>
-        </p>
+        <button
+          onClick={onSignIn}
+          style={{
+            background: 'none', border: '1px solid #E5E7EB', borderRadius: 8,
+            padding: '12px 28px', fontSize: 14, fontWeight: 500, color: '#374151',
+            cursor: 'pointer', transition: 'border-color 0.2s',
+          }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = '#9CA3AF'; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = '#E5E7EB'; }}
+        >
+          Already have a profile? Sign in →
+        </button>
       </section>
 
       {/* ── FOOTER ── */}
@@ -613,6 +627,177 @@ function TimelineStep({ step }: { step: { n: string; title: string; body: string
       <div>
         <h3 style={{ fontSize: 17, fontWeight: 600, color: '#0A0A0A', marginBottom: 8, marginTop: 4 }}>{step.title}</h3>
         <p style={{ fontSize: 15, color: '#6B7280', lineHeight: 1.6, margin: 0 }}>{step.body}</p>
+      </div>
+    </div>
+  );
+}
+
+// ─── Auth Screen ─────────────────────────────────────────────────────────────
+
+const GoogleIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
+    <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/>
+    <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z" fill="#34A853"/>
+    <path d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
+    <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
+  </svg>
+);
+
+function AuthScreen({
+  onBack,
+  onFormStart,
+}: {
+  onBack: () => void;
+  onFormStart: (email: string, firstName: string, lastName: string) => void;
+}) {
+  const [mode, setMode] = useState<'signup' | 'signin'>('signup');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPw, setShowPw] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const routeAfterAuth = async (userEmail: string, meta?: Record<string, any>) => {
+    const res = await fetch(`/api/get-candidate-intros?email=${encodeURIComponent(userEmail)}`);
+    if (res.ok) {
+      window.location.href = '/candidate-dashboard';
+      return;
+    }
+    const fullName: string = meta?.full_name || '';
+    const parts = fullName.trim().split(' ');
+    onFormStart(userEmail, parts[0] || '', parts.slice(1).join(' ') || '');
+  };
+
+  const handleEmailSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !password) return;
+    setLoading(true);
+    setError('');
+
+    if (mode === 'signup') {
+      const { data, error: err } = await supabase.auth.signUp({ email, password });
+      if (err) { setError(err.message); setLoading(false); return; }
+      if (!data.session) {
+        setError('Check your email for a confirmation link, then return here to sign in.');
+        setLoading(false);
+        return;
+      }
+      await routeAfterAuth(email);
+    } else {
+      const { data, error: err } = await supabase.auth.signInWithPassword({ email, password });
+      if (err) { setError(err.message); setLoading(false); return; }
+      await routeAfterAuth(email, data.session?.user.user_metadata);
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div className="min-h-screen bg-[#f8f8f8] flex items-center justify-center px-6 py-16">
+      <div className="w-full max-w-sm">
+
+        {/* Logo */}
+        <div className="mb-8 text-center">
+          <span className="font-bold text-xl text-gray-900 tracking-tight">SFC Talent</span>
+        </div>
+
+        <h1 className="text-2xl font-semibold text-gray-900 mb-1">
+          {mode === 'signup' ? 'Join the Network' : 'Welcome back'}
+        </h1>
+        <p className="text-sm text-gray-500 mb-7">
+          {mode === 'signup' ? 'Create your account to apply' : 'Sign in to your account'}
+        </p>
+
+        {/* Google */}
+        <button
+          type="button"
+          onClick={() => supabase.auth.signInWithOAuth({
+            provider: 'google',
+            options: { redirectTo: 'https://sfc-recruiter-portal.vercel.app/apply' },
+          })}
+          className="w-full flex items-center justify-center gap-2 bg-white border border-gray-300 rounded-lg px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors mb-5"
+        >
+          <GoogleIcon />
+          Continue with Google
+        </button>
+
+        {/* Divider */}
+        <div className="relative my-5">
+          <div className="absolute inset-0 flex items-center">
+            <span className="w-full border-t border-gray-200" />
+          </div>
+          <div className="relative flex justify-center text-xs">
+            <span className="bg-[#f8f8f8] px-3 text-gray-400">or</span>
+          </div>
+        </div>
+
+        {/* Email / password form */}
+        <form onSubmit={handleEmailSubmit} className="space-y-3">
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1">Email</label>
+            <input
+              type="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              placeholder="you@example.com"
+              required
+              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1">Password</label>
+            <div className="relative">
+              <input
+                type={showPw ? 'text' : 'password'}
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder="••••••••"
+                required
+                className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent pr-10"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPw(p => !p)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs"
+              >
+                {showPw ? 'Hide' : 'Show'}
+              </button>
+            </div>
+          </div>
+
+          {error && (
+            <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors flex items-center justify-center gap-2"
+          >
+            {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+            {mode === 'signup' ? 'Create Account' : 'Sign In'}
+          </button>
+        </form>
+
+        {/* Toggle signup/signin */}
+        <p className="text-xs text-gray-500 text-center mt-5">
+          {mode === 'signup' ? 'Already have an account? ' : "Don't have an account? "}
+          <button
+            type="button"
+            onClick={() => { setMode(m => m === 'signup' ? 'signin' : 'signup'); setError(''); }}
+            className="text-emerald-600 font-semibold hover:underline"
+          >
+            {mode === 'signup' ? 'Sign in' : 'Sign up'}
+          </button>
+        </p>
+
+        <button
+          type="button"
+          onClick={onBack}
+          className="mt-5 w-full text-xs text-gray-400 hover:text-gray-600 transition-colors text-center"
+        >
+          ← Back
+        </button>
+
       </div>
     </div>
   );
@@ -925,37 +1110,10 @@ export default function CandidateApply() {
 
   // ── Landing ─────────────────────────────────────────────────────────────────
 
-  // CTA click — called when user explicitly clicks "Join the Network"
-  const handleStart = async () => {
-    // Check if already signed in (e.g. returning visitor who didn't sign out)
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.user?.email) {
-      const res = await fetch(`/api/get-candidate-intros?email=${encodeURIComponent(session.user.email)}`);
-      if (res.ok) {
-        // Existing candidate → dashboard
-        window.location.href = '/candidate-dashboard';
-        return;
-      }
-      // Signed in but no candidate record → drop into form
-      set('email', session.user.email);
-      const fullName: string = session.user.user_metadata?.full_name || '';
-      if (fullName) {
-        const parts = fullName.trim().split(' ');
-        set('firstName', parts[0] || '');
-        set('lastName', parts.slice(1).join(' ') || '');
-      }
-      setScreen('form');
-      setStep(1);
-      return;
-    }
-    // No session → kick off Google OAuth
-    supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: 'https://sfc-recruiter-portal.vercel.app/apply' },
-    });
-  };
+  // CTA: show auth screen, don't jump straight to OAuth
+  const handleStart = () => setScreen('auth');
 
-  // "Already have a profile?" — takes user straight to dashboard sign-in
+  // "Already have a profile?" → Google OAuth straight to /candidate-dashboard
   const handleSignIn = () => {
     supabase.auth.signInWithOAuth({
       provider: 'google',
@@ -963,8 +1121,26 @@ export default function CandidateApply() {
     });
   };
 
+  // Called by AuthScreen after successful email/password auth
+  const handleFormStart = (email: string, firstName: string, lastName: string) => {
+    set('email', email);
+    if (firstName) set('firstName', firstName);
+    if (lastName) set('lastName', lastName);
+    setScreen('form');
+    setStep(1);
+  };
+
   if (screen === 'landing') {
     return <LandingSection onStart={handleStart} onSignIn={handleSignIn} />;
+  }
+
+  if (screen === 'auth') {
+    return (
+      <AuthScreen
+        onBack={() => setScreen('landing')}
+        onFormStart={handleFormStart}
+      />
+    );
   }
 
   // ── Disqualified ─────────────────────────────────────────────────────────────

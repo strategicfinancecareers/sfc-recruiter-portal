@@ -316,19 +316,19 @@ function ProfilePage({ candidate, skills, onUpdate }: {
 
 // ─── Opportunities Page ───────────────────────────────────────────────────────
 
-function OpportunitiesPage({ candidateId }: { candidateId: string }) {
+function OpportunitiesPage({ candidateEmail }: { candidateEmail: string }) {
   const [intros, setIntros] = useState<IntroRequest[] | null>(null);
   const [responding, setResponding] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState<string | null>(null);
 
   useEffect(() => {
-    supabase
-      .from('introduction_requests')
-      .select('*, jobs(title, company, salary_range)')
-      .eq('candidate_id', candidateId)
-      .order('created_at', { ascending: false })
-      .then(({ data }) => setIntros((data as IntroRequest[]) || []));
-  }, [candidateId]);
+    // Use service-role API to bypass RLS (introduction_requests.candidate_id
+    // is linked to candidates.id, not auth.uid())
+    fetch(`/api/get-candidate-intros?email=${encodeURIComponent(candidateEmail)}`)
+      .then(r => r.json())
+      .then(data => setIntros((data.intros as IntroRequest[]) || []))
+      .catch(() => setIntros([]));
+  }, [candidateEmail]);
 
   const respond = async (introId: string, accept: boolean) => {
     setResponding(introId);
@@ -582,14 +582,13 @@ function DashboardLayout({ candidate, skills, onSignOut, onUpdate }: {
   const [availSaved, setAvailSaved] = useState(false);
   const [open, setOpen] = useState(!!candidate.open_to_opportunities);
 
-  // Load intros for badge count
+  // Load intros for badge count (service-role API to bypass RLS)
   useEffect(() => {
-    supabase
-      .from('introduction_requests')
-      .select('id, status')
-      .eq('candidate_id', candidate.id)
-      .then(({ data }) => setIntros((data as any[]) || []));
-  }, [candidate.id]);
+    fetch(`/api/get-candidate-intros?email=${encodeURIComponent(candidate.email)}`)
+      .then(r => r.json())
+      .then(data => setIntros((data.intros as IntroRequest[]) || []))
+      .catch(() => {});
+  }, [candidate.email]);
 
   const pendingCount = intros.filter(i => i.status === 'pending').length;
 
@@ -681,7 +680,7 @@ function DashboardLayout({ candidate, skills, onSignOut, onUpdate }: {
             <ProfilePage candidate={candidate} skills={skills} onUpdate={onUpdate} />
           )}
           {page === 'opportunities' && (
-            <OpportunitiesPage candidateId={candidate.id} />
+            <OpportunitiesPage candidateEmail={candidate.email} />
           )}
           {page === 'settings' && (
             <SettingsPage candidate={candidate} onSignOut={onSignOut} />
@@ -734,6 +733,13 @@ export default function CandidateDashboard() {
       .map(r => r.skills?.skill || '').filter(Boolean);
     setCandidate(data as CandidateRow);
     setSkills(extracted);
+
+    // Send welcome email on first dashboard sign-in (idempotent — API skips if already sent)
+    fetch('/api/send-candidate-welcome', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: email.toLowerCase() }),
+    }).catch(() => {});
   }, []);
 
   useEffect(() => {

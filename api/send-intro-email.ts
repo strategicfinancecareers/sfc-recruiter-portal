@@ -62,6 +62,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       : `<div style="background:#f8f9fa;border:1px solid #e9ecef;border-radius:8px;padding:16px;margin:20px 0"><table style="border-collapse:collapse;width:100%"><tr><td style="padding:4px 0;color:#666;font-size:14px;width:110px">Job Title</td><td style="padding:4px 0;font-size:14px;font-weight:600">${job?.title ?? '—'}</td></tr><tr><td style="padding:4px 0;color:#666;font-size:14px">Company</td><td style="padding:4px 0;font-size:14px">${job?.company ?? '—'}</td></tr><tr><td style="padding:4px 0;color:#666;font-size:14px">Location</td><td style="padding:4px 0;font-size:14px">${job?.location ?? '—'}</td></tr>${job?.salary_range ? `<tr><td style="padding:4px 0;color:#666;font-size:14px">Salary</td><td style="padding:4px 0;font-size:14px">${job.salary_range}</td></tr>` : ''}</table></div>`;
 
     console.log('[send-intro-email] sending email to:', candidate?.email);
+    const dashboardUrl = 'https://sfc-recruiter-portal.vercel.app/candidate-dashboard';
+
     const html = '<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">'
       + '<img src="https://sfc-recruiter-portal.vercel.app/logo.png" height="40" style="margin-bottom:24px" />'
       + '<h2 style="color:#0F6E56">You have a new opportunity</h2>'
@@ -75,6 +77,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       + `<td><a href="${noUrl}" style="display:inline-block;background:#f3f4f6;color:#333;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px">❌ No thanks</a></td>`
       + '</tr></table>'
       + '<p style="color:#666;font-size:14px">This introduction was facilitated by SFC Talent. Your contact details will only be shared if you click Yes.</p>'
+      + '<div style="background:#F9FAFB;border:1px solid #E5E7EB;border-radius:8px;padding:16px;margin:20px 0">'
+      + '<p style="margin:0 0 8px;font-weight:600;font-size:14px;color:#111">View this in your dashboard</p>'
+      + '<p style="margin:0 0 12px;color:#6B7280;font-size:13px">Sign in with Google to track all your introduction requests in one place.</p>'
+      + `<a href="${dashboardUrl}" style="display:inline-block;background:#0A0A0A;color:white;text-decoration:none;padding:10px 20px;border-radius:6px;font-weight:600;font-size:13px">Open Dashboard →</a>`
+      + '</div>'
       + '<hr style="border:none;border-top:1px solid #eee;margin:24px 0" />'
       + '<p style="color:#999;font-size:12px">SFC Talent · strategicfinancecareers.com</p>'
       + '</div>';

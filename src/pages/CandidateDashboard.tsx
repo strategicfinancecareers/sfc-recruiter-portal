@@ -316,24 +316,24 @@ function ProfilePage({ candidate, skills, onUpdate }: {
 
 // ─── Opportunities Page ───────────────────────────────────────────────────────
 
-function OpportunitiesPage({ candidateEmail }: { candidateEmail: string }) {
+function OpportunitiesPage({ candidateId }: { candidateId: string }) {
   const [intros, setIntros] = useState<IntroRequest[] | null>(null);
   const [responding, setResponding] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(`/api/get-candidate-intros?email=${encodeURIComponent(candidateEmail)}`)
+    fetch(`/api/candidate-intros?candidateId=${encodeURIComponent(candidateId)}`)
       .then(async r => {
         const data = await r.json();
         if (!r.ok) {
-          console.error('[get-candidate-intros] API error:', data);
+          console.error('[candidate-intros] API error:', data);
           setIntros([]);
           return;
         }
-        setIntros((data.intros as IntroRequest[]) || []);
+        setIntros((data.requests as IntroRequest[]) || []);
       })
-      .catch(err => { console.error('[get-candidate-intros] fetch error:', err); setIntros([]); });
-  }, [candidateEmail]);
+      .catch(err => { console.error('[candidate-intros] fetch error:', err); setIntros([]); });
+  }, [candidateId]);
 
   const respond = async (introId: string, accept: boolean) => {
     setResponding(introId);
@@ -592,13 +592,13 @@ function DashboardLayout({ candidate, skills, onSignOut, onUpdate }: {
 
   // Load intros for sidebar badge count
   useEffect(() => {
-    fetch(`/api/get-candidate-intros?email=${encodeURIComponent(candidate.email)}`)
+    fetch(`/api/candidate-intros?candidateId=${encodeURIComponent(candidate.id)}`)
       .then(async r => {
         const data = await r.json();
-        if (r.ok) setIntros((data.intros as IntroRequest[]) || []);
+        if (r.ok) setIntros((data.requests as IntroRequest[]) || []);
       })
       .catch(() => {});
-  }, [candidate.email]);
+  }, [candidate.id]);
 
   const pendingCount = intros.filter(i => i.status === 'pending').length;
 
@@ -690,7 +690,7 @@ function DashboardLayout({ candidate, skills, onSignOut, onUpdate }: {
             <ProfilePage candidate={candidate} skills={skills} onUpdate={onUpdate} />
           )}
           {page === 'opportunities' && (
-            <OpportunitiesPage candidateEmail={candidate.email} />
+            <OpportunitiesPage candidateId={candidate.id} />
           )}
           {page === 'settings' && (
             <SettingsPage candidate={candidate} onSignOut={onSignOut} />

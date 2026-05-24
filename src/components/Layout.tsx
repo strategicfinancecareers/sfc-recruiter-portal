@@ -18,11 +18,8 @@ const Layout = () => {
     { name: 'Favorites', href: '/favorites', icon: Heart },
     { name: 'Introduction Requests', href: '/introductions', icon: Handshake },
     { name: 'Dashboard', href: '/dashboard', icon: Gauge },
+    { name: 'Expenses', href: '/expenses', icon: CreditCard },
   ];
-
-  if (user?.role === 'admin' || user?.role === 'owner') {
-    navigation.push({ name: 'Expenses', href: '/expenses', icon: CreditCard });
-  }
 
   if (user?.role === 'admin') {
     navigation.push({ name: 'Admin', href: '/admin', icon: Users });

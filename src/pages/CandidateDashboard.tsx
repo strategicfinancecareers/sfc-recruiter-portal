@@ -781,14 +781,23 @@ export default function CandidateDashboard() {
         <div className="bg-white border border-[#E5E7EB] rounded-2xl p-10 w-full max-w-sm text-center shadow-sm">
           <p className="font-semibold text-[15px] text-[#0A0A0A]">SFC Talent</p>
           <h1 className="text-xl font-semibold text-[#0A0A0A] mt-5 mb-2">No profile found</h1>
-          <p className="text-sm text-[#6B7280] leading-relaxed mb-6">
-            No profile found for <strong>{session.user.email}</strong>. Make sure you signed in with the same Google account you used when applying.
+          <p className="text-sm text-[#6B7280] leading-relaxed mb-4">
+            No profile found for <strong>{session.user.email}</strong>.
           </p>
+          <p className="text-sm text-[#6B7280] leading-relaxed mb-6">
+            If you haven't applied yet, complete your profile first. Or sign out and try a different Google account.
+          </p>
+          <a
+            href="/apply"
+            className="block w-full text-center bg-[#0F6E56] hover:bg-[#0a5942] text-white rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors mb-3"
+          >
+            Complete Your Application →
+          </a>
           <button
             onClick={handleSignOut}
             className="w-full bg-[#F3F4F6] hover:bg-[#E5E7EB] text-[#374151] rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors"
           >
-            Sign out and try again
+            Sign out and try a different account
           </button>
         </div>
       </div>

@@ -622,6 +622,44 @@ export default function CandidateApply() {
   const set = (field: keyof FormState, value: any) =>
     setForm(prev => ({ ...prev, [field]: value }));
 
+  // ── OAuth callback handler ────────────────────────────────────────────────
+  // When Google OAuth redirects back to /apply, detect the session,
+  // check if a candidate record exists, and route accordingly.
+  useEffect(() => {
+    const handleSession = async (email: string) => {
+      const res = await fetch(`/api/get-candidate-intros?email=${encodeURIComponent(email)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.intros !== undefined) {
+          // Candidate already has a profile → send them to their dashboard
+          window.location.href = '/candidate-dashboard';
+          return;
+        }
+      }
+      // No profile yet → pre-fill email and start the form
+      set('email', email);
+      setScreen('form');
+      setStep(1);
+    };
+
+    // Check for existing session (handles OAuth redirect back to /apply)
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user?.email && screen === 'landing') {
+        handleSession(session.user.email);
+      }
+    });
+
+    // Also listen for the OAuth callback completing mid-page
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session?.user?.email && (screen === 'auth' || screen === 'landing')) {
+        handleSession(session.user.email);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // ── Derived ─────────────────────────────────────────────────────────────────
 
   const detailOptions = DETAILED_EXPERIENCE_MAP[form.primaryBackground] ?? [];
@@ -807,12 +845,12 @@ export default function CandidateApply() {
           <h1 className="text-2xl font-semibold text-gray-900 mb-1">Get started</h1>
           <p className="text-sm text-gray-500 mb-6">Join the private finance talent network</p>
 
-          {/* Google SSO */}
+          {/* Google SSO — redirects back to /apply, which detects session and starts the form */}
           <button
             type="button"
             onClick={() => supabase.auth.signInWithOAuth({
               provider: 'google',
-              options: { redirectTo: 'https://sfc-recruiter-portal.vercel.app/candidate-dashboard' },
+              options: { redirectTo: 'https://sfc-recruiter-portal.vercel.app/apply' },
             })}
             className="w-full flex items-center justify-center gap-2 bg-white border border-gray-300 rounded-lg px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors mb-4"
           >

@@ -20,8 +20,11 @@ const Layout = () => {
     { name: 'Dashboard', href: '/dashboard', icon: Gauge },
   ];
 
-  if (user?.role === 'admin') {
+  if (user?.role === 'admin' || user?.role === 'owner') {
     navigation.push({ name: 'Expenses', href: '/expenses', icon: CreditCard });
+  }
+
+  if (user?.role === 'admin') {
     navigation.push({ name: 'Admin', href: '/admin', icon: Users });
   }
 

@@ -955,7 +955,7 @@ export default function CandidateApply() {
     form.targetComp;
 
   const canProceedStep2 =
-    form.firstName && form.lastName && form.phone.trim().length >= 7 && form.committed;
+    form.firstName && form.lastName && form.phone.trim().length >= 7 && form.linkedin.trim() && form.committed;
 
   const canProceedStep3 = form.resumeParsed !== null;
 
@@ -1342,9 +1342,12 @@ export default function CandidateApply() {
               </div>
 
               <div>
-                <Label>LinkedIn profile URL <span className="text-gray-400 text-xs font-normal">(optional)</span></Label>
+                <Label>LinkedIn profile URL <span className="text-red-500">*</span></Label>
                 <Input value={form.linkedin} onChange={e => set('linkedin', e.target.value)}
                   placeholder="https://linkedin.com/in/janesmith" className="mt-2" />
+                <p className="text-xs text-gray-500 mt-1.5 flex items-center gap-1">
+                  🔒 Your LinkedIn will never be shown to recruiters — it's used for internal vetting only.
+                </p>
               </div>
 
               <div>
@@ -1528,10 +1531,10 @@ export default function CandidateApply() {
                   ]} />
               </div>
 
-              {/* Bio — read-only AI-generated */}
+              {/* Bio — AI-generated, editable */}
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <Label>Your anonymous bio <span className="text-xs font-normal text-gray-400">(AI-generated)</span></Label>
+                  <Label>Your anonymous bio <span className="text-xs font-normal text-gray-400">(AI-generated, editable)</span></Label>
                   {form.resumeBase64 && (
                     <button
                       type="button"
@@ -1546,15 +1549,13 @@ export default function CandidateApply() {
                     </button>
                   )}
                 </div>
-                {form.bio ? (
-                  <div className="mt-2 p-4 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 leading-relaxed">
-                    {form.bio}
-                  </div>
-                ) : (
-                  <div className="mt-2 p-4 bg-gray-50 border border-dashed border-gray-300 rounded-lg text-sm text-gray-400 italic">
-                    Your bio will be generated from your resume
-                  </div>
-                )}
+                <textarea
+                  value={form.bio}
+                  onChange={e => set('bio', e.target.value)}
+                  rows={5}
+                  placeholder="Your anonymous bio will be generated from your resume. You can edit it here."
+                  className="mt-2 w-full border border-gray-200 rounded-lg px-3 py-3 text-sm text-gray-700 leading-relaxed bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent resize-none"
+                />
               </div>
 
               <div>

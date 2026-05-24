@@ -322,20 +322,28 @@ function OpportunitiesPage({ candidateEmail }: { candidateEmail: string }) {
   const [confirmed, setConfirmed] = useState<string | null>(null);
 
   useEffect(() => {
-    // Use service-role API to bypass RLS (introduction_requests.candidate_id
-    // is linked to candidates.id, not auth.uid())
     fetch(`/api/get-candidate-intros?email=${encodeURIComponent(candidateEmail)}`)
-      .then(r => r.json())
-      .then(data => setIntros((data.intros as IntroRequest[]) || []))
-      .catch(() => setIntros([]));
+      .then(async r => {
+        const data = await r.json();
+        if (!r.ok) {
+          console.error('[get-candidate-intros] API error:', data);
+          setIntros([]);
+          return;
+        }
+        setIntros((data.intros as IntroRequest[]) || []);
+      })
+      .catch(err => { console.error('[get-candidate-intros] fetch error:', err); setIntros([]); });
   }, [candidateEmail]);
 
   const respond = async (introId: string, accept: boolean) => {
     setResponding(introId);
-    await (supabase as any)
-      .from('introduction_requests')
-      .update({ status: accept ? 'approved' : 'rejected' })
-      .eq('id', introId);
+    try {
+      // Use the service-role API endpoint — the anon Supabase client cannot
+      // update introduction_requests due to RLS (candidate_id ≠ auth.uid())
+      await fetch(`/api/respond-to-intro?introId=${introId}&response=${accept ? 'yes' : 'no'}`);
+    } catch (e) {
+      console.error('[respond]', e);
+    }
     setIntros(prev => prev?.map(i => i.id === introId ? { ...i, status: accept ? 'approved' : 'rejected' } : i) || null);
     setConfirmed(introId);
     setResponding(null);
@@ -582,11 +590,13 @@ function DashboardLayout({ candidate, skills, onSignOut, onUpdate }: {
   const [availSaved, setAvailSaved] = useState(false);
   const [open, setOpen] = useState(!!candidate.open_to_opportunities);
 
-  // Load intros for badge count (service-role API to bypass RLS)
+  // Load intros for sidebar badge count
   useEffect(() => {
     fetch(`/api/get-candidate-intros?email=${encodeURIComponent(candidate.email)}`)
-      .then(r => r.json())
-      .then(data => setIntros((data.intros as IntroRequest[]) || []))
+      .then(async r => {
+        const data = await r.json();
+        if (r.ok) setIntros((data.intros as IntroRequest[]) || []);
+      })
       .catch(() => {});
   }, [candidate.email]);
 

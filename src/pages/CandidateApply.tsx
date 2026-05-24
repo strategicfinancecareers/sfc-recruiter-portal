@@ -805,7 +805,7 @@ function AuthScreen({
 
 // ─── Success Screen ───────────────────────────────────────────────────────────
 
-function SuccessScreen({ firstName }: { firstName: string }) {
+function SuccessScreen({ firstName, alreadyExists = false }: { firstName: string; alreadyExists?: boolean }) {
   useEffect(() => {
     const t = setTimeout(() => { window.location.href = '/candidate-dashboard'; }, 4000);
     return () => clearTimeout(t);
@@ -818,9 +818,13 @@ function SuccessScreen({ firstName }: { firstName: string }) {
           <div className="w-16 h-16 rounded-full bg-emerald-50 flex items-center justify-center mx-auto mb-5">
             <CheckCircle2 className="w-8 h-8 text-emerald-600" />
           </div>
-          <h2 className="text-3xl font-bold text-gray-900 mb-3">You're in! 🎉</h2>
+          <h2 className="text-3xl font-bold text-gray-900 mb-3">
+            {alreadyExists ? 'Welcome back! 👋' : "You're in! 🎉"}
+          </h2>
           <p className="text-gray-500 leading-relaxed">
-            Your profile is live and recruiters can now find you.
+            {alreadyExists
+              ? 'Your profile is already live. Head to your dashboard to manage your account.'
+              : 'Your profile is live and recruiters can now find you.'}
           </p>
         </div>
 
@@ -884,6 +888,7 @@ export default function CandidateApply() {
   const [regenerating, setRegenerating] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
+  const [alreadyExists, setAlreadyExists] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const set = (field: keyof FormState, value: any) =>
@@ -1095,11 +1100,15 @@ export default function CandidateApply() {
         }),
       });
 
+      const data = await res.json().catch(() => ({}));
+
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || 'Submission failed');
+        throw new Error(data.error || 'Submission failed');
       }
 
+      if (data.alreadyExists) {
+        setAlreadyExists(true);
+      }
       setScreen('success');
     } catch (err: any) {
       setSubmitError(err.message || 'Something went wrong. Please try again.');
@@ -1173,7 +1182,7 @@ export default function CandidateApply() {
 
   if (screen === 'success') {
     return (
-      <SuccessScreen firstName={form.firstName} />
+      <SuccessScreen firstName={form.firstName} alreadyExists={alreadyExists} />
     );
   }
 

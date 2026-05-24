@@ -31,16 +31,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    // Check for duplicate email
+    // Check for duplicate email (case-insensitive)
     const { data: existing } = await supabase
       .from('candidates')
-      .select('id')
-      .eq('email', email)
+      .select('id, status')
+      .eq('email', email.toLowerCase())
       .maybeSingle();
 
-    if (existing) {
-      return res.status(409).json({ error: 'An application with this email already exists.' });
+    if (existing?.status === 'active') {
+      // Already a live profile — don't create a duplicate
+      return res.status(200).json({ success: true, candidateId: existing.id, alreadyExists: true });
     }
+
+    // Track whether this is a re-application from a deleted account
+    const isReapplication = existing?.status === 'deleted';
+    const existingId: string | null = isReapplication ? existing!.id : null;
 
     // Upload resume to Supabase Storage if provided
     let resumeUrl: string | null = null;
@@ -104,38 +109,54 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       detailed_experience: Array.isArray(detailedExperience) ? detailedExperience : [],
     };
 
-    // ── Attempt 1: full insert with all columns ───────────────────────────────
+    // ── Save candidate: update (re-application) or insert (new) ─────────────
     let candidateId: string | null = null;
 
-    const { data: candidate1, error: insertError1 } = await supabase
-      .from('candidates')
-      .insert(extendedPayload as any)
-      .select('id')
-      .single();
-
-    if (insertError1) {
-      console.error('[submit-candidate] full insert failed:', JSON.stringify(insertError1));
-
-      // ── Attempt 2: core fields only (fallback if migrations not run) ─────────
-      const { data: candidate2, error: insertError2 } = await supabase
+    if (isReapplication && existingId) {
+      // Re-activating a deleted profile — update the existing row
+      console.log('[submit-candidate] re-application for deleted account, updating id:', existingId);
+      const { error: updateErr } = await supabase
         .from('candidates')
-        .insert(corePayload)
+        .update(extendedPayload as any)
+        .eq('id', existingId);
+
+      if (updateErr) {
+        console.warn('[submit-candidate] full update failed, trying core fields:', updateErr.message);
+        await supabase.from('candidates').update(corePayload).eq('id', existingId);
+      }
+      candidateId = existingId;
+    } else {
+      // ── Attempt 1: full insert with all columns ─────────────────────────────
+      const { data: candidate1, error: insertError1 } = await supabase
+        .from('candidates')
+        .insert(extendedPayload as any)
         .select('id')
         .single();
 
-      if (insertError2) {
-        console.error('[submit-candidate] core insert also failed:', JSON.stringify(insertError2));
-        return res.status(500).json({
-          error: 'Failed to save application',
-          detail: insertError2.message,
-          hint: 'Check required fields: name, display_name, email, location, experience, education, label',
-        });
-      }
+      if (insertError1) {
+        console.error('[submit-candidate] full insert failed:', JSON.stringify(insertError1));
 
-      candidateId = candidate2.id;
-      console.log('[submit-candidate] saved with core fields only (migrations pending)');
-    } else {
-      candidateId = candidate1.id;
+        // ── Attempt 2: core fields only (fallback if migrations not run) ───────
+        const { data: candidate2, error: insertError2 } = await supabase
+          .from('candidates')
+          .insert(corePayload)
+          .select('id')
+          .single();
+
+        if (insertError2) {
+          console.error('[submit-candidate] core insert also failed:', JSON.stringify(insertError2));
+          return res.status(500).json({
+            error: 'Failed to save application',
+            detail: insertError2.message,
+            hint: 'Check required fields: name, display_name, email, location, experience, education, label',
+          });
+        }
+
+        candidateId = candidate2.id;
+        console.log('[submit-candidate] saved with core fields only (migrations pending)');
+      } else {
+        candidateId = candidate1.id;
+      }
     }
 
     // ── Create Supabase auth account + magic link ────────────────────────────

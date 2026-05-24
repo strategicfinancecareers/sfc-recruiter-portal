@@ -1,6 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import type { Session } from '@supabase/supabase-js';
 import { User, Inbox, Settings, LogOut, Loader2, CheckCircle2, X } from 'lucide-react';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -727,25 +726,44 @@ function DashboardLayout({ candidate, skills, onSignOut, onUpdate }: {
 
 // ─── Main export ──────────────────────────────────────────────────────────────
 
+type View = 'loading' | 'signin' | 'dashboard' | 'no-profile';
+
 export default function CandidateDashboard() {
-  const [session, setSession] = useState<Session | null | undefined>(undefined);
+  const [view, setView] = useState<View>('loading');
   const [candidate, setCandidate] = useState<CandidateRow | null>(null);
   const [skills, setSkills] = useState<string[]>([]);
-  const [noProfile, setNoProfile] = useState(false);
+  const [userEmail, setUserEmail] = useState<string>('');
+  // Prevent double-fetch when getSession + onAuthStateChange(SIGNED_IN) both fire on load
+  const fetchInProgress = useRef(false);
 
-  const fetchCandidate = useCallback(async (email: string) => {
+  const fetchCandidateByEmail = useCallback(async (email: string) => {
+    if (fetchInProgress.current) return;
+    fetchInProgress.current = true;
+    setUserEmail(email);
+
+    console.log('[CandidateDashboard] fetchCandidateByEmail:', email);
+
     const { data } = await (supabase as any)
       .from('candidates')
       .select('id, name, display_name, email, label, phone, profile_description, open_to_opportunities, location, experience, education, highest_education_level, primary_background, secondary_backgrounds, linkedin_url, target_salary, work_preference, status, created_at, candidate_skills(skills(skill))')
       .eq('email', email.toLowerCase())
-      .or('status.eq.active,status.is.null')
+      .eq('status', 'active')
       .maybeSingle();
 
-    if (!data) { setNoProfile(true); return; }
+    console.log('[CandidateDashboard] candidate row:', data ? `id=${data.id}` : 'null');
+
+    if (!data) {
+      fetchInProgress.current = false;
+      setView('no-profile');
+      return;
+    }
+
     const extracted: string[] = ((data.candidate_skills as SkillRow[]) || [])
       .map(r => r.skills?.skill || '').filter(Boolean);
     setCandidate(data as CandidateRow);
     setSkills(extracted);
+    setView('dashboard');
+    fetchInProgress.current = false;
 
     // Send welcome email on first dashboard sign-in (idempotent — API skips if already sent)
     fetch('/api/send-candidate-welcome', {
@@ -756,29 +774,38 @@ export default function CandidateDashboard() {
   }, []);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session: s } }) => setSession(s));
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, s) => {
-      setSession(s);
-      if (s?.user?.email) fetchCandidate(s.user.email);
+    // Single mount effect: check existing session first, then listen for new sign-ins.
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user?.email) {
+        fetchCandidateByEmail(session.user.email);
+      } else {
+        setView('signin');
+      }
     });
-    return () => subscription.unsubscribe();
-  }, [fetchCandidate]);
 
-  useEffect(() => {
-    if (session?.user?.email && !candidate && !noProfile) {
-      fetchCandidate(session.user.email);
-    }
-  }, [session, candidate, noProfile, fetchCandidate]);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session?.user?.email) {
+        // fires on fresh OAuth redirect; fetchInProgress guard prevents double-call
+        fetchCandidateByEmail(session.user.email);
+      }
+      if (event === 'SIGNED_OUT') {
+        fetchInProgress.current = false;
+        setView('signin');
+        setCandidate(null);
+        setSkills([]);
+        setUserEmail('');
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [fetchCandidateByEmail]);
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
-    setSession(null);
-    setCandidate(null);
-    setNoProfile(false);
+    // SIGNED_OUT event handles state reset above
   };
 
-  // Loading
-  if (session === undefined || (session && !candidate && !noProfile)) {
+  if (view === 'loading') {
     return (
       <div className="min-h-screen bg-[#F9FAFB] flex items-center justify-center">
         <Loader2 className="w-6 h-6 animate-spin text-[#9CA3AF]" />
@@ -786,16 +813,16 @@ export default function CandidateDashboard() {
     );
   }
 
-  if (!session) return <GoogleSignInScreen />;
+  if (view === 'signin') return <GoogleSignInScreen />;
 
-  if (noProfile) {
+  if (view === 'no-profile') {
     return (
       <div className="min-h-screen bg-[#F9FAFB] flex items-center justify-center px-6">
         <div className="bg-white border border-[#E5E7EB] rounded-2xl p-10 w-full max-w-sm text-center shadow-sm">
           <p className="font-semibold text-[15px] text-[#0A0A0A]">SFC Talent</p>
           <h1 className="text-xl font-semibold text-[#0A0A0A] mt-5 mb-2">Looks like you haven't applied yet</h1>
           <p className="text-sm text-[#6B7280] leading-relaxed mb-4">
-            No profile found for <strong>{session.user.email}</strong>.
+            No profile found for <strong>{userEmail}</strong>.
           </p>
           <p className="text-sm text-[#6B7280] leading-relaxed mb-6">
             Complete your application to join the network. Or sign out and try a different Google account.

@@ -3,6 +3,7 @@ import {
   CheckCircle2, Upload, Loader2, ChevronRight, ChevronLeft,
   X, Plus, Shield, MessageCircle, RefreshCw,
 } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -838,21 +839,31 @@ export default function CandidateApply() {
             </p>
           </div>
 
-          {/* Dashboard link box */}
+          {/* Google SSO — access dashboard */}
           <div className="border border-emerald-200 bg-emerald-50 rounded-xl p-5 mb-5">
-            <p className="text-sm font-semibold text-emerald-900 mb-1">Your Candidate Dashboard</p>
-            <p className="text-xs text-emerald-700 mb-3">
-              Manage your profile, update availability, and track introduction requests at:
+            <p className="text-sm font-semibold text-emerald-900 mb-1">Sign in with Google to access your dashboard:</p>
+            <p className="text-xs text-emerald-700 mb-4">
+              Manage your profile, update availability, and track introduction requests.
             </p>
-            <div className="bg-white border border-emerald-200 rounded-lg px-4 py-2 mb-3 text-sm text-gray-600 font-mono select-all">
-              sfc-recruiter-portal.vercel.app/candidate-dashboard
-            </div>
-            <Button
-              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
-              onClick={() => window.open('/candidate-dashboard', '_blank')}
+            <button
+              type="button"
+              onClick={() => supabase.auth.signInWithOAuth({
+                provider: 'google',
+                options: { redirectTo: 'https://sfc-recruiter-portal.vercel.app/candidate-dashboard' },
+              })}
+              className="w-full flex items-center justify-center bg-[#0F6E56] hover:bg-[#0a5942] text-white rounded-lg px-6 py-3 text-sm font-semibold transition-colors"
             >
-              View Your Dashboard →
-            </Button>
+              <svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg" className="mr-2 shrink-0">
+                <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="white" fillOpacity="0.9"/>
+                <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z" fill="white" fillOpacity="0.9"/>
+                <path d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="white" fillOpacity="0.9"/>
+                <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="white" fillOpacity="0.9"/>
+              </svg>
+              Continue with Google
+            </button>
+            <p className="text-xs text-emerald-600 mt-3 text-center">
+              Use the same Google account as the email you applied with
+            </p>
           </div>
 
           {/* Email preview mockup */}

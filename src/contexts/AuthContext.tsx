@@ -80,10 +80,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           });
           return null;
         }
-        
+
         const role = data.roles?.name as 'recruiter' | 'admin' | 'owner' | 'candidate' || 'recruiter';
         return { ...data, role };
       } else {
+        // New Google OAuth user — create a row in public.users with recruiter role
+        try {
+          const { data: { user: authUser } } = await supabase.auth.getUser();
+          if (authUser) {
+            const newProfile = {
+              id: userId,
+              email: authUser.email ?? '',
+              first_name: authUser.user_metadata?.full_name?.split(' ')[0] ?? '',
+              last_name: authUser.user_metadata?.full_name?.split(' ').slice(1).join(' ') ?? '',
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            };
+            await (supabase as any).from('users').insert(newProfile);
+            // Re-fetch to get the role join
+            const { data: created } = await supabase
+              .from('users')
+              .select('*, roles(name)')
+              .eq('id', userId)
+              .maybeSingle();
+            if (created) {
+              const role = (created as any).roles?.name as 'recruiter' | 'admin' | 'owner' | 'candidate' || 'recruiter';
+              return { ...created, role } as Profile;
+            }
+          }
+        } catch (provisionErr) {
+          console.error('Error provisioning new OAuth user:', provisionErr);
+        }
         return null;
       }
     } catch (error) {

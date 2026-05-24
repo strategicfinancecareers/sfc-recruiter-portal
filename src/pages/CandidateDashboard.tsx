@@ -1,10 +1,20 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import type { Session } from '@supabase/supabase-js';
 import {
   Loader2, Shield, CheckCircle2, MapPin, Bell, Clock, AlertTriangle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+
+const GoogleIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg" className="mr-2 shrink-0">
+    <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/>
+    <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z" fill="#34A853"/>
+    <path d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
+    <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
+  </svg>
+);
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -82,109 +92,51 @@ interface IntroRequest {
   jobs?: IntroJob | null;
 }
 
-// ─── Email Gate ───────────────────────────────────────────────────────────────
+// ─── Google Sign-In Screen ────────────────────────────────────────────────────
 
-function EmailGate({ onFound }: {
-  onFound: (candidate: CandidateRow, skills: string[], intros: IntroRequest[]) => void;
-}) {
-  const [email, setEmail] = useState('');
+function GoogleSignInScreen() {
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
 
-  const handleAccess = async () => {
-    const trimmed = email.trim().toLowerCase();
-    if (!trimmed) return;
+  const handleSignIn = async () => {
     setLoading(true);
-    setError('');
-
-    try {
-      // FIX 1: use nested skill select + status filter + maybeSingle
-      const { data: cand, error: queryErr } = await supabase
-        .from('candidates')
-        .select(`
-          *,
-          candidate_skills(
-            skill_id,
-            skills(skill)
-          )
-        `)
-        .eq('email', trimmed)
-        .or('status.eq.active,status.is.null')
-        .maybeSingle();
-
-      if (queryErr) {
-        setError('Something went wrong. Please try again.');
-        return;
-      }
-      if (!cand) {
-        setError('No profile found with that email. Please check the email you used when applying.');
-        return;
-      }
-
-      // Extract skills from nested join
-      const skills: string[] = ((cand as any).candidate_skills as SkillRow[] || [])
-        .map(r => r.skills?.skill || '')
-        .filter(Boolean);
-
-      // FIX 6: load intro requests with job details
-      let intros: IntroRequest[] = [];
-      try {
-        const { data: reqs } = await supabase
-          .from('introduction_requests')
-          .select('*, jobs(title, company, salary_range)')
-          .eq('candidate_id', cand.id)
-          .order('created_at', { ascending: false });
-        if (reqs) intros = reqs as IntroRequest[];
-      } catch {
-        // table may not exist yet
-      }
-
-      onFound(cand as CandidateRow, skills, intros);
-    } catch {
-      setError('Something went wrong. Please try again.');
-    } finally {
-      setLoading(false);
-    }
+    await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: 'https://sfc-recruiter-portal.vercel.app/candidate-dashboard',
+      },
+    });
   };
 
   return (
     <div className="min-h-screen bg-white flex items-center justify-center px-6">
-      <div className="max-w-md w-full">
-        <div className="text-center mb-8">
-          <span className="font-bold text-2xl text-gray-900 tracking-tight">SFC Talent</span>
-          <div className="mt-6">
-            <div className="w-14 h-14 rounded-full bg-emerald-50 flex items-center justify-center mx-auto mb-5">
-              <Shield className="w-7 h-7 text-emerald-600" />
-            </div>
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">Access Your Dashboard</h1>
-            <p className="text-gray-500 text-sm leading-relaxed">
-              Enter the email you used when applying to view and manage your profile.
-            </p>
+      <div className="max-w-sm w-full text-center">
+        <span className="font-bold text-2xl text-gray-900 tracking-tight">SFC Talent</span>
+        <div className="mt-8 mb-6">
+          <div className="w-14 h-14 rounded-full bg-emerald-50 flex items-center justify-center mx-auto mb-5">
+            <Shield className="w-7 h-7 text-emerald-600" />
           </div>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Access Your Dashboard</h1>
+          <p className="text-gray-500 text-sm leading-relaxed">
+            Sign in with the Google account you used when applying
+          </p>
         </div>
-        <div className="space-y-4">
-          <Input
-            type="email"
-            placeholder="your@email.com"
-            value={email}
-            onChange={e => setEmail(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleAccess()}
-            className="text-base"
-            autoFocus
-          />
-          {error && (
-            <p className="text-sm text-red-500 bg-red-50 border border-red-100 rounded-lg px-4 py-3">{error}</p>
-          )}
-          <Button
-            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
-            onClick={handleAccess}
-            disabled={loading || !email.trim()}
-          >
-            {loading
-              ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Looking up your profile…</>
-              : 'Access Dashboard'}
-          </Button>
-        </div>
+        <button
+          type="button"
+          onClick={handleSignIn}
+          disabled={loading}
+          className="w-full flex items-center justify-center bg-[#0F6E56] hover:bg-[#0a5942] text-white rounded-lg px-6 py-3 text-sm font-semibold transition-colors disabled:opacity-60"
+        >
+          {loading
+            ? <Loader2 className="w-4 h-4 animate-spin mr-2" />
+            : <GoogleIcon />}
+          Continue with Google
+        </button>
+        <p className="text-xs text-gray-400 mt-4 leading-relaxed">
+          Don't have a profile yet?{' '}
+          <a href="https://sfc-recruiter-portal.vercel.app/apply" className="text-emerald-600 hover:underline">
+            Apply at sfc-recruiter-portal.vercel.app/apply
+          </a>
+        </p>
       </div>
     </div>
   );
@@ -612,19 +564,90 @@ function IntroRequestsSection({ candidateId }: { candidateId: string }) {
 // ─── Main Dashboard ───────────────────────────────────────────────────────────
 
 export default function CandidateDashboard() {
+  const [session, setSession] = useState<Session | null | undefined>(undefined); // undefined = loading
   const [candidate, setCandidate] = useState<CandidateRow | null>(null);
   const [skills, setSkills] = useState<string[]>([]);
+  const [noProfile, setNoProfile] = useState(false);
+  const [loadingProfile, setLoadingProfile] = useState(false);
 
-  if (!candidate) {
+  // Check session on mount + listen for OAuth callback
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session: s } }) => {
+      setSession(s);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
+      setSession(s);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Fetch candidate when session arrives
+  useEffect(() => {
+    if (!session?.user?.email) return;
+    const email = session.user.email.toLowerCase();
+    setLoadingProfile(true);
+    setNoProfile(false);
+
+    supabase
+      .from('candidates')
+      .select('*, candidate_skills(skill_id, skills(skill))')
+      .eq('email', email)
+      .or('status.eq.active,status.is.null')
+      .maybeSingle()
+      .then(({ data: cand }) => {
+        if (!cand) { setNoProfile(true); setLoadingProfile(false); return; }
+        const extractedSkills: string[] = ((cand as any).candidate_skills as SkillRow[] || [])
+          .map((r: SkillRow) => r.skills?.skill || '')
+          .filter(Boolean);
+        setCandidate(cand as CandidateRow);
+        setSkills(extractedSkills);
+        setLoadingProfile(false);
+      });
+  }, [session?.user?.email]);
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    setSession(null);
+    setCandidate(null);
+    setNoProfile(false);
+  };
+
+  // Still determining session
+  if (session === undefined || loadingProfile) {
     return (
-      <EmailGate
-        onFound={(cand, sk) => {
-          setCandidate(cand);
-          setSkills(sk);
-        }}
-      />
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+      </div>
     );
   }
+
+  // No session → Google sign-in screen
+  if (!session) return <GoogleSignInScreen />;
+
+  // Session exists but no matching candidate
+  if (noProfile) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center px-6">
+        <div className="max-w-sm w-full text-center">
+          <span className="font-bold text-2xl text-gray-900 tracking-tight">SFC Talent</span>
+          <div className="mt-8 mb-6">
+            <div className="w-14 h-14 rounded-full bg-amber-50 flex items-center justify-center mx-auto mb-5">
+              <AlertTriangle className="w-7 h-7 text-amber-500" />
+            </div>
+            <h1 className="text-xl font-bold text-gray-900 mb-2">No profile found</h1>
+            <p className="text-gray-500 text-sm leading-relaxed">
+              No profile found for <strong>{session.user.email}</strong>. Make sure you signed in with the same Google account you used when applying.
+            </p>
+          </div>
+          <Button variant="outline" onClick={handleSignOut} className="w-full">
+            Sign out and try again
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!candidate) return null;
 
   const memberSince = candidate.created_at
     ? new Date(candidate.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
@@ -641,7 +664,7 @@ export default function CandidateDashboard() {
             <span className="text-sm text-gray-500">My Dashboard</span>
           </div>
           <button
-            onClick={() => setCandidate(null)}
+            onClick={handleSignOut}
             className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
           >
             Sign out

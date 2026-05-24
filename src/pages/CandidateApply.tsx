@@ -704,47 +704,40 @@ export default function CandidateApply() {
   const set = (field: keyof FormState, value: any) =>
     setForm(prev => ({ ...prev, [field]: value }));
 
-  // ── OAuth callback handler ────────────────────────────────────────────────
-  // When Google OAuth redirects back to /apply, detect the session,
-  // check if a candidate record exists, and route accordingly.
+  // ── OAuth redirect handler ────────────────────────────────────────────────
+  // Only fires when Google OAuth just completed (SIGNED_IN event).
+  // A plain getSession() call is intentionally absent here — we must NOT
+  // auto-skip the landing page just because the user has an existing session
+  // from a previous visit or from the recruiter portal.
   useEffect(() => {
-    const handleSession = async (session: { user: { email?: string; user_metadata?: Record<string, any> } }) => {
+    const handleNewSession = async (session: { user: { email?: string; user_metadata?: Record<string, any> } }) => {
       const email = session.user.email;
       if (!email) return;
 
       const res = await fetch(`/api/get-candidate-intros?email=${encodeURIComponent(email)}`);
       if (res.ok) {
-        // Candidate already has a profile → send them to their dashboard
+        // Returning candidate — send straight to dashboard
         window.location.href = '/candidate-dashboard';
         return;
       }
 
-      // No profile yet → pre-fill from Google and start the form
+      // New user — pre-fill from Google metadata and drop into Step 1
       set('email', email);
-
-      // Pre-fill name from Google OAuth metadata
       const fullName: string = session.user.user_metadata?.full_name || '';
       if (fullName) {
         const parts = fullName.trim().split(' ');
         set('firstName', parts[0] || '');
         set('lastName', parts.slice(1).join(' ') || '');
       }
-
       setScreen('form');
       setStep(1);
     };
 
-    // Check for existing session (handles OAuth redirect back to /apply and returning visitors)
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        handleSession(session);
-      }
-    });
-
-    // Listen for the OAuth callback completing mid-page
+    // SIGNED_IN fires when the OAuth redirect lands back on this page.
+    // It does NOT fire on subsequent page loads for existing sessions.
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_IN' && session?.user) {
-        handleSession(session);
+        handleNewSession(session);
       }
     });
 
@@ -923,13 +916,37 @@ export default function CandidateApply() {
 
   // ── Landing ─────────────────────────────────────────────────────────────────
 
-  const handleStart = () => {
+  // CTA click — called when user explicitly clicks "Join the Network"
+  const handleStart = async () => {
+    // Check if already signed in (e.g. returning visitor who didn't sign out)
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user?.email) {
+      const res = await fetch(`/api/get-candidate-intros?email=${encodeURIComponent(session.user.email)}`);
+      if (res.ok) {
+        // Existing candidate → dashboard
+        window.location.href = '/candidate-dashboard';
+        return;
+      }
+      // Signed in but no candidate record → drop into form
+      set('email', session.user.email);
+      const fullName: string = session.user.user_metadata?.full_name || '';
+      if (fullName) {
+        const parts = fullName.trim().split(' ');
+        set('firstName', parts[0] || '');
+        set('lastName', parts.slice(1).join(' ') || '');
+      }
+      setScreen('form');
+      setStep(1);
+      return;
+    }
+    // No session → kick off Google OAuth
     supabase.auth.signInWithOAuth({
       provider: 'google',
       options: { redirectTo: 'https://sfc-recruiter-portal.vercel.app/apply' },
     });
   };
 
+  // "Already have a profile?" — takes user straight to dashboard sign-in
   const handleSignIn = () => {
     supabase.auth.signInWithOAuth({
       provider: 'google',

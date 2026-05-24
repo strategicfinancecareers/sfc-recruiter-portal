@@ -107,7 +107,7 @@ const WORK_PREFERENCES = [
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Screen = 'landing' | 'auth' | 'form' | 'disqualified' | 'success';
+type Screen = 'landing' | 'form' | 'disqualified' | 'success';
 
 interface FormState {
   // Step 1 – Qualification
@@ -301,7 +301,7 @@ function useFadeIn() {
   return ref;
 }
 
-function LandingSection({ onStart }: { onStart: () => void }) {
+function LandingSection({ onStart, onSignIn }: { onStart: () => void; onSignIn: () => void }) {
   const s2 = useFadeIn(); const s3 = useFadeIn(); const s4 = useFadeIn();
   const s5 = useFadeIn(); const s6 = useFadeIn();
   const doubled = [...LANDING_LOGOS, ...LANDING_LOGOS];
@@ -360,6 +360,16 @@ function LandingSection({ onStart }: { onStart: () => void }) {
 
           <p style={{ fontSize: 13, color: '#9CA3AF', marginTop: 4 }}>
             Takes 5 minutes · 100% free · Fully anonymous
+          </p>
+
+          <p style={{ fontSize: 13, color: '#9CA3AF', marginTop: 12 }}>
+            Already have a profile?{' '}
+            <button
+              onClick={onSignIn}
+              style={{ background: 'none', border: 'none', padding: 0, fontSize: 13, color: '#6B7280', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3 }}
+            >
+              Sign in →
+            </button>
           </p>
         </div>
 
@@ -558,9 +568,12 @@ function LandingSection({ onStart }: { onStart: () => void }) {
         </div>
         <p style={{ fontSize: 13, color: '#9CA3AF' }}>
           Already have a profile?{' '}
-          <a href="/candidate-dashboard" style={{ color: '#9CA3AF', textDecoration: 'underline', textUnderlineOffset: 3 }}>
-            Access your dashboard →
-          </a>
+          <button
+            onClick={onSignIn}
+            style={{ background: 'none', border: 'none', padding: 0, fontSize: 13, color: '#9CA3AF', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3 }}
+          >
+            Sign in →
+          </button>
         </p>
       </section>
 
@@ -605,6 +618,75 @@ function TimelineStep({ step }: { step: { n: string; title: string; body: string
   );
 }
 
+// ─── Success Screen ───────────────────────────────────────────────────────────
+
+function SuccessScreen({ firstName }: { firstName: string }) {
+  useEffect(() => {
+    const t = setTimeout(() => { window.location.href = '/candidate-dashboard'; }, 4000);
+    return () => clearTimeout(t);
+  }, []);
+
+  return (
+    <div className="min-h-screen bg-white flex items-center justify-center px-6 py-16">
+      <div className="max-w-lg w-full">
+        <div className="text-center mb-8">
+          <div className="w-16 h-16 rounded-full bg-emerald-50 flex items-center justify-center mx-auto mb-5">
+            <CheckCircle2 className="w-8 h-8 text-emerald-600" />
+          </div>
+          <h2 className="text-3xl font-bold text-gray-900 mb-3">You're in! 🎉</h2>
+          <p className="text-gray-500 leading-relaxed">
+            Your profile is live and recruiters can now find you.
+          </p>
+        </div>
+
+        {/* Dashboard CTA */}
+        <div className="border border-emerald-200 bg-emerald-50 rounded-xl p-5 mb-5">
+          <p className="text-sm font-semibold text-emerald-900 mb-1">Your dashboard is ready</p>
+          <p className="text-xs text-emerald-700 mb-4">
+            Manage your profile, update availability, and track introduction requests.
+            Redirecting automatically in a few seconds…
+          </p>
+          <a
+            href="/candidate-dashboard"
+            className="w-full flex items-center justify-center bg-[#0F6E56] hover:bg-[#0a5942] text-white rounded-lg px-6 py-3 text-sm font-semibold transition-colors"
+          >
+            Open My Dashboard →
+          </a>
+        </div>
+
+        {/* Email preview mockup */}
+        <p className="text-sm text-gray-500 text-center mb-4">
+          When a recruiter is interested, you'll get an email like this:
+        </p>
+        <div className="border border-gray-200 rounded-xl overflow-hidden mb-6 shadow-sm">
+          <div className="bg-gray-50 border-b border-gray-200 px-4 py-3">
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-red-400" />
+              <div className="w-3 h-3 rounded-full bg-yellow-400" />
+              <div className="w-3 h-3 rounded-full bg-green-400" />
+            </div>
+          </div>
+          <div className="p-5 bg-white text-sm space-y-2">
+            <div className="text-gray-500 text-xs border-b border-gray-100 pb-3 mb-3">
+              <p><span className="font-semibold text-gray-700">From:</span> SFC Talent &lt;noreply@strategicfinancecareers.com&gt;</p>
+              <p><span className="font-semibold text-gray-700">Subject:</span> New opportunity: VP Finance at [Company]</p>
+            </div>
+            <p className="text-gray-800">Hi {firstName || '[First Name]'},</p>
+            <p className="text-gray-600 leading-relaxed text-xs">
+              A company is interested in connecting with you about a <strong>VP Finance</strong> role
+              offering <strong>$180k–$220k</strong> total comp. You have 48 hours to respond.
+            </p>
+            <div className="flex gap-3 pt-2">
+              <span className="inline-block px-4 py-2 bg-emerald-600 text-white rounded-lg text-xs font-semibold cursor-default">✅ YES</span>
+              <span className="inline-block px-4 py-2 bg-gray-100 text-gray-600 rounded-lg text-xs font-semibold cursor-default">❌ NO</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 const TOTAL_STEPS = 6;
@@ -626,33 +708,43 @@ export default function CandidateApply() {
   // When Google OAuth redirects back to /apply, detect the session,
   // check if a candidate record exists, and route accordingly.
   useEffect(() => {
-    const handleSession = async (email: string) => {
+    const handleSession = async (session: { user: { email?: string; user_metadata?: Record<string, any> } }) => {
+      const email = session.user.email;
+      if (!email) return;
+
       const res = await fetch(`/api/get-candidate-intros?email=${encodeURIComponent(email)}`);
       if (res.ok) {
-        const data = await res.json();
-        if (data.intros !== undefined) {
-          // Candidate already has a profile → send them to their dashboard
-          window.location.href = '/candidate-dashboard';
-          return;
-        }
+        // Candidate already has a profile → send them to their dashboard
+        window.location.href = '/candidate-dashboard';
+        return;
       }
-      // No profile yet → pre-fill email and start the form
+
+      // No profile yet → pre-fill from Google and start the form
       set('email', email);
+
+      // Pre-fill name from Google OAuth metadata
+      const fullName: string = session.user.user_metadata?.full_name || '';
+      if (fullName) {
+        const parts = fullName.trim().split(' ');
+        set('firstName', parts[0] || '');
+        set('lastName', parts.slice(1).join(' ') || '');
+      }
+
       setScreen('form');
       setStep(1);
     };
 
-    // Check for existing session (handles OAuth redirect back to /apply)
+    // Check for existing session (handles OAuth redirect back to /apply and returning visitors)
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user?.email && screen === 'landing') {
-        handleSession(session.user.email);
+      if (session?.user) {
+        handleSession(session);
       }
     });
 
-    // Also listen for the OAuth callback completing mid-page
+    // Listen for the OAuth callback completing mid-page
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_IN' && session?.user?.email && (screen === 'auth' || screen === 'landing')) {
-        handleSession(session.user.email);
+      if (event === 'SIGNED_IN' && session?.user) {
+        handleSession(session);
       }
     });
 
@@ -831,74 +923,22 @@ export default function CandidateApply() {
 
   // ── Landing ─────────────────────────────────────────────────────────────────
 
+  const handleStart = () => {
+    supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: 'https://sfc-recruiter-portal.vercel.app/apply' },
+    });
+  };
+
+  const handleSignIn = () => {
+    supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: 'https://sfc-recruiter-portal.vercel.app/candidate-dashboard' },
+    });
+  };
+
   if (screen === 'landing') {
-    return <LandingSection onStart={() => setScreen('auth')} />;
-  }
-
-  if (screen === 'auth') {
-    return (
-      <div className="min-h-screen bg-[#f8f8f8] flex items-center justify-center px-6 py-16">
-        <div className="w-full max-w-sm">
-          <div className="mb-8 text-center">
-            <span className="font-bold text-xl text-gray-900 tracking-tight">SFC Talent</span>
-          </div>
-          <h1 className="text-2xl font-semibold text-gray-900 mb-1">Get started</h1>
-          <p className="text-sm text-gray-500 mb-6">Join the private finance talent network</p>
-
-          {/* Google SSO — redirects back to /apply, which detects session and starts the form */}
-          <button
-            type="button"
-            onClick={() => supabase.auth.signInWithOAuth({
-              provider: 'google',
-              options: { redirectTo: 'https://sfc-recruiter-portal.vercel.app/apply' },
-            })}
-            className="w-full flex items-center justify-center gap-2 bg-white border border-gray-300 rounded-lg px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors mb-4"
-          >
-            <svg width="16" height="16" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg" className="shrink-0">
-              <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/>
-              <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z" fill="#34A853"/>
-              <path d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
-              <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
-            </svg>
-            Continue with Google
-          </button>
-
-          {/* Divider */}
-          <div className="relative my-5">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t border-gray-200" />
-            </div>
-            <div className="relative flex justify-center text-xs">
-              <span className="bg-[#f8f8f8] px-3 text-gray-400">or</span>
-            </div>
-          </div>
-
-          {/* Continue with email (no account needed) */}
-          <button
-            type="button"
-            onClick={() => { setScreen('form'); setStep(1); }}
-            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors"
-          >
-            Continue with email
-          </button>
-
-          <p className="text-xs text-gray-400 text-center mt-5 leading-relaxed">
-            By continuing, you agree to our{' '}
-            <a href="https://strategicfinancecareers.com" className="underline hover:text-gray-600">Terms of Service</a>
-            {' '}and{' '}
-            <a href="https://strategicfinancecareers.com" className="underline hover:text-gray-600">Privacy Policy</a>.
-          </p>
-
-          <button
-            type="button"
-            onClick={() => setScreen('landing')}
-            className="mt-4 w-full text-xs text-gray-400 hover:text-gray-600 transition-colors text-center"
-          >
-            ← Back
-          </button>
-        </div>
-      </div>
-    );
+    return <LandingSection onStart={handleStart} onSignIn={handleSignIn} />;
   }
 
   // ── Disqualified ─────────────────────────────────────────────────────────────
@@ -931,84 +971,7 @@ export default function CandidateApply() {
 
   if (screen === 'success') {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center px-6 py-16">
-        <div className="max-w-lg w-full">
-          <div className="text-center mb-8">
-            <div className="w-16 h-16 rounded-full bg-emerald-50 flex items-center justify-center mx-auto mb-5">
-              <CheckCircle2 className="w-8 h-8 text-emerald-600" />
-            </div>
-            <h2 className="text-3xl font-bold text-gray-900 mb-3">You're in! 🎉</h2>
-            <p className="text-gray-500 leading-relaxed">
-              Your profile is live and recruiters can now find you.
-            </p>
-          </div>
-
-          {/* Google SSO — access dashboard */}
-          <div className="border border-emerald-200 bg-emerald-50 rounded-xl p-5 mb-5">
-            <p className="text-sm font-semibold text-emerald-900 mb-1">Sign in with Google to access your dashboard:</p>
-            <p className="text-xs text-emerald-700 mb-4">
-              Manage your profile, update availability, and track introduction requests.
-            </p>
-            <button
-              type="button"
-              onClick={() => supabase.auth.signInWithOAuth({
-                provider: 'google',
-                options: { redirectTo: 'https://sfc-recruiter-portal.vercel.app/candidate-dashboard' },
-              })}
-              className="w-full flex items-center justify-center bg-[#0F6E56] hover:bg-[#0a5942] text-white rounded-lg px-6 py-3 text-sm font-semibold transition-colors"
-            >
-              <svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg" className="mr-2 shrink-0">
-                <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="white" fillOpacity="0.9"/>
-                <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z" fill="white" fillOpacity="0.9"/>
-                <path d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="white" fillOpacity="0.9"/>
-                <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="white" fillOpacity="0.9"/>
-              </svg>
-              Continue with Google
-            </button>
-            <p className="text-xs text-emerald-600 mt-3 text-center">
-              Use the same Google account as the email you applied with
-            </p>
-          </div>
-
-          {/* Email preview mockup */}
-          <p className="text-sm text-gray-500 text-center mb-4">
-            When a recruiter is interested, you'll get an email like this:
-          </p>
-          <div className="border border-gray-200 rounded-xl overflow-hidden mb-6 shadow-sm">
-            <div className="bg-gray-50 border-b border-gray-200 px-4 py-3">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-red-400" />
-                <div className="w-3 h-3 rounded-full bg-yellow-400" />
-                <div className="w-3 h-3 rounded-full bg-green-400" />
-              </div>
-            </div>
-            <div className="p-5 bg-white text-sm space-y-2">
-              <div className="text-gray-500 text-xs border-b border-gray-100 pb-3 mb-3">
-                <p><span className="font-semibold text-gray-700">From:</span> SFC Talent &lt;noreply@strategicfinancecareers.com&gt;</p>
-                <p><span className="font-semibold text-gray-700">Subject:</span> New opportunity: VP Finance at [Company]</p>
-              </div>
-              <p className="text-gray-800">Hi {form.firstName || '[First Name]'},</p>
-              <p className="text-gray-600 leading-relaxed text-xs">
-                A company is interested in connecting with you about a <strong>VP Finance</strong> role
-                offering <strong>$180k–$220k</strong> total comp. You have 48 hours to respond.
-              </p>
-              <div className="flex gap-3 pt-2">
-                <span className="inline-block px-4 py-2 bg-emerald-600 text-white rounded-lg text-xs font-semibold cursor-default">✅ YES</span>
-                <span className="inline-block px-4 py-2 bg-gray-100 text-gray-600 rounded-lg text-xs font-semibold cursor-default">❌ NO</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="text-center">
-            <Button
-              variant="outline"
-              onClick={() => { window.location.href = 'https://strategicfinancecareers.com'; }}
-            >
-              Back to SFC
-            </Button>
-          </div>
-        </div>
-      </div>
+      <SuccessScreen firstName={form.firstName} />
     );
   }
 

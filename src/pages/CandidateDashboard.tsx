@@ -780,12 +780,12 @@ export default function CandidateDashboard() {
       <div className="min-h-screen bg-[#F9FAFB] flex items-center justify-center px-6">
         <div className="bg-white border border-[#E5E7EB] rounded-2xl p-10 w-full max-w-sm text-center shadow-sm">
           <p className="font-semibold text-[15px] text-[#0A0A0A]">SFC Talent</p>
-          <h1 className="text-xl font-semibold text-[#0A0A0A] mt-5 mb-2">No profile found</h1>
+          <h1 className="text-xl font-semibold text-[#0A0A0A] mt-5 mb-2">Looks like you haven't applied yet</h1>
           <p className="text-sm text-[#6B7280] leading-relaxed mb-4">
             No profile found for <strong>{session.user.email}</strong>.
           </p>
           <p className="text-sm text-[#6B7280] leading-relaxed mb-6">
-            If you haven't applied yet, complete your profile first. Or sign out and try a different Google account.
+            Complete your application to join the network. Or sign out and try a different Google account.
           </p>
           <a
             href="/apply"

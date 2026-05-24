@@ -705,18 +705,29 @@ export default function CandidateApply() {
     setForm(prev => ({ ...prev, [field]: value }));
 
   // ── OAuth redirect handler ────────────────────────────────────────────────
-  // Only fires when Google OAuth just completed (SIGNED_IN event).
-  // A plain getSession() call is intentionally absent here — we must NOT
-  // auto-skip the landing page just because the user has an existing session
-  // from a previous visit or from the recruiter portal.
+  // Supabase fires SIGNED_IN on EVERY page load when an existing session is
+  // present — not just after a fresh OAuth redirect. So we cannot rely on the
+  // event alone. Instead we inspect the URL: Supabase appends ?code= (PKCE)
+  // or #access_token= (implicit) only when an actual OAuth redirect just landed.
+  // If neither token marker is in the URL, this effect is a no-op and the
+  // landing page is always shown.
   useEffect(() => {
+    const url = new URL(window.location.href);
+    const isOAuthRedirect =
+      url.searchParams.has('code') ||          // PKCE flow
+      window.location.hash.includes('access_token'); // implicit flow
+
+    if (!isOAuthRedirect) return; // plain page load — show landing, do nothing
+
     const handleNewSession = async (session: { user: { email?: string; user_metadata?: Record<string, any> } }) => {
       const email = session.user.email;
       if (!email) return;
 
+      // Clean the OAuth tokens out of the URL so a refresh doesn't re-trigger
+      window.history.replaceState({}, '', window.location.pathname);
+
       const res = await fetch(`/api/get-candidate-intros?email=${encodeURIComponent(email)}`);
       if (res.ok) {
-        // Returning candidate — send straight to dashboard
         window.location.href = '/candidate-dashboard';
         return;
       }
@@ -733,8 +744,6 @@ export default function CandidateApply() {
       setStep(1);
     };
 
-    // SIGNED_IN fires when the OAuth redirect lands back on this page.
-    // It does NOT fire on subsequent page loads for existing sessions.
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_IN' && session?.user) {
         handleNewSession(session);

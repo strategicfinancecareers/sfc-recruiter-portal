@@ -61,7 +61,7 @@ interface CandidateRow {
   linkedin_url?: string; target_salary?: string; work_preference?: string;
 }
 
-interface SkillRow { skill_id: string; skills: { skill: string } | null; }
+interface SkillRow { skills: { skill: string } | null; }
 
 interface IntroRequest {
   id: string; created_at: string; status: string; notes?: string;
@@ -322,9 +322,11 @@ function OpportunitiesPage({ candidateId }: { candidateId: string }) {
   const [confirmed, setConfirmed] = useState<string | null>(null);
 
   useEffect(() => {
+    console.log('[OpportunitiesPage] Fetching intros for candidateId:', candidateId);
     fetch(`/api/candidate-intros?candidateId=${encodeURIComponent(candidateId)}`)
       .then(async r => {
         const data = await r.json();
+        console.log('[OpportunitiesPage] API response status:', r.status, '| data:', data);
         if (!r.ok) {
           console.error('[candidate-intros] API error:', data);
           setIntros([]);
@@ -592,6 +594,7 @@ function DashboardLayout({ candidate, skills, onSignOut, onUpdate }: {
 
   // Load intros for sidebar badge count
   useEffect(() => {
+    console.log('[DashboardLayout] Fetching intros for candidateId:', candidate.id);
     fetch(`/api/candidate-intros?candidateId=${encodeURIComponent(candidate.id)}`)
       .then(async r => {
         const data = await r.json();
@@ -733,7 +736,7 @@ export default function CandidateDashboard() {
   const fetchCandidate = useCallback(async (email: string) => {
     const { data } = await (supabase as any)
       .from('candidates')
-      .select('*, candidate_skills(skill_id, skills(skill))')
+      .select('id, name, display_name, email, label, phone, profile_description, open_to_opportunities, location, experience, education, highest_education_level, primary_background, secondary_backgrounds, linkedin_url, target_salary, work_preference, status, created_at, candidate_skills(skills(skill))')
       .eq('email', email.toLowerCase())
       .or('status.eq.active,status.is.null')
       .maybeSingle();

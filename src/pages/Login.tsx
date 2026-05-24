@@ -1,18 +1,11 @@
-
 import { useState, useEffect } from 'react';
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Briefcase } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
-import { useAuth } from "../contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
-import LoaderScreen from "../components/LoaderScreen";
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
+import LoaderScreen from '../components/LoaderScreen';
 
 const GoogleIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg" className="mr-2 shrink-0">
+  <svg width="16" height="16" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg" className="shrink-0">
     <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/>
     <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z" fill="#34A853"/>
     <path d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
@@ -23,13 +16,11 @@ const GoogleIcon = () => (
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [localLoading, setLocalLoading] = useState(false);
-  const { login, signInWithGoogle, signInWithMicrosoft, isLoading, user } = useAuth();
-  
+  const { login, isLoading, user } = useAuth();
   const navigate = useNavigate();
-  const { toast } = useToast();
 
-  // Smart redirect after login: subscribed → /browse, new user → /start-here
   useEffect(() => {
     if (user) {
       const dest = (user as any).is_subscribed ? '/browse' : '/start-here';
@@ -43,102 +34,139 @@ const Login = () => {
     e.preventDefault();
     setLocalLoading(true);
     try {
-      const success = await login(email, password);
-      if (success) {
-        // Navigation will be handled by the useEffect above
-      }
+      await login(email, password);
     } finally {
       setLocalLoading(false);
     }
   };
 
-  const handleGoogleSignIn = async () => {
-    setLocalLoading(true);
-    try {
-      await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: 'https://sfc-recruiter-portal.vercel.app/start-here',
-        },
-      });
-    } finally {
-      setLocalLoading(false);
-    }
+  const handleGoogle = async () => {
+    await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: 'https://sfc-recruiter-portal.vercel.app/start-here' },
+    });
   };
 
   return (
-    <div className="min-h-screen bg-gradient-primary flex items-center justify-center p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <div className="flex justify-center mb-4">
-            <Briefcase className="h-10 w-10 text-primary" />
-          </div>
-          <CardTitle className="text-2xl">Welcome Back</CardTitle>
-          <CardDescription>Log in to your recruiter account</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {/* Google SSO — primary CTA */}
+    <div className="min-h-screen flex">
+      {/* ── Left panel — form ── */}
+      <div className="w-full lg:w-[420px] xl:w-[480px] flex flex-col bg-[#f8f8f8] px-10 py-12 shrink-0">
+        {/* Logo */}
+        <div className="mb-10">
+          <span className="font-bold text-lg text-gray-900 tracking-tight">SFC Talent</span>
+        </div>
+
+        <div className="flex-1 flex flex-col justify-center max-w-sm w-full mx-auto lg:mx-0">
+          <h1 className="text-2xl font-semibold text-gray-900 mb-1">Welcome back</h1>
+          <p className="text-sm text-gray-500 mb-6">Sign in to your recruiter account</p>
+
+          {/* Google */}
           <button
             type="button"
-            onClick={handleGoogleSignIn}
-            disabled={localLoading || isLoading}
-            className="w-full flex items-center justify-center gap-1 bg-white border border-gray-200 rounded-lg px-6 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            onClick={handleGoogle}
+            className="w-full flex items-center justify-center gap-2 bg-white border border-gray-300 rounded-lg px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors mb-4"
           >
             <GoogleIcon />
             Continue with Google
           </button>
 
           {/* Divider */}
-          <div className="relative my-5">
+          <div className="relative my-4">
             <div className="absolute inset-0 flex items-center">
               <span className="w-full border-t border-gray-200" />
             </div>
             <div className="relative flex justify-center text-xs">
-              <span className="bg-background px-3 text-muted-foreground">or continue with email</span>
+              <span className="bg-[#f8f8f8] px-3 text-gray-400">or</span>
             </div>
           </div>
 
-          {/* Email / password form */}
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
+          {/* Form */}
+          <form onSubmit={handleSubmit} className="space-y-3">
+            <div>
+              <label className="block text-sm text-gray-700 mb-1.5">Email</label>
+              <input
                 type="email"
-                placeholder="your@email.com"
+                placeholder="you@example.com"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={e => setEmail(e.target.value)}
                 required
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="Enter your password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
+
+            <div>
+              <label className="block text-sm text-gray-700 mb-1.5">Password</label>
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  required
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 pr-10 text-sm bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(v => !v)}
+                  className="absolute inset-y-0 right-3 flex items-center text-gray-400 hover:text-gray-600"
+                  tabIndex={-1}
+                >
+                  {showPassword ? (
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                  ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                  )}
+                </button>
+              </div>
             </div>
-            <Button type="submit" className="w-full" disabled={localLoading || isLoading}>
-              {(localLoading || isLoading) ? "Logging in..." : "Log In"}
-            </Button>
+
+            <button
+              type="submit"
+              disabled={localLoading}
+              className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:opacity-60 text-white rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors mt-1"
+            >
+              {localLoading ? 'Signing in…' : 'Sign in'}
+            </button>
           </form>
-        </CardContent>
-        <CardFooter className="flex flex-col space-y-2">
-          <Link to="/forgot-password" className="text-sm text-primary hover:underline">
-            Forgot your password?
-          </Link>
-          <p className="text-sm text-muted-foreground">
-            Don't have an account?{" "}
-            <Link to="/signup" className="text-primary hover:underline">
-              Sign up
+
+          <div className="flex items-center justify-between mt-5 text-sm">
+            <Link to="/forgot-password" className="text-gray-400 hover:text-gray-600 hover:underline text-xs">
+              Forgot password?
             </Link>
-          </p>
-        </CardFooter>
-      </Card>
+            <p className="text-gray-500">
+              No account?{' '}
+              <Link to="/signup" className="text-emerald-600 hover:underline font-medium">Sign up</Link>
+            </p>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <p className="text-xs text-gray-400 mt-10 leading-relaxed max-w-sm mx-auto lg:mx-0">
+          By continuing, you agree to SFC Talent's{' '}
+          <a href="https://strategicfinancecareers.com" className="underline hover:text-gray-600">Terms of Service</a>
+          {' '}and{' '}
+          <a href="https://strategicfinancecareers.com" className="underline hover:text-gray-600">Privacy Policy</a>.
+        </p>
+      </div>
+
+      {/* ── Right panel — testimonial ── */}
+      <div className="hidden lg:flex flex-1 bg-white items-center justify-center px-16">
+        <div className="max-w-md">
+          <div className="text-gray-200 text-6xl font-serif leading-none mb-6 select-none">"</div>
+          <blockquote className="text-2xl font-medium text-gray-900 leading-snug mb-6">
+            Found our CFO in under two weeks. The quality of candidates in the SFC network is genuinely different.
+          </blockquote>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-bold text-sm shrink-0">
+              SK
+            </div>
+            <div>
+              <p className="text-sm font-medium text-gray-900">Sarah K.</p>
+              <p className="text-xs text-gray-400">CEO, growth-stage fintech</p>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };

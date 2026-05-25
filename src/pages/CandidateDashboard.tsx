@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { User, Inbox, Settings, LogOut, Loader2, CheckCircle2, X } from 'lucide-react';
 
@@ -69,45 +69,6 @@ interface IntroRequest {
 
 type NavPage = 'profile' | 'opportunities' | 'settings';
 
-// ─── Google Sign-In Screen ────────────────────────────────────────────────────
-
-const GoogleIcon = ({ size = 18 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg" className="shrink-0">
-    <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/>
-    <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z" fill="#34A853"/>
-    <path d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
-    <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
-  </svg>
-);
-
-function GoogleSignInScreen() {
-  const [loading, setLoading] = useState(false);
-  return (
-    <div className="min-h-screen bg-[#F9FAFB] flex items-center justify-center px-6">
-      <div className="bg-white border border-[#E5E7EB] rounded-2xl p-10 w-full max-w-sm text-center shadow-sm">
-        <span className="font-semibold text-[15px] text-[#0A0A0A] tracking-tight">SFC Talent</span>
-        <h1 className="text-xl font-semibold text-[#0A0A0A] mt-6 mb-1">Access Your Dashboard</h1>
-        <p className="text-sm text-[#6B7280] mb-7 leading-relaxed">
-          Sign in with the Google account you used when applying
-        </p>
-        <button
-          onClick={async () => { setLoading(true); await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: 'https://sfc-recruiter-portal.vercel.app/candidate-dashboard' } }); }}
-          disabled={loading}
-          className="w-full flex items-center justify-center gap-2 bg-white border border-[#E5E7EB] rounded-lg px-4 py-2.5 text-sm font-medium text-[#374151] hover:bg-[#F9FAFB] transition-colors disabled:opacity-60"
-        >
-          {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <GoogleIcon size={16} />}
-          Continue with Google
-        </button>
-        <p className="text-xs text-[#9CA3AF] mt-5 leading-relaxed">
-          Applied with a different email?{' '}
-          <a href="mailto:talent@strategicfinancecareers.com" className="text-[#0F6E56] hover:underline">
-            Contact talent@strategicfinancecareers.com
-          </a>
-        </p>
-      </div>
-    </div>
-  );
-}
 
 // ─── Profile Page ─────────────────────────────────────────────────────────────
 
@@ -726,139 +687,147 @@ function DashboardLayout({ candidate, skills, onSignOut, onUpdate }: {
 
 // ─── Main export ──────────────────────────────────────────────────────────────
 
-type View = 'loading' | 'signin' | 'dashboard' | 'no-profile';
+type DashView = 'choose' | 'lookup' | 'dashboard';
 
 export default function CandidateDashboard() {
-  const [view, setView] = useState<View>('loading');
+  const [view, setView] = useState<DashView>('choose');
+  const [emailInput, setEmailInput] = useState('');
+  const [lookupLoading, setLookupLoading] = useState(false);
+  const [lookupError, setLookupError] = useState('');
   const [candidate, setCandidate] = useState<CandidateRow | null>(null);
   const [skills, setSkills] = useState<string[]>([]);
-  const [userEmail, setUserEmail] = useState<string>('');
-  // Prevent double-fetch when getSession + onAuthStateChange(SIGNED_IN) both fire on load
-  const fetchInProgress = useRef(false);
 
-  const fetchCandidateByEmail = useCallback(async (email: string) => {
-    if (fetchInProgress.current) return;
-    fetchInProgress.current = true;
-    setUserEmail(email);
-
-    console.log('[CandidateDashboard] fetchCandidateByEmail:', email);
-
+  const handleLookup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLookupLoading(true);
+    setLookupError('');
     try {
-      const response = await fetch(`/api/candidate-profile?email=${encodeURIComponent(email.toLowerCase().trim())}`);
-
-      console.log('[CandidateDashboard] /api/candidate-profile status:', response.status);
-
-      if (response.status === 404) {
-        setView('no-profile');
+      const res = await fetch(`/api/candidate-profile?email=${encodeURIComponent(emailInput.toLowerCase().trim())}`);
+      if (res.status === 404) {
+        setLookupError('No profile found with that email. Please check the email you used when applying.');
         return;
       }
-
-      if (!response.ok) {
-        console.error('[CandidateDashboard] API error:', response.status);
-        setView('no-profile');
+      if (!res.ok) {
+        setLookupError('Something went wrong. Please try again.');
         return;
       }
-
-      const { candidate } = await response.json();
-      console.log('[CandidateDashboard] candidate id:', candidate?.id);
-
-      const extracted: string[] = ((candidate.candidate_skills as SkillRow[]) || [])
+      const { candidate: c } = await res.json();
+      const extracted: string[] = ((c.candidate_skills as SkillRow[]) || [])
         .map((r: SkillRow) => r.skills?.skill || '').filter(Boolean);
-      setCandidate(candidate as CandidateRow);
+      setCandidate(c as CandidateRow);
       setSkills(extracted);
       setView('dashboard');
-
-      // Send welcome email on first dashboard sign-in (idempotent — API skips if already sent)
-      fetch('/api/send-candidate-welcome', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.toLowerCase() }),
-      }).catch(() => {});
-    } catch (err) {
-      console.error('[CandidateDashboard] fetch error:', err);
-      setView('no-profile');
+    } catch {
+      setLookupError('Something went wrong. Please try again.');
     } finally {
-      fetchInProgress.current = false;
+      setLookupLoading(false);
     }
-  }, []);
-
-  useEffect(() => {
-    // Single mount effect: check existing session first, then listen for new sign-ins.
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user?.email) {
-        fetchCandidateByEmail(session.user.email);
-      } else {
-        setView('signin');
-      }
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_IN' && session?.user?.email) {
-        // fires on fresh OAuth redirect; fetchInProgress guard prevents double-call
-        fetchCandidateByEmail(session.user.email);
-      }
-      if (event === 'SIGNED_OUT') {
-        fetchInProgress.current = false;
-        setView('signin');
-        setCandidate(null);
-        setSkills([]);
-        setUserEmail('');
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, [fetchCandidateByEmail]);
-
-  const handleSignOut = async () => {
-    await supabase.auth.signOut();
-    // SIGNED_OUT event handles state reset above
   };
 
-  if (view === 'loading') {
+  const handleSignOut = () => {
+    setCandidate(null);
+    setSkills([]);
+    setEmailInput('');
+    setLookupError('');
+    setView('choose');
+  };
+
+  // ── STATE 3: Dashboard ───────────────────────────────────────────────────────
+  if (view === 'dashboard') {
     return (
-      <div className="min-h-screen bg-[#F9FAFB] flex items-center justify-center">
-        <Loader2 className="w-6 h-6 animate-spin text-[#9CA3AF]" />
-      </div>
+      <DashboardLayout
+        candidate={candidate!}
+        skills={skills}
+        onSignOut={handleSignOut}
+        onUpdate={u => setCandidate(c => c ? { ...c, ...u } : c)}
+      />
     );
   }
 
-  if (view === 'signin') return <GoogleSignInScreen />;
-
-  if (view === 'no-profile') {
+  // ── STATE 2: Email lookup ────────────────────────────────────────────────────
+  if (view === 'lookup') {
     return (
       <div className="min-h-screen bg-[#F9FAFB] flex items-center justify-center px-6">
-        <div className="bg-white border border-[#E5E7EB] rounded-2xl p-10 w-full max-w-sm text-center shadow-sm">
-          <p className="font-semibold text-[15px] text-[#0A0A0A]">SFC Talent</p>
-          <h1 className="text-xl font-semibold text-[#0A0A0A] mt-5 mb-2">Looks like you haven't applied yet</h1>
-          <p className="text-sm text-[#6B7280] leading-relaxed mb-4">
-            No profile found for <strong>{userEmail}</strong>.
-          </p>
-          <p className="text-sm text-[#6B7280] leading-relaxed mb-6">
-            Complete your application to join the network. Or sign out and try a different Google account.
-          </p>
-          <a
-            href="/apply"
-            className="block w-full text-center bg-[#0F6E56] hover:bg-[#0a5942] text-white rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors mb-3"
-          >
-            Complete Your Application →
-          </a>
+        <div className="bg-white border border-[#E5E7EB] rounded-2xl p-10 w-full max-w-sm shadow-sm">
           <button
-            onClick={handleSignOut}
-            className="w-full bg-[#F3F4F6] hover:bg-[#E5E7EB] text-[#374151] rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors"
+            onClick={() => { setLookupError(''); setView('choose'); }}
+            className="flex items-center gap-1.5 text-sm text-[#6B7280] hover:text-[#0A0A0A] mb-7 transition-colors"
           >
-            Sign out and try a different account
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 18 9 12 15 6"/>
+            </svg>
+            Back
           </button>
+
+          <p className="font-semibold text-[15px] text-[#0A0A0A] tracking-tight mb-5">SFC Talent</p>
+          <h1 className="text-[22px] font-semibold text-[#0A0A0A] mb-1">Access Your Dashboard</h1>
+          <p className="text-sm text-[#6B7280] mb-7 leading-relaxed">Enter the email you used when applying</p>
+
+          <form onSubmit={handleLookup} className="space-y-3">
+            <input
+              type="email"
+              value={emailInput}
+              onChange={e => setEmailInput(e.target.value)}
+              placeholder="you@example.com"
+              required
+              autoFocus
+              className="w-full border border-[#E5E7EB] rounded-lg px-3 py-2.5 text-sm text-[#0A0A0A] bg-white focus:outline-none focus:ring-2 focus:ring-[#0F6E56] focus:border-transparent"
+            />
+            {lookupError && (
+              <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2.5 leading-relaxed">
+                {lookupError}
+              </p>
+            )}
+            <button
+              type="submit"
+              disabled={lookupLoading}
+              className="w-full flex items-center justify-center gap-2 bg-[#0F6E56] hover:bg-[#0a5942] disabled:opacity-60 text-white rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors"
+            >
+              {lookupLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+              Access Dashboard
+            </button>
+          </form>
         </div>
       </div>
     );
   }
 
+  // ── STATE 1: Choose action ───────────────────────────────────────────────────
   return (
-    <DashboardLayout
-      candidate={candidate!}
-      skills={skills}
-      onSignOut={handleSignOut}
-      onUpdate={u => setCandidate(c => c ? { ...c, ...u } : c)}
-    />
+    <div className="min-h-screen bg-[#F9FAFB] flex flex-col items-center justify-center px-6 py-16">
+      <p className="font-semibold text-[16px] text-[#0A0A0A] tracking-tight mb-10">SFC Talent</p>
+
+      <div className="flex flex-col sm:flex-row gap-4 w-full max-w-2xl">
+        {/* Left — new applicant */}
+        <div className="flex-1 bg-white border border-[#E5E7EB] rounded-2xl p-8 flex flex-col shadow-sm">
+          <p className="text-[11px] font-semibold text-[#9CA3AF] uppercase tracking-wider mb-4">New to SFC Talent?</p>
+          <h2 className="text-[20px] font-semibold text-[#0A0A0A] mb-2 leading-snug">Join the Network</h2>
+          <p className="text-sm text-[#6B7280] leading-relaxed flex-1 mb-6">
+            Create your anonymous profile and get discovered by top finance companies.
+          </p>
+          <a
+            href="/apply"
+            className="w-full flex items-center justify-center bg-[#0F6E56] hover:bg-[#0a5942] text-white rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors text-center"
+          >
+            Apply Now
+          </a>
+        </div>
+
+        {/* Right — returning user */}
+        <div className="flex-1 bg-white border border-[#E5E7EB] rounded-2xl p-8 flex flex-col shadow-sm">
+          <p className="text-[11px] font-semibold text-[#9CA3AF] uppercase tracking-wider mb-4">Already have a profile?</p>
+          <h2 className="text-[20px] font-semibold text-[#0A0A0A] mb-2 leading-snug">Access Your Dashboard</h2>
+          <p className="text-sm text-[#6B7280] leading-relaxed flex-1 mb-6">
+            Enter your email to view and manage your profile.
+          </p>
+          <button
+            onClick={() => setView('lookup')}
+            className="w-full flex items-center justify-center bg-[#0A0A0A] hover:bg-[#1A1A1A] text-white rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors"
+          >
+            Sign In
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }

@@ -1,9 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import {
   CheckCircle2, Upload, Loader2, ChevronRight, ChevronLeft,
-  X, Plus, Shield, MessageCircle, RefreshCw,
+  X, Plus, RefreshCw,
 } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -632,245 +631,35 @@ function TimelineStep({ step }: { step: { n: string; title: string; body: string
   );
 }
 
-// ─── Auth Screen ─────────────────────────────────────────────────────────────
-
-const GoogleIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
-    <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/>
-    <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z" fill="#34A853"/>
-    <path d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
-    <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
-  </svg>
-);
-
-function AuthScreen({
-  onBack,
-  onFormStart,
-}: {
-  onBack: () => void;
-  onFormStart: (email: string, firstName: string, lastName: string) => void;
-}) {
-  const [mode, setMode] = useState<'signup' | 'signin'>('signup');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPw, setShowPw] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-
-  const routeAfterAuth = async (userEmail: string, meta?: Record<string, any>) => {
-    const res = await fetch(`/api/get-candidate-intros?email=${encodeURIComponent(userEmail)}`);
-    if (res.ok) {
-      window.location.href = '/candidate-dashboard';
-      return;
-    }
-    const fullName: string = meta?.full_name || '';
-    const parts = fullName.trim().split(' ');
-    onFormStart(userEmail, parts[0] || '', parts.slice(1).join(' ') || '');
-  };
-
-  const handleEmailSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email || !password) return;
-    setLoading(true);
-    setError('');
-
-    if (mode === 'signup') {
-      const { data, error: err } = await supabase.auth.signUp({ email, password });
-      if (err) { setError(err.message); setLoading(false); return; }
-      if (!data.session) {
-        setError('Check your email for a confirmation link, then return here to sign in.');
-        setLoading(false);
-        return;
-      }
-      await routeAfterAuth(email);
-    } else {
-      const { data, error: err } = await supabase.auth.signInWithPassword({ email, password });
-      if (err) { setError(err.message); setLoading(false); return; }
-      await routeAfterAuth(email, data.session?.user.user_metadata);
-    }
-    setLoading(false);
-  };
-
-  return (
-    <div className="min-h-screen bg-[#f8f8f8] flex items-center justify-center px-6 py-16">
-      <div className="w-full max-w-sm">
-
-        {/* Logo */}
-        <div className="mb-8 text-center">
-          <span className="font-bold text-xl text-gray-900 tracking-tight">SFC Talent</span>
-        </div>
-
-        <h1 className="text-2xl font-semibold text-gray-900 mb-1">
-          {mode === 'signup' ? 'Join the Network' : 'Welcome back'}
-        </h1>
-        <p className="text-sm text-gray-500 mb-7">
-          {mode === 'signup' ? 'Create your account to apply' : 'Sign in to your account'}
-        </p>
-
-        {/* Google */}
-        <button
-          type="button"
-          onClick={() => supabase.auth.signInWithOAuth({
-            provider: 'google',
-            options: { redirectTo: 'https://sfc-recruiter-portal.vercel.app/apply' },
-          })}
-          className="w-full flex items-center justify-center gap-2 bg-white border border-gray-300 rounded-lg px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors mb-5"
-        >
-          <GoogleIcon />
-          Continue with Google
-        </button>
-
-        {/* Divider */}
-        <div className="relative my-5">
-          <div className="absolute inset-0 flex items-center">
-            <span className="w-full border-t border-gray-200" />
-          </div>
-          <div className="relative flex justify-center text-xs">
-            <span className="bg-[#f8f8f8] px-3 text-gray-400">or</span>
-          </div>
-        </div>
-
-        {/* Email / password form */}
-        <form onSubmit={handleEmailSubmit} className="space-y-3">
-          <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-1">Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              placeholder="you@example.com"
-              required
-              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-1">Password</label>
-            <div className="relative">
-              <input
-                type={showPw ? 'text' : 'password'}
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                placeholder="••••••••"
-                required
-                className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent pr-10"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPw(p => !p)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs"
-              >
-                {showPw ? 'Hide' : 'Show'}
-              </button>
-            </div>
-          </div>
-
-          {error && (
-            <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>
-          )}
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors flex items-center justify-center gap-2"
-          >
-            {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-            {mode === 'signup' ? 'Create Account' : 'Sign In'}
-          </button>
-        </form>
-
-        {/* Toggle signup/signin */}
-        <p className="text-xs text-gray-500 text-center mt-5">
-          {mode === 'signup' ? 'Already have an account? ' : "Don't have an account? "}
-          <button
-            type="button"
-            onClick={() => { setMode(m => m === 'signup' ? 'signin' : 'signup'); setError(''); }}
-            className="text-emerald-600 font-semibold hover:underline"
-          >
-            {mode === 'signup' ? 'Sign in' : 'Sign up'}
-          </button>
-        </p>
-
-        <button
-          type="button"
-          onClick={onBack}
-          className="mt-5 w-full text-xs text-gray-400 hover:text-gray-600 transition-colors text-center"
-        >
-          ← Back
-        </button>
-
-      </div>
-    </div>
-  );
-}
-
 // ─── Success Screen ───────────────────────────────────────────────────────────
 
-function SuccessScreen({ firstName, alreadyExists = false }: { firstName: string; alreadyExists?: boolean }) {
-  useEffect(() => {
-    const t = setTimeout(() => { window.location.href = '/candidate-dashboard'; }, 4000);
-    return () => clearTimeout(t);
-  }, []);
-
+function SuccessScreen({ firstName }: { firstName: string }) {
   return (
     <div className="min-h-screen bg-white flex items-center justify-center px-6 py-16">
-      <div className="max-w-lg w-full">
-        <div className="text-center mb-8">
-          <div className="w-16 h-16 rounded-full bg-emerald-50 flex items-center justify-center mx-auto mb-5">
-            <CheckCircle2 className="w-8 h-8 text-emerald-600" />
-          </div>
-          <h2 className="text-3xl font-bold text-gray-900 mb-3">
-            {alreadyExists ? 'Welcome back! 👋' : "You're in! 🎉"}
-          </h2>
-          <p className="text-gray-500 leading-relaxed">
-            {alreadyExists
-              ? 'Your profile is already live. Head to your dashboard to manage your account.'
-              : 'Your profile is live and recruiters can now find you.'}
-          </p>
+      <div className="max-w-md w-full text-center">
+        <div className="w-16 h-16 rounded-full bg-emerald-50 flex items-center justify-center mx-auto mb-6">
+          <CheckCircle2 className="w-8 h-8 text-emerald-600" />
         </div>
+        <h2 className="text-3xl font-bold text-gray-900 mb-3">You're in! 🎉</h2>
+        <p className="text-gray-500 leading-relaxed mb-8">
+          {firstName ? `Welcome, ${firstName}. ` : ''}Your profile is live.
+        </p>
 
-        {/* Dashboard CTA */}
-        <div className="border border-emerald-200 bg-emerald-50 rounded-xl p-5 mb-5">
-          <p className="text-sm font-semibold text-emerald-900 mb-1">Your dashboard is ready</p>
-          <p className="text-xs text-emerald-700 mb-4">
-            Manage your profile, update availability, and track introduction requests.
-            Redirecting automatically in a few seconds…
+        {/* Dashboard access box */}
+        <div className="border border-emerald-200 bg-emerald-50 rounded-xl p-6 mb-4 text-left">
+          <p className="text-sm font-semibold text-emerald-900 mb-1">Your dashboard</p>
+          <p className="text-xs text-emerald-700 mb-4 leading-relaxed">
+            Access your dashboard anytime at{' '}
+            <span className="font-medium">sfc-recruiter-portal.vercel.app/candidate-dashboard</span>
           </p>
           <a
             href="/candidate-dashboard"
             className="w-full flex items-center justify-center bg-[#0F6E56] hover:bg-[#0a5942] text-white rounded-lg px-6 py-3 text-sm font-semibold transition-colors"
           >
-            Open My Dashboard →
+            Go to Dashboard →
           </a>
         </div>
-
-        {/* Email preview mockup */}
-        <p className="text-sm text-gray-500 text-center mb-4">
-          When a recruiter is interested, you'll get an email like this:
-        </p>
-        <div className="border border-gray-200 rounded-xl overflow-hidden mb-6 shadow-sm">
-          <div className="bg-gray-50 border-b border-gray-200 px-4 py-3">
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-red-400" />
-              <div className="w-3 h-3 rounded-full bg-yellow-400" />
-              <div className="w-3 h-3 rounded-full bg-green-400" />
-            </div>
-          </div>
-          <div className="p-5 bg-white text-sm space-y-2">
-            <div className="text-gray-500 text-xs border-b border-gray-100 pb-3 mb-3">
-              <p><span className="font-semibold text-gray-700">From:</span> SFC Talent &lt;noreply@strategicfinancecareers.com&gt;</p>
-              <p><span className="font-semibold text-gray-700">Subject:</span> New opportunity: VP Finance at [Company]</p>
-            </div>
-            <p className="text-gray-800">Hi {firstName || '[First Name]'},</p>
-            <p className="text-gray-600 leading-relaxed text-xs">
-              A company is interested in connecting with you about a <strong>VP Finance</strong> role
-              offering <strong>$180k–$220k</strong> total comp. You have 48 hours to respond.
-            </p>
-            <div className="flex gap-3 pt-2">
-              <span className="inline-block px-4 py-2 bg-emerald-600 text-white rounded-lg text-xs font-semibold cursor-default">✅ YES</span>
-              <span className="inline-block px-4 py-2 bg-gray-100 text-gray-600 rounded-lg text-xs font-semibold cursor-default">❌ NO</span>
-            </div>
-          </div>
-        </div>
+        <p className="text-xs text-gray-400">Bookmark this page — you'll use your email to sign in</p>
       </div>
     </div>
   );
@@ -888,61 +677,11 @@ export default function CandidateApply() {
   const [regenerating, setRegenerating] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
-  const [alreadyExists, setAlreadyExists] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const set = (field: keyof FormState, value: any) =>
     setForm(prev => ({ ...prev, [field]: value }));
 
-  // ── OAuth redirect handler ────────────────────────────────────────────────
-  // Supabase fires SIGNED_IN on EVERY page load when an existing session is
-  // present — not just after a fresh OAuth redirect. So we cannot rely on the
-  // event alone. Instead we inspect the URL: Supabase appends ?code= (PKCE)
-  // or #access_token= (implicit) only when an actual OAuth redirect just landed.
-  // If neither token marker is in the URL, this effect is a no-op and the
-  // landing page is always shown.
-  useEffect(() => {
-    const url = new URL(window.location.href);
-    const isOAuthRedirect =
-      url.searchParams.has('code') ||          // PKCE flow
-      window.location.hash.includes('access_token'); // implicit flow
-
-    if (!isOAuthRedirect) return; // plain page load — show landing, do nothing
-
-    const handleNewSession = async (session: { user: { email?: string; user_metadata?: Record<string, any> } }) => {
-      const email = session.user.email;
-      if (!email) return;
-
-      // Clean the OAuth tokens out of the URL so a refresh doesn't re-trigger
-      window.history.replaceState({}, '', window.location.pathname);
-
-      const res = await fetch(`/api/get-candidate-intros?email=${encodeURIComponent(email)}`);
-      if (res.ok) {
-        window.location.href = '/candidate-dashboard';
-        return;
-      }
-
-      // New user — pre-fill from Google metadata and drop into Step 1
-      set('email', email);
-      const fullName: string = session.user.user_metadata?.full_name || '';
-      if (fullName) {
-        const parts = fullName.trim().split(' ');
-        set('firstName', parts[0] || '');
-        set('lastName', parts.slice(1).join(' ') || '');
-      }
-      setScreen('form');
-      setStep(1);
-    };
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_IN' && session?.user) {
-        handleNewSession(session);
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   // ── Derived ─────────────────────────────────────────────────────────────────
 
@@ -1100,15 +839,11 @@ export default function CandidateApply() {
         }),
       });
 
-      const data = await res.json().catch(() => ({}));
-
       if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
         throw new Error(data.error || 'Submission failed');
       }
 
-      if (data.alreadyExists) {
-        setAlreadyExists(true);
-      }
       setScreen('success');
     } catch (err: any) {
       setSubmitError(err.message || 'Something went wrong. Please try again.');
@@ -1119,37 +854,14 @@ export default function CandidateApply() {
 
   // ── Landing ─────────────────────────────────────────────────────────────────
 
-  // CTA: show auth screen, don't jump straight to OAuth
-  const handleStart = () => setScreen('auth');
+  // "Join the Network" → go straight into the application form
+  const handleStart = () => { setScreen('form'); setStep(1); };
 
-  // "Already have a profile?" → Google OAuth straight to /candidate-dashboard
-  const handleSignIn = () => {
-    supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: 'https://sfc-recruiter-portal.vercel.app/candidate-dashboard' },
-    });
-  };
-
-  // Called by AuthScreen after successful email/password auth
-  const handleFormStart = (email: string, firstName: string, lastName: string) => {
-    set('email', email);
-    if (firstName) set('firstName', firstName);
-    if (lastName) set('lastName', lastName);
-    setScreen('form');
-    setStep(1);
-  };
+  // "Already have a profile?" → go to the candidate dashboard (email lookup)
+  const handleSignIn = () => { window.location.href = '/candidate-dashboard'; };
 
   if (screen === 'landing') {
     return <LandingSection onStart={handleStart} onSignIn={handleSignIn} />;
-  }
-
-  if (screen === 'auth') {
-    return (
-      <AuthScreen
-        onBack={() => setScreen('landing')}
-        onFormStart={handleFormStart}
-      />
-    );
   }
 
   // ── Disqualified ─────────────────────────────────────────────────────────────
@@ -1181,9 +893,7 @@ export default function CandidateApply() {
   // ── Success ──────────────────────────────────────────────────────────────────
 
   if (screen === 'success') {
-    return (
-      <SuccessScreen firstName={form.firstName} alreadyExists={alreadyExists} />
-    );
+    return <SuccessScreen firstName={form.firstName} />;
   }
 
   // ── Multi-step Form ──────────────────────────────────────────────────────────

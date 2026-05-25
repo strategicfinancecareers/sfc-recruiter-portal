@@ -1,6 +1,9 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 
+console.log('SUPABASE_URL exists:', !!process.env.SUPABASE_URL);
+console.log('SUPABASE_SERVICE_ROLE_KEY exists:', !!process.env.SUPABASE_SERVICE_ROLE_KEY);
+
 const supabase = createClient(
   process.env.SUPABASE_URL || '',
   process.env.SUPABASE_SERVICE_ROLE_KEY || ''
@@ -12,7 +15,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { id, ...updates } = req.body;
     if (!id) return res.status(400).json({ error: 'id required' });
     const { error } = await supabase.from('candidates').update(updates).eq('id', id);
-    if (error) return res.status(500).json({ error: error.message });
+    if (error) {
+      console.error('[candidate-profile] PATCH error:', JSON.stringify(error));
+      return res.status(500).json({ error: error.message, details: JSON.stringify(error) });
+    }
     return res.status(200).json({ success: true });
   }
 
@@ -42,7 +48,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (error) {
     console.error('[candidate-profile] supabase error:', JSON.stringify(error));
-    return res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: error.message, details: JSON.stringify(error) });
   }
   if (!candidate) return res.status(404).json({ error: 'No candidate found' });
 

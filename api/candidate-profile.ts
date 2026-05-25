@@ -7,11 +7,20 @@ const supabase = createClient(
 );
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // PATCH — update candidate fields by id
+  if (req.method === 'PATCH') {
+    const { id, ...updates } = req.body;
+    if (!id) return res.status(400).json({ error: 'id required' });
+    const { error } = await supabase.from('candidates').update(updates).eq('id', id);
+    if (error) return res.status(500).json({ error: error.message });
+    return res.status(200).json({ success: true });
+  }
+
   const { email } = req.query;
   if (!email) return res.status(400).json({ error: 'email required' });
 
   const emailStr = (email as string).toLowerCase().trim();
-  console.log('Looking up candidate for email:', emailStr);
+  console.log('[candidate-profile] looking up email:', emailStr);
 
   const { data: candidate, error } = await supabase
     .from('candidates')
@@ -21,7 +30,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       location, experience, education,
       highest_education_level, status,
       primary_background, secondary_backgrounds,
-      work_preference, target_salary, preferred_cities,
+      work_preference, target_salary,
       phone, linkedin_url, created_at,
       candidate_skills(skills(skill))
     `)
@@ -29,9 +38,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     .eq('status', 'active')
     .maybeSingle();
 
-  console.log('Candidate found:', candidate?.id, 'Error:', error);
+  console.log('[candidate-profile] result — id:', candidate?.id ?? 'null', '| error:', error?.message ?? null);
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    console.error('[candidate-profile] supabase error:', JSON.stringify(error));
+    return res.status(500).json({ error: error.message });
+  }
   if (!candidate) return res.status(404).json({ error: 'No candidate found' });
 
   return res.status(200).json({ candidate });

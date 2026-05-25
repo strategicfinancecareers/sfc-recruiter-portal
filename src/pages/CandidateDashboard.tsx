@@ -743,34 +743,43 @@ export default function CandidateDashboard() {
 
     console.log('[CandidateDashboard] fetchCandidateByEmail:', email);
 
-    const { data } = await (supabase as any)
-      .from('candidates')
-      .select('id, name, display_name, email, label, phone, profile_description, open_to_opportunities, location, experience, education, highest_education_level, primary_background, secondary_backgrounds, linkedin_url, target_salary, work_preference, status, created_at, candidate_skills(skills(skill))')
-      .eq('email', email.toLowerCase())
-      .eq('status', 'active')
-      .maybeSingle();
+    try {
+      const response = await fetch(`/api/candidate-profile?email=${encodeURIComponent(email.toLowerCase().trim())}`);
 
-    console.log('[CandidateDashboard] candidate row:', data ? `id=${data.id}` : 'null');
+      console.log('[CandidateDashboard] /api/candidate-profile status:', response.status);
 
-    if (!data) {
-      fetchInProgress.current = false;
+      if (response.status === 404) {
+        setView('no-profile');
+        return;
+      }
+
+      if (!response.ok) {
+        console.error('[CandidateDashboard] API error:', response.status);
+        setView('no-profile');
+        return;
+      }
+
+      const { candidate } = await response.json();
+      console.log('[CandidateDashboard] candidate id:', candidate?.id);
+
+      const extracted: string[] = ((candidate.candidate_skills as SkillRow[]) || [])
+        .map((r: SkillRow) => r.skills?.skill || '').filter(Boolean);
+      setCandidate(candidate as CandidateRow);
+      setSkills(extracted);
+      setView('dashboard');
+
+      // Send welcome email on first dashboard sign-in (idempotent — API skips if already sent)
+      fetch('/api/send-candidate-welcome', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.toLowerCase() }),
+      }).catch(() => {});
+    } catch (err) {
+      console.error('[CandidateDashboard] fetch error:', err);
       setView('no-profile');
-      return;
+    } finally {
+      fetchInProgress.current = false;
     }
-
-    const extracted: string[] = ((data.candidate_skills as SkillRow[]) || [])
-      .map(r => r.skills?.skill || '').filter(Boolean);
-    setCandidate(data as CandidateRow);
-    setSkills(extracted);
-    setView('dashboard');
-    fetchInProgress.current = false;
-
-    // Send welcome email on first dashboard sign-in (idempotent — API skips if already sent)
-    fetch('/api/send-candidate-welcome', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: email.toLowerCase() }),
-    }).catch(() => {});
   }, []);
 
   useEffect(() => {

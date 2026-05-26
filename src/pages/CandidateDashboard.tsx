@@ -82,7 +82,8 @@ export default function CandidateDashboard() {
       }
       const res = await fetch(`/api/candidate-profile?email=${encodeURIComponent(emailInput.toLowerCase().trim())}`);
       if (res.status === 404) {
-        setSigninError('No profile found. Please apply first at /apply.');
+        // Account exists but no profile yet — send them to complete the intake form
+        window.location.href = '/apply';
         return;
       }
       if (!res.ok) {

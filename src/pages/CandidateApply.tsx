@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import {
   CheckCircle2, Upload, Loader2, ChevronRight, ChevronLeft,
-  X, Plus, RefreshCw,
+  X, Plus, RefreshCw, Mail,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -107,7 +107,7 @@ const WORK_PREFERENCES = [
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Screen = 'landing' | 'auth' | 'form' | 'disqualified' | 'success';
+type Screen = 'landing' | 'auth' | 'verify-email' | 'form' | 'disqualified' | 'success';
 
 interface FormState {
   // Step 1 – Qualification
@@ -691,6 +691,39 @@ export default function CandidateApply() {
   const set = (field: keyof FormState, value: any) =>
     setForm(prev => ({ ...prev, [field]: value }));
 
+  // ── Route a confirmed session to profile-check → form or dashboard ───────────
+  const routeConfirmedSession = async (email: string) => {
+    set('email', email);
+    const profileRes = await fetch(`/api/candidate-profile?email=${encodeURIComponent(email.toLowerCase())}`);
+    if (profileRes.ok) {
+      window.location.href = '/candidate-dashboard';
+    } else {
+      setScreen('form');
+      setStep(1);
+    }
+  };
+
+  // ── On mount: check existing session + listen for email-confirmation ─────────
+  useEffect(() => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!session?.user) return;
+      const confirmed = session.user.email_confirmed_at;
+      const email = session.user.email ?? '';
+      if (confirmed) {
+        await routeConfirmedSession(email);
+      } else {
+        setAuthEmail(email);
+        setScreen('verify-email');
+      }
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if ((event === 'SIGNED_IN' || event === 'USER_UPDATED') && session?.user?.email_confirmed_at) {
+        await routeConfirmedSession(session.user.email ?? '');
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Derived ─────────────────────────────────────────────────────────────────
 
@@ -873,6 +906,58 @@ export default function CandidateApply() {
     return <LandingSection onStart={handleStart} onSignIn={handleSignIn} />;
   }
 
+  // ── Verify Email ─────────────────────────────────────────────────────────────
+
+  if (screen === 'verify-email') {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center px-6 py-12">
+        <div className="w-full max-w-md text-center">
+          <div className="w-16 h-16 rounded-full bg-emerald-50 flex items-center justify-center mx-auto mb-6">
+            <Mail className="w-8 h-8 text-emerald-600" />
+          </div>
+          <h1 className="text-2xl font-semibold text-gray-900 mb-3">Check your inbox</h1>
+          <p className="text-gray-600 mb-2 leading-relaxed">
+            We sent a verification link to <strong>{authEmail}</strong>. Click it to verify your account and continue.
+          </p>
+          <p className="text-sm text-gray-400 mb-8">
+            Once verified, you'll be brought back here to complete your profile.
+          </p>
+
+          <button
+            onClick={async () => {
+              const { data: { session } } = await supabase.auth.getSession();
+              if (session?.user?.email_confirmed_at) {
+                await routeConfirmedSession(session.user.email ?? authEmail);
+              } else {
+                setAuthError('Email not verified yet. Please click the link in your inbox.');
+                // show error below button
+              }
+            }}
+            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors mb-4"
+          >
+            Already verified? Continue →
+          </button>
+
+          {authError && (
+            <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2.5 mb-4">{authError}</p>
+          )}
+
+          <button
+            onClick={async () => {
+              setAuthError('');
+              const { error } = await supabase.auth.resend({ type: 'signup', email: authEmail });
+              if (error) setAuthError(error.message);
+              else setAuthError('Verification email resent!');
+            }}
+            className="text-sm text-emerald-600 hover:text-emerald-700 underline"
+          >
+            Resend email
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   // ── Auth (Create Account / Sign In) ─────────────────────────────────────────
 
   if (screen === 'auth') {
@@ -933,9 +1018,8 @@ export default function CandidateApply() {
                     }
                     return;
                   }
-                  set('email', authEmail);
-                  setScreen('form');
-                  setStep(1);
+                  // Don't go to form yet — wait for email verification
+                  setScreen('verify-email');
                 } finally {
                   setAuthLoading(false);
                 }

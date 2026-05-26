@@ -691,39 +691,27 @@ export default function CandidateApply() {
   const set = (field: keyof FormState, value: any) =>
     setForm(prev => ({ ...prev, [field]: value }));
 
-  // ── Route a confirmed session to profile-check → form or dashboard ───────────
-  const routeConfirmedSession = async (email: string) => {
-    set('email', email);
-    const profileRes = await fetch(`/api/candidate-profile?email=${encodeURIComponent(email.toLowerCase())}`);
-    if (profileRes.ok) {
-      window.location.href = '/candidate-dashboard';
-    } else {
-      setScreen('form');
-      setStep(1);
-    }
-  };
-
-  // ── On mount: check existing session + listen for email-confirmation ─────────
+  // ── Only listen for email confirmation while on verify-email screen ───────────
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (!session?.user) return;
-      const confirmed = session.user.email_confirmed_at;
-      const email = session.user.email ?? '';
-      if (confirmed) {
-        await routeConfirmedSession(email);
-      } else {
-        setAuthEmail(email);
-        setScreen('verify-email');
-      }
-    });
-
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if ((event === 'SIGNED_IN' || event === 'USER_UPDATED') && session?.user?.email_confirmed_at) {
-        await routeConfirmedSession(session.user.email ?? '');
+      if (
+        (event === 'SIGNED_IN' || event === 'USER_UPDATED') &&
+        session?.user?.email_confirmed_at &&
+        screen === 'verify-email'
+      ) {
+        const email = session.user.email ?? authEmail;
+        set('email', email);
+        const profileRes = await fetch(`/api/candidate-profile?email=${encodeURIComponent(email.toLowerCase())}`);
+        if (profileRes.ok) {
+          window.location.href = '/candidate-dashboard';
+        } else {
+          setScreen('form');
+          setStep(1);
+        }
       }
     });
     return () => subscription.unsubscribe();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [screen, authEmail]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Derived ─────────────────────────────────────────────────────────────────
 

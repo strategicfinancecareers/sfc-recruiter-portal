@@ -26,7 +26,7 @@ export interface IntroductionRequest {
     highest_education_level?: string | null;
     label: string;
     profile_description?: string | null;
-    // TODO: this is now a storage path, not a URL — generate a signed URL via /api/get-resume-url (to be built) before using.
+    // Storage path (bucket is private). Use /api/get-resume-url for a signed download URL.
     resume_full_url?: string | null;
     skills: Array<{ id: string; skill: string }>;
   };

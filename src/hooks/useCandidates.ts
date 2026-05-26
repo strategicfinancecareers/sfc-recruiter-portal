@@ -15,7 +15,7 @@ export interface Candidate {
   label: string;
   profile_description?: string;
   open_to_opportunities?: boolean;
-  // TODO: this is now a storage path, not a URL — generate a signed URL via /api/get-resume-url (to be built) before using.
+  // Storage path (bucket is private). Use /api/get-resume-url for a signed download URL.
   resume_full_url?: string;
   resume_redacted_url?: string;
   skills: Array<{ id: string; skill: string }>;

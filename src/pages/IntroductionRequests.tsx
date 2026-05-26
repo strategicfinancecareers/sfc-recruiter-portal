@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import RedactedResume from "@/components/RedactedResume";
 import LoaderScreen from "@/components/LoaderScreen";
-import { CheckCircle, XCircle, Clock, ArrowUpDown, Download, Mail, Phone } from "lucide-react";
+import { CheckCircle, XCircle, Clock, ArrowUpDown, Download, Mail, Phone, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useIntroductionRequests, type IntroductionRequest } from "../hooks/useIntroductionRequests";
@@ -24,6 +24,8 @@ const IntroductionRequests = () => {
   const { user } = useAuth();
   const { requests, loading, error, updateRequestStatus, cancelRequest } = useIntroductionRequests();
 
+  const [downloadingResume, setDownloadingResume] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
   const [sortField, setSortField] = useState<'candidate' | 'job' | 'company' | 'requested' | 'requester' | 'status'>('requested');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
@@ -47,6 +49,7 @@ const IntroductionRequests = () => {
   const openApprovedModal = (request: IntroductionRequest) => {
     // Use already-loaded candidate data — no second network call needed
     const c = request.candidate;
+    setDownloadError(null);
     setApprovedModal({
       open: true,
       request,
@@ -62,6 +65,34 @@ const IntroductionRequests = () => {
         : null,
       loading: false,
     });
+  };
+
+  // Request a fresh signed URL for the resume, then open it in a new tab.
+  // The `resume_full_url` column holds a Supabase Storage path (bucket is
+  // private); /api/get-resume-url verifies approval and returns a 1-hour URL.
+  const handleDownloadResume = async () => {
+    const candidateId = approvedModal.candidate?.id;
+    if (!candidateId || !user?.id) {
+      setDownloadError('Missing candidate or user — please refresh and try again.');
+      return;
+    }
+    setDownloadingResume(true);
+    setDownloadError(null);
+    try {
+      const res = await fetch(
+        `/api/get-resume-url?candidateId=${encodeURIComponent(candidateId)}&requesterId=${encodeURIComponent(user.id)}`
+      );
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok || !body.url) {
+        throw new Error(body.error || `Failed to generate download link (${res.status})`);
+      }
+      window.open(body.url, '_blank', 'noopener,noreferrer');
+    } catch (err: any) {
+      console.error('[IntroductionRequests] resume download failed:', err);
+      setDownloadError(err?.message || 'Failed to generate download link');
+    } finally {
+      setDownloadingResume(false);
+    }
   };
 
   const handleRequestAction = (requestId: string, action: 'approve' | 'reject' | 'cancel') => {
@@ -182,17 +213,32 @@ const IntroductionRequests = () => {
                 )}
               </div>
 
-              {/* TODO: this is now a storage path, not a URL — generate a signed URL via /api/get-resume-url (to be built) before using. */}
               {approvedModal.candidate?.resume_full_url && (
-                <a
-                  href={approvedModal.candidate.resume_full_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 w-full justify-center rounded-lg border border-green-300 bg-white text-green-800 font-medium px-4 py-2 text-sm hover:bg-green-50 transition-colors"
-                >
-                  <Download className="w-4 h-4" />
-                  Download Resume
-                </a>
+                <>
+                  <button
+                    type="button"
+                    onClick={handleDownloadResume}
+                    disabled={downloadingResume}
+                    className="flex items-center gap-2 w-full justify-center rounded-lg border border-green-300 bg-white text-green-800 font-medium px-4 py-2 text-sm hover:bg-green-50 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {downloadingResume ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Generating download link…
+                      </>
+                    ) : (
+                      <>
+                        <Download className="w-4 h-4" />
+                        Download Resume
+                      </>
+                    )}
+                  </button>
+                  {downloadError && (
+                    <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mt-2">
+                      {downloadError}
+                    </p>
+                  )}
+                </>
               )}
             </div>
           )}

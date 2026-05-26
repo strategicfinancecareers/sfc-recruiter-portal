@@ -1,6 +1,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
+// @ts-ignore — ESM JS helper, no .d.ts file
+import { generateResumeSignedUrl } from './_shared/signedUrl.js';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 const supabase = createClient(
@@ -64,24 +66,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const company = job?.company;
 
     if (accepted) {
-      // Build attachments array — attach resume PDF if available
-      const attachments: Array<{ filename: string; content: string }> = [];
-
-      // TODO: this is now a storage path, not a URL — generate a signed URL via /api/get-resume-url (to be built) before using.
-      if (candidate?.resume_full_url) {
-        try {
-          const resumeResponse = await fetch(candidate.resume_full_url);
-          const resumeBuffer = await resumeResponse.arrayBuffer();
-          const resumeBase64 = Buffer.from(resumeBuffer).toString('base64');
-          const safeName = (candidate.name || 'Candidate').replace(/\s+/g, '_');
-          attachments.push({
-            filename: `${safeName}_Resume.pdf`,
-            content: resumeBase64,
-          });
-        } catch (err) {
-          console.error('[respond-to-intro] Failed to fetch resume:', err);
+      // Generate a 7-day signed URL for the recruiter to download the resume.
+      // If signed-URL generation fails for any reason, fall back to a portal
+      // link — don't fail the whole acceptance flow over an email cosmetic.
+      let resumeDownloadUrl: string | null = null;
+      if (candidate?.resume_full_url && candidate?.id) {
+        const result = await generateResumeSignedUrl(supabase, candidate.id, 7 * 24 * 60 * 60);
+        if (result.status === 200 && result.url) {
+          resumeDownloadUrl = result.url;
+        } else {
+          console.warn('[respond-to-intro] signed URL fallback:', result.status, result.error);
         }
       }
+
+      const resumeBlock = resumeDownloadUrl
+        ? `<div style="margin:16px 0"><a href="${resumeDownloadUrl}" style="display:inline-block;background:#0F6E56;color:white;text-decoration:none;padding:12px 24px;border-radius:6px;font-weight:600">📎 Download Resume</a><p style="margin:8px 0 0;color:#999;font-size:12px">Link valid for 7 days.</p></div>`
+        : (candidate?.resume_full_url
+            ? '<p style="color:#888;font-size:13px">Resume download will be available in the SFC portal.</p>'
+            : '');
 
       const yesHtml = '<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">'
         + '<img src="https://sfc-recruiter-portal.vercel.app/logo.png" height="40" style="margin-bottom:24px" />'
@@ -93,18 +95,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         + `<p style="margin:0 0 6px">📧 <a href="mailto:${candidate?.email}" style="color:#0F6E56">${candidate?.email}</a></p>`
         + (candidate?.phone ? `<p style="margin:0">📱 <a href="tel:${candidate?.phone}" style="color:#0F6E56">${candidate?.phone}</a></p>` : '')
         + '</div>'
-        + (attachments.length > 0 ? '<p style="color:#555;font-size:14px">📎 Resume attached to this email.</p>' : '')
+        + resumeBlock
         + '<p style="color:#666;font-size:14px">We recommend reaching out within 24 hours while their interest is fresh.</p>'
         + '<hr style="border:none;border-top:1px solid #eee;margin:24px 0" />'
         + '<p style="color:#999;font-size:12px">SFC Talent · strategicfinancecareers.com</p>'
         + '</div>';
 
-      console.log('[respond-to-intro] sending YES email, attachments count:', attachments.length);
+      console.log('[respond-to-intro] sending YES email, signed URL included:', !!resumeDownloadUrl);
       const { data: emailData, error: emailErr } = await resend.emails.send({
         from: 'SFC Talent <noreply@strategicfinancecareers.com>',
         to: toList,
         subject: `✅ ${candidateName} is interested in your ${jobTitle} role`,
-        attachments,
         html: yesHtml,
       });
       console.log('[respond-to-intro] YES email result:', JSON.stringify({ emailData, emailErr }));

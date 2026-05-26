@@ -15,7 +15,8 @@ export default async function handler(req, res) {
     // FK hints required: introduction_requests has 2 FKs each to candidates,
     // jobs, and users (auto-generated *_fkey + explicit fk_* from migration
     // 20250809023925). Without a hint PostgREST returns 500.
-    // TODO: candidate.resume_full_url is now a storage path, not a URL — generate a signed URL via /api/get-resume-url (to be built) before using.
+    // candidate.resume_full_url is a storage path — consumers must call
+    // /api/get-resume-url to obtain a signed download URL.
     const { data, error } = await supabase
       .from('introduction_requests')
       .select(`

@@ -1,5 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
+// @ts-ignore — ESM JS helper, no .d.ts file
+import { generateResumeSignedUrl } from './_shared/signedUrl.js';
 
 const supabase = createClient(
   process.env.SUPABASE_URL || '',
@@ -233,6 +235,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // ── Send notification email ───────────────────────────────────────────────
+    // Generate a 7-day signed URL so the admin can download the resume
+    // directly from the notification email. Bucket is private; signed URL
+    // is the only way to grant access. Falls back to a path-only block if
+    // generation fails — never blocks the email send.
+    let adminResumeUrl: string | null = null;
+    if (resumePath && candidateId) {
+      const result = await generateResumeSignedUrl(supabase, candidateId, 7 * 24 * 60 * 60);
+      if (result.status === 200 && result.url) {
+        adminResumeUrl = result.url;
+      } else {
+        console.warn('[submit-candidate] admin signed URL fallback:', result.status, result.error);
+      }
+    }
+
     const sectorList = Array.isArray(sectors) && sectors.length > 0 ? sectors.join(', ') : 'Not specified';
     const detailedList = Array.isArray(detailedExperience) && detailedExperience.length > 0 ? detailedExperience.join(', ') : 'Not specified';
     const secondaryList = Array.isArray(secondaryBackgrounds) && secondaryBackgrounds.length > 0 ? secondaryBackgrounds.join(', ') : '—';
@@ -262,8 +278,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       + '<tr><td style="padding:8px 0;color:#888">Target Roles</td><td style="padding:8px 0">' + roleList + '</td></tr>'
       + '</table>'
       + (bio ? '<div style="margin:16px 0;padding:16px;background:#f9f9f9;border-radius:8px"><p style="color:#666;font-size:12px;margin:0 0 8px">Bio</p><p style="margin:0;color:#333">' + bio + '</p></div>' : '')
-      // TODO: this is now a storage path, not a URL — generate a signed URL via /api/get-resume-url (to be built) before using.
-      + (resumePath ? '<div style="margin:20px 0;padding:12px 16px;background:#f0faf6;border:1px solid #d6efdf;border-radius:6px"><p style="margin:0;color:#0F6E56;font-weight:600;font-size:14px">Resume uploaded</p><p style="margin:4px 0 0;color:#666;font-size:12px;font-family:monospace">' + resumePath + '</p><p style="margin:8px 0 0;color:#888;font-size:12px">View this candidate in the SFC Admin portal to download.</p></div>' : '<p style="color:#888;font-size:13px">No resume uploaded.</p>')
+      + (adminResumeUrl
+          ? '<div style="margin:20px 0"><a href="' + adminResumeUrl + '" style="display:inline-block;background:#0F6E56;color:white;text-decoration:none;padding:12px 24px;border-radius:6px;font-weight:600">📎 Download Resume</a><p style="margin:8px 0 0;color:#999;font-size:12px">Link valid for 7 days.</p></div>'
+          : (resumePath
+              ? '<p style="color:#888;font-size:13px">Resume uploaded — view in SFC Admin portal.</p>'
+              : '<p style="color:#888;font-size:13px">No resume uploaded.</p>'))
       + '<hr style="border:none;border-top:1px solid #eee;margin:24px 0">'
       + '<p style="color:#aaa;font-size:12px">Review this application in the SFC Admin portal.</p>'
       + '</div>';

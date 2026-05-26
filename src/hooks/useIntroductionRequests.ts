@@ -26,6 +26,7 @@ export interface IntroductionRequest {
     highest_education_level?: string | null;
     label: string;
     profile_description?: string | null;
+    resume_full_url?: string | null;
     skills: Array<{ id: string; skill: string }>;
   };
   requester: {
@@ -47,79 +48,97 @@ export const useIntroductionRequests = () => {
   const { toast } = useToast();
   const [requests, setRequests] = useState<IntroductionRequest[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchRequests = async () => {
     if (!user?.id) return;
 
     try {
       setLoading(true);
-      
-      // Build the query based on user role with specific relationship aliases
-      let query = supabase
-        .from('introduction_requests')
-        .select(`
-          *,
-          candidate:candidates!introduction_requests_candidate_id_fkey (
-            id,
-            name,
-            display_name,
-            email,
-            phone,
-            location,
-            experience,
-            education,
-            highest_education_level,
-            label,
-            profile_description,
-            candidate_skills (
-              skills (
-                id,
-                skill
-              )
-            )
-          ),
-          requester:users (
-            id,
-            first_name,
-            last_name,
-            email
-          ),
-          job:jobs!introduction_requests_job_id_fkey (
-            id,
-            title,
-            company,
-            location
-          )
-        `)
-        .order('created_at', { ascending: false });
+      setError(null);
 
-      // If user is a recruiter, only show their own requests
       if (user.role === 'recruiter') {
-        query = query.eq('requester_id', user.id);
+        // Route through service-role API to bypass RLS
+        const res = await fetch(`/api/recruiter-intros?recruiterId=${encodeURIComponent(user.id)}`);
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.error || `API error ${res.status}`);
+        }
+        const { requests: raw } = await res.json();
+        // Data already comes back with candidate/requester/job aliases matching the interface.
+        // Skills are not fetched via the API — default to empty array.
+        const transformed: IntroductionRequest[] = (raw || []).map((req: any) => ({
+          ...req,
+          candidate: {
+            ...(req.candidate || {}),
+            skills: [],
+          },
+          requester: req.requester || { id: req.requester_id, first_name: '—', last_name: '', email: '' },
+          job: req.job || null,
+        }));
+        setRequests(transformed);
+      } else {
+        // Admin: direct Supabase query (admins have unrestricted RLS access)
+        const { data, error: qErr } = await supabase
+          .from('introduction_requests')
+          .select(`
+            *,
+            candidate:candidates!introduction_requests_candidate_id_fkey (
+              id,
+              name,
+              display_name,
+              email,
+              phone,
+              location,
+              experience,
+              education,
+              highest_education_level,
+              label,
+              profile_description,
+              resume_full_url,
+              candidate_skills (
+                skills (
+                  id,
+                  skill
+                )
+              )
+            ),
+            requester:users (
+              id,
+              first_name,
+              last_name,
+              email
+            ),
+            job:jobs!introduction_requests_job_id_fkey (
+              id,
+              title,
+              company,
+              location
+            )
+          `)
+          .order('created_at', { ascending: false });
+
+        if (qErr) throw qErr;
+
+        const transformed: IntroductionRequest[] = (data || []).map((req: any) => ({
+          ...req,
+          candidate: {
+            ...req.candidate,
+            skills: (req.candidate?.candidate_skills || []).map((cs: any) => ({
+              id: cs.skills.id,
+              skill: cs.skills.skill,
+            })),
+          },
+        }));
+        setRequests(transformed);
       }
-
-      const { data, error } = await query;
-
-      if (error) throw error;
-
-      const typedData = (data || []) as any[];
-      // Map candidate_skills to a flat skills array for convenience
-      const transformed: IntroductionRequest[] = typedData.map((req: any) => ({
-        ...req,
-        candidate: {
-          ...req.candidate,
-          skills: (req.candidate?.candidate_skills || []).map((cs: any) => ({
-            id: cs.skills.id,
-            skill: cs.skills.skill,
-          })),
-        },
-      }));
-      setRequests(transformed);
-    } catch (error) {
-      console.error('Error fetching introduction requests:', error);
+    } catch (err: any) {
+      console.error('[useIntroductionRequests] fetch error:', err);
+      const msg = err?.message || 'Failed to load introduction requests';
+      setError(msg);
       toast({
         title: 'Error',
-        description: 'Failed to load introduction requests',
+        description: msg,
         variant: 'destructive',
       });
     } finally {
@@ -131,7 +150,7 @@ export const useIntroductionRequests = () => {
     try {
       const { error } = await supabase
         .from('introduction_requests')
-        .update({ 
+        .update({
           status,
           updated_at: new Date().toISOString()
         })
@@ -139,10 +158,9 @@ export const useIntroductionRequests = () => {
 
       if (error) throw error;
 
-      // Update local state
-      setRequests(prev => 
-        prev.map(req => 
-          req.id === requestId 
+      setRequests(prev =>
+        prev.map(req =>
+          req.id === requestId
             ? { ...req, status, updated_at: new Date().toISOString() }
             : req
         )
@@ -152,8 +170,8 @@ export const useIntroductionRequests = () => {
         title: `Request ${status === 'approved' ? 'Approved' : 'Rejected'}`,
         description: `Introduction request has been ${status === 'approved' ? 'approved' : 'rejected'}.`,
       });
-    } catch (error) {
-      console.error('Error updating request status:', error);
+    } catch (err: any) {
+      console.error('[useIntroductionRequests] updateRequestStatus error:', err);
       toast({
         title: 'Error',
         description: 'Failed to update request status',
@@ -168,19 +186,18 @@ export const useIntroductionRequests = () => {
         .from('introduction_requests')
         .delete()
         .eq('id', requestId)
-        .eq('requester_id', user?.id); // Ensure users can only cancel their own requests
+        .eq('requester_id', user?.id);
 
       if (error) throw error;
 
-      // Update local state
       setRequests(prev => prev.filter(req => req.id !== requestId));
 
       toast({
         title: 'Request Cancelled',
         description: 'Introduction request has been cancelled.',
       });
-    } catch (error) {
-      console.error('Error cancelling request:', error);
+    } catch (err: any) {
+      console.error('[useIntroductionRequests] cancelRequest error:', err);
       toast({
         title: 'Error',
         description: 'Failed to cancel request',
@@ -196,6 +213,7 @@ export const useIntroductionRequests = () => {
   return {
     requests,
     loading,
+    error,
     updateRequestStatus,
     cancelRequest,
     refetchRequests: fetchRequests,

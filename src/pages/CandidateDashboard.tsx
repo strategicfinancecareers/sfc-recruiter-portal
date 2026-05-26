@@ -19,7 +19,7 @@ interface CandidateRow {
   linkedin_url?: string;
   preferred_cities?: string[];
   target_roles?: string[];
-  candidate_skills?: { skills: { skill: string } | null }[];
+  skills?: string[];
 }
 
 interface IntroRequest {
@@ -97,7 +97,8 @@ export default function CandidateDashboard() {
       setCandidate(c as CandidateRow);
       setSkills(extracted);
       setView('dashboard');
-    } catch {
+    } catch (err: any) {
+      console.error('[CandidateDashboard] sign-in error:', err);
       setSigninError('Something went wrong, please try again.');
     } finally {
       setSigninLoading(false);

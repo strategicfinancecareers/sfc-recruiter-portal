@@ -10,7 +10,6 @@ import { CheckCircle, XCircle, Clock, ArrowUpDown, Download, Mail, Phone } from 
 import { useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useIntroductionRequests, type IntroductionRequest } from "../hooks/useIntroductionRequests";
-import { supabase } from "@/integrations/supabase/client";
 
 interface FullCandidate {
   id: string;
@@ -23,7 +22,7 @@ interface FullCandidate {
 
 const IntroductionRequests = () => {
   const { user } = useAuth();
-  const { requests, loading, updateRequestStatus, cancelRequest } = useIntroductionRequests();
+  const { requests, loading, error, updateRequestStatus, cancelRequest } = useIntroductionRequests();
 
   const [sortField, setSortField] = useState<'candidate' | 'job' | 'company' | 'requested' | 'requester' | 'status'>('requested');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
@@ -45,14 +44,24 @@ const IntroductionRequests = () => {
     }
   };
 
-  const openApprovedModal = async (request: IntroductionRequest) => {
-    setApprovedModal({ open: true, request, candidate: null, loading: true });
-    const { data } = await supabase
-      .from('candidates')
-      .select('id, name, display_name, email, phone, resume_full_url')
-      .eq('id', request.candidate_id)
-      .single();
-    setApprovedModal(prev => ({ ...prev, candidate: data as FullCandidate | null, loading: false }));
+  const openApprovedModal = (request: IntroductionRequest) => {
+    // Use already-loaded candidate data — no second network call needed
+    const c = request.candidate;
+    setApprovedModal({
+      open: true,
+      request,
+      candidate: c
+        ? {
+            id: c.id,
+            name: c.name,
+            display_name: c.display_name,
+            email: c.email,
+            phone: c.phone ?? null,
+            resume_full_url: c.resume_full_url ?? null,
+          }
+        : null,
+      loading: false,
+    });
   };
 
   const handleRequestAction = (requestId: string, action: 'approve' | 'reject' | 'cancel') => {
@@ -109,6 +118,15 @@ const IntroductionRequests = () => {
 
   if (loading) {
     return <LoaderScreen />;
+  }
+
+  if (error) {
+    return (
+      <div className="p-6 flex flex-col items-center justify-center min-h-[40vh] gap-4">
+        <p className="text-red-600 font-medium">Failed to load introduction requests</p>
+        <p className="text-sm text-muted-foreground">{error}</p>
+      </div>
+    );
   }
 
   return (

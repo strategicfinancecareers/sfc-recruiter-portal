@@ -48,15 +48,17 @@ const Favorites = () => {
         return;
       }
       try {
-        const { data, error } = await supabase
-          .from('introduction_requests')
-          .select('candidate_id, status')
-          .in('candidate_id', favoriteCandidateIds)
-          .eq('requester_id', user.id);
-        if (error) throw error;
+        // Route through service-role API — direct browser queries on
+        // introduction_requests hit RLS 403 for the recruiter role.
+        const candidateIds = favoriteCandidateIds.join(',');
+        const res = await fetch(
+          `/api/intro-statuses?requesterId=${encodeURIComponent(user.id)}&candidateIds=${encodeURIComponent(candidateIds)}`
+        );
+        if (!res.ok) throw new Error(`intro-statuses returned ${res.status}`);
+        const { statuses } = await res.json();
 
-        const pending = (data || []).filter((r: any) => r.status === 'pending').map((r: any) => r.candidate_id);
-        const completed = (data || []).filter((r: any) => r.status === 'approved' || r.status === 'rejected').map((r: any) => r.candidate_id);
+        const pending = (statuses || []).filter((r: any) => r.status === 'pending').map((r: any) => r.candidate_id);
+        const completed = (statuses || []).filter((r: any) => r.status === 'approved' || r.status === 'rejected').map((r: any) => r.candidate_id);
 
         setPendingIntroductions(pending);
         setCompletedIntroductions(completed);

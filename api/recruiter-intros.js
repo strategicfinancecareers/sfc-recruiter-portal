@@ -12,14 +12,17 @@ export default async function handler(req, res) {
   if (!recruiterId) return res.status(400).json({ error: 'recruiterId required' });
 
   try {
-    // TODO: this is now a storage path, not a URL — generate a signed URL via /api/get-resume-url (to be built) before using.
+    // FK hints required: introduction_requests has 2 FKs each to candidates,
+    // jobs, and users (auto-generated *_fkey + explicit fk_* from migration
+    // 20250809023925). Without a hint PostgREST returns 500.
+    // TODO: candidate.resume_full_url is now a storage path, not a URL — generate a signed URL via /api/get-resume-url (to be built) before using.
     const { data, error } = await supabase
       .from('introduction_requests')
       .select(`
         *,
-        candidate:candidates(id, name, display_name, email, phone, location, experience, education, highest_education_level, label, profile_description, resume_full_url),
-        requester:users(id, first_name, last_name, email),
-        job:jobs(id, title, company, location)
+        candidate:candidates!fk_introduction_requests_candidate(id, name, display_name, email, phone, location, experience, education, highest_education_level, label, profile_description, resume_full_url),
+        requester:users!fk_introduction_requests_requester(id, first_name, last_name, email),
+        job:jobs!fk_introduction_requests_job(id, title, company, location)
       `)
       .eq('requester_id', recruiterId)
       .order('created_at', { ascending: false });

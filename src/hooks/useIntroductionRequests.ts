@@ -84,7 +84,7 @@ export const useIntroductionRequests = () => {
           .from('introduction_requests')
           .select(`
             *,
-            candidate:candidates!introduction_requests_candidate_id_fkey (
+            candidate:candidates!fk_introduction_requests_candidate (
               id,
               name,
               display_name,
@@ -104,13 +104,13 @@ export const useIntroductionRequests = () => {
                 )
               )
             ),
-            requester:users (
+            requester:users!fk_introduction_requests_requester (
               id,
               first_name,
               last_name,
               email
             ),
-            job:jobs!introduction_requests_job_id_fkey (
+            job:jobs!fk_introduction_requests_job (
               id,
               title,
               company,

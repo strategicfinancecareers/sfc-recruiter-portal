@@ -14,7 +14,9 @@ export default async function handler(req, res) {
 
     const { data, error } = await supabase
       .from('introduction_requests')
-      .select('*, jobs(title, company, location, salary_range)')
+      // FK hint required: there are 2 FKs between introduction_requests and jobs
+      // (fk_introduction_requests_job + introduction_requests_job_id_fkey).
+      .select('*, jobs!fk_introduction_requests_job(title, company, location, salary_range)')
       .eq('candidate_id', candidateId)
       .order('created_at', { ascending: false });
 

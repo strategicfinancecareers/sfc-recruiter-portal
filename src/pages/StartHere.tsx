@@ -67,9 +67,12 @@ const StartHere = () => {
     supabase.from('jobs').select('id', { count: 'exact', head: true }).eq('user_id', user.id)
       .then(({ count }) => setHasJobs((count ?? 0) > 0));
 
-    // Fetch intro request count
-    supabase.from('introduction_requests').select('id', { count: 'exact', head: true }).eq('requester_id', user.id)
-      .then(({ count }) => setHasIntros((count ?? 0) > 0));
+    // Intro check must route through service-role API — RLS blocks direct
+    // browser queries on introduction_requests for the recruiter role.
+    fetch(`/api/recruiter-intros?recruiterId=${encodeURIComponent(user.id)}`)
+      .then(r => (r.ok ? r.json() : { requests: [] }))
+      .then(({ requests }) => setHasIntros((requests || []).length > 0))
+      .catch(err => console.error('[StartHere] intro check failed:', err));
   }, [user?.id]);
 
   const openPricingModal = (plan: 'monthly' | 'annual') => {

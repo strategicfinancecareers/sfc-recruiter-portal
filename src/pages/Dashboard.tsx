@@ -59,37 +59,28 @@ const Dashboard = () => {
     const fetchStats = async () => {
       setLoading(true);
       try {
-        const [
-          { count: totalCandidates },
-          { count: introsSent },
-          { count: introsApproved },
-          { count: introsPending },
-        ] = await Promise.all([
+        // Candidates count is fine via browser client (RLS allows authenticated read).
+        // Intro counts must go through the service-role API — direct browser
+        // queries hit RLS 403 on introduction_requests for recruiter role.
+        const [candidatesRes, introsRes] = await Promise.all([
           supabase
             .from('candidates')
             .select('*', { count: 'exact', head: true })
             .or('status.eq.active,status.is.null'),
-          supabase
-            .from('introduction_requests')
-            .select('*', { count: 'exact', head: true })
-            .eq('requester_id', user.id),
-          supabase
-            .from('introduction_requests')
-            .select('*', { count: 'exact', head: true })
-            .eq('requester_id', user.id)
-            .eq('status', 'approved'),
-          supabase
-            .from('introduction_requests')
-            .select('*', { count: 'exact', head: true })
-            .eq('requester_id', user.id)
-            .eq('status', 'pending'),
+          fetch(`/api/recruiter-intros?recruiterId=${encodeURIComponent(user.id)}`),
         ]);
 
+        if (!introsRes.ok) {
+          throw new Error(`recruiter-intros returned ${introsRes.status}`);
+        }
+        const { requests: intros } = await introsRes.json();
+        const list: Array<{ status: string }> = intros || [];
+
         setStats({
-          totalCandidates: totalCandidates ?? 0,
-          introsSent: introsSent ?? 0,
-          introsApproved: introsApproved ?? 0,
-          introsPending: introsPending ?? 0,
+          totalCandidates: candidatesRes.count ?? 0,
+          introsSent: list.length,
+          introsApproved: list.filter(r => r.status === 'approved').length,
+          introsPending: list.filter(r => r.status === 'pending').length,
         });
       } catch (err) {
         console.error('[Dashboard] stats fetch error:', err);

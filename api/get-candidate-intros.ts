@@ -34,7 +34,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Fetch intro requests using service role (bypasses RLS)
     const { data: intros, error: introsErr } = await supabase
       .from('introduction_requests')
-      .select('*, jobs(title, company, salary_range, location)')
+      // FK hint required: 2 FKs between introduction_requests and jobs.
+      .select('*, jobs!fk_introduction_requests_job(title, company, salary_range, location)')
       .eq('candidate_id', candidate.id)
       .order('created_at', { ascending: false });
 

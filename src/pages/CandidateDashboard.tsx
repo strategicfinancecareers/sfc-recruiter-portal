@@ -270,6 +270,7 @@ function Dashboard({
 
   // Fetch intros on mount
   useEffect(() => {
+    console.log('Fetching intros for candidate:', candidate.id);
     fetch(`/api/candidate-intros?candidateId=${encodeURIComponent(candidate.id)}`)
       .then(r => r.json())
       .then(data => setIntros(data.requests || []))

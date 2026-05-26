@@ -262,7 +262,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       + '<tr><td style="padding:8px 0;color:#888">Target Roles</td><td style="padding:8px 0">' + roleList + '</td></tr>'
       + '</table>'
       + (bio ? '<div style="margin:16px 0;padding:16px;background:#f9f9f9;border-radius:8px"><p style="color:#666;font-size:12px;margin:0 0 8px">Bio</p><p style="margin:0;color:#333">' + bio + '</p></div>' : '')
-      + (resumeUrl ? '<div style="margin:20px 0"><a href="' + resumeUrl + '" style="display:inline-block;background:#0F6E56;color:white;text-decoration:none;padding:12px 24px;border-radius:6px;font-weight:600">View Resume →</a></div>' : '<p style="color:#888;font-size:13px">No resume uploaded.</p>')
+      // TODO: this is now a storage path, not a URL — generate a signed URL via /api/get-resume-url (to be built) before using.
+      + (resumePath ? '<div style="margin:20px 0;padding:12px 16px;background:#f0faf6;border:1px solid #d6efdf;border-radius:6px"><p style="margin:0;color:#0F6E56;font-weight:600;font-size:14px">Resume uploaded</p><p style="margin:4px 0 0;color:#666;font-size:12px;font-family:monospace">' + resumePath + '</p><p style="margin:8px 0 0;color:#888;font-size:12px">View this candidate in the SFC Admin portal to download.</p></div>' : '<p style="color:#888;font-size:13px">No resume uploaded.</p>')
       + '<hr style="border:none;border-top:1px solid #eee;margin:24px 0">'
       + '<p style="color:#aaa;font-size:12px">Review this application in the SFC Admin portal.</p>'
       + '</div>';

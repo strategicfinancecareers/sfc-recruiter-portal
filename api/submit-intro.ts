@@ -30,12 +30,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (error) throw error;
 
-    // Send email to candidate (fire-and-forget)
-    fetch(`${process.env.VITE_APP_URL || 'https://sfc-recruiter-portal.vercel.app'}/api/send-intro-email`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ introId: intro.id }),
-    }).catch(err => console.warn('[submit-intro] send-intro-email failed:', err.message));
+    // Send email to candidate — must be AWAITED before returning (Vercel freezes Lambda on res.json)
+    console.log('[submit-intro] calling send-intro-email for introId:', intro.id);
+    try {
+      const emailRes = await fetch(
+        `${process.env.VITE_APP_URL || 'https://sfc-recruiter-portal.vercel.app'}/api/send-intro-email`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ introId: intro.id }),
+        }
+      );
+      const emailBody = await emailRes.json().catch(() => null);
+      console.log('[submit-intro] send-intro-email response status:', emailRes.status, '| body:', JSON.stringify(emailBody));
+    } catch (emailErr: any) {
+      console.error('[submit-intro] send-intro-email fetch threw:', emailErr.message);
+    }
 
     return res.status(200).json({ success: true, introId: intro.id });
   } catch (error: any) {

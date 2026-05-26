@@ -203,7 +203,7 @@ export default function CandidateSearch() {
     setFilteredCandidates(filtered);
   }, [candidates, searchTerm, experienceFilter, educationFilter, locationFilter, skillsFilter]);
 
-  // Fetch introduction statuses for current user
+  // Fetch introduction statuses for current user — routed through service-role API to bypass RLS
   useEffect(() => {
     const fetchStatuses = async () => {
       if (!user?.id || candidates.length === 0) {
@@ -212,17 +212,15 @@ export default function CandidateSearch() {
         return;
       }
       try {
-        const candidateIds = candidates.map(c => c.id);
-        const { data, error } = await supabase
-          .from('introduction_requests')
-          .select('candidate_id, status')
-          .in('candidate_id', candidateIds)
-          .eq('requester_id', user.id);
+        const candidateIds = candidates.map(c => c.id).join(',');
+        const res = await fetch(
+          `/api/intro-statuses?requesterId=${encodeURIComponent(user.id)}&candidateIds=${encodeURIComponent(candidateIds)}`
+        );
+        if (!res.ok) throw new Error(`intro-statuses returned ${res.status}`);
+        const { statuses } = await res.json();
 
-        if (error) throw error;
-
-        const pending = (data || []).filter((r: any) => r.status === 'pending').map((r: any) => r.candidate_id);
-        const completed = (data || []).filter((r: any) => r.status === 'approved' || r.status === 'rejected').map((r: any) => r.candidate_id);
+        const pending = (statuses || []).filter((r: any) => r.status === 'pending').map((r: any) => r.candidate_id);
+        const completed = (statuses || []).filter((r: any) => r.status === 'approved' || r.status === 'rejected').map((r: any) => r.candidate_id);
 
         setPendingIntroductions(pending);
         setCompletedIntroductions(completed);

@@ -14,7 +14,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const { introId } = req.body;
-  console.log('[send-intro-email] introId:', introId);
+  console.log('send-intro-email called with introId:', introId);
 
   if (!introId) {
     console.error('[send-intro-email] missing introId');
@@ -22,6 +22,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   // Check env vars are present
+  console.log('RESEND_API_KEY exists:', !!process.env.RESEND_API_KEY);
   console.log('[send-intro-email] env check — RESEND_API_KEY:', !!process.env.RESEND_API_KEY, '| SUPABASE_URL:', !!process.env.SUPABASE_URL, '| SERVICE_ROLE_KEY:', !!process.env.SUPABASE_SERVICE_ROLE_KEY);
 
   try {
@@ -50,7 +51,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (candError) console.error('[send-intro-email] candidate fetch error:', JSON.stringify(candError));
     if (jobError) console.error('[send-intro-email] job fetch error:', JSON.stringify(jobError));
 
+    console.log('Candidate email:', candidate?.email);
     console.log('[send-intro-email] intro loaded — candidate email:', candidate?.email, '| job:', job?.title, '@', job?.company);
+
+    if (!candidate?.email) {
+      console.error('[send-intro-email] candidate email is missing — cannot send');
+      return res.status(422).json({ error: 'Candidate email missing' });
+    }
 
     const baseUrl = 'https://sfc-recruiter-portal.vercel.app';
     const yesUrl = `${baseUrl}/api/respond-to-intro?introId=${introId}&response=yes`;

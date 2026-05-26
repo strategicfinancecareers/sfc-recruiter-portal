@@ -53,13 +53,15 @@ export default function CandidateDashboard() {
         const res = await fetch(`/api/candidate-profile?email=${encodeURIComponent(email.toLowerCase())}`);
         if (res.ok) {
           const { candidate: c } = await res.json();
-          const extracted: string[] = (c.candidate_skills || [])
-            .map((r: { skills: { skill: string } | null }) => r.skills?.skill || '')
-            .filter(Boolean);
+          const extracted: string[] = (c.skills || []) as string[];
           setCandidate(c as CandidateRow);
           setSkills(extracted);
           setView('dashboard');
+        } else if (res.status === 404) {
+          // Authenticated but no profile yet — send to intake form
+          window.location.href = '/apply';
         }
+        // On 500 or other errors, stay on landing (don't show confusing errors on mount)
       } finally {
         setSigninLoading(false);
       }
@@ -91,9 +93,7 @@ export default function CandidateDashboard() {
         return;
       }
       const { candidate: c } = await res.json();
-      const extracted: string[] = (c.candidate_skills || [])
-        .map((r: { skills: { skill: string } | null }) => r.skills?.skill || '')
-        .filter(Boolean);
+      const extracted: string[] = (c.skills || []) as string[];
       setCandidate(c as CandidateRow);
       setSkills(extracted);
       setView('dashboard');

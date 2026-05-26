@@ -691,6 +691,18 @@ export default function CandidateApply() {
   const set = (field: keyof FormState, value: any) =>
     setForm(prev => ({ ...prev, [field]: value }));
 
+  // ── Route a confirmed session: check profile, go to dashboard or form ─────────
+  const routeConfirmedSession = async (email: string) => {
+    set('email', email);
+    const profileRes = await fetch(`/api/candidate-profile?email=${encodeURIComponent(email.toLowerCase())}`);
+    if (profileRes.ok) {
+      window.location.href = '/candidate-dashboard';
+    } else {
+      setScreen('form');
+      setStep(1);
+    }
+  };
+
   // ── Only listen for email confirmation while on verify-email screen ───────────
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
@@ -700,14 +712,7 @@ export default function CandidateApply() {
         screen === 'verify-email'
       ) {
         const email = session.user.email ?? authEmail;
-        set('email', email);
-        const profileRes = await fetch(`/api/candidate-profile?email=${encodeURIComponent(email.toLowerCase())}`);
-        if (profileRes.ok) {
-          window.location.href = '/candidate-dashboard';
-        } else {
-          setScreen('form');
-          setStep(1);
-        }
+        await routeConfirmedSession(email);
       }
     });
     return () => subscription.unsubscribe();

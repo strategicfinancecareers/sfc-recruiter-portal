@@ -16,7 +16,7 @@ export default async function handler(req, res) {
 
       const { data: candidate, error } = await supabase
         .from('candidates')
-        .select('id, name, display_name, email, label, profile_description, open_to_opportunities, location, experience, education, highest_education_level, status, work_preference, target_salary, preferred_cities, target_roles, linkedin_url, candidate_skills(skills(skill))')
+        .select('id, name, display_name, email, label, profile_description, open_to_opportunities, location, experience, education, highest_education_level, status, work_preference, target_salary, preferred_cities, target_roles, linkedin_url, primary_background, secondary_backgrounds')
         .eq('email', emailStr)
         .eq('status', 'active')
         .maybeSingle();
@@ -25,7 +25,16 @@ export default async function handler(req, res) {
 
       if (error) return res.status(500).json({ error: error.message });
       if (!candidate) return res.status(404).json({ error: 'No candidate found' });
-      return res.status(200).json({ candidate });
+
+      // Fetch skills separately to avoid join serialization issues
+      const { data: skillsData } = await supabase
+        .from('candidate_skills')
+        .select('skills(skill)')
+        .eq('candidate_id', candidate.id);
+
+      const skills = (skillsData || []).map(s => s.skills?.skill).filter(Boolean);
+
+      return res.status(200).json({ candidate: { ...candidate, skills } });
     }
 
     if (req.method === 'PATCH') {

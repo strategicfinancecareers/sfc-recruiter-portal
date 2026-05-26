@@ -286,47 +286,22 @@ export default function CandidateSearch() {
     if (!currentCandidateForIntro || !user?.id || !selectedJobId) return;
 
     setIsSubmittingIntro(true);
-    
+
     try {
-      const requestData = {
-        requester_id: user.id,
-        candidate_id: currentCandidateForIntro.id,
-        job_id: selectedJobId,
-        status: 'pending'
-      };
+      // Route through serverless function to bypass RLS on introduction_requests
+      const response = await fetch('/api/submit-intro', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          requester_id: user.id,
+          candidate_id: currentCandidateForIntro.id,
+          job_id: selectedJobId,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to submit introduction request');
 
-console.log('[submitIntro] inserting request:', requestData);
-const { data: inserted, error } = await supabase
-        .from('introduction_requests')
-        .insert(requestData)
-        .select('id')
-        .single();
-
-      console.log('[submitIntro] insert result — id:', inserted?.id, '| error:', error?.message ?? null);
-      if (error) throw error;
-
-      // Fire-and-forget notification to opted-in admins
-      try {
-        await supabase.functions.invoke('notify-intro-created', {
-          body: { request_id: inserted?.id },
-        });
-      } catch (fnErr) {
-        console.error('notify-intro-created error:', fnErr);
-      }
-
-      // Send intro email to candidate
-      try {
-        console.log('[submitIntro] calling /api/send-intro-email with introId:', inserted?.id);
-        const emailRes = await fetch('/api/send-intro-email', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ introId: inserted?.id }),
-        });
-        const emailJson = await emailRes.json().catch(() => null);
-        console.log('[submitIntro] send-intro-email response:', emailRes.status, JSON.stringify(emailJson));
-      } catch (emailErr) {
-        console.error('[submitIntro] send-intro-email fetch error:', emailErr);
-      }
+      console.log('[submitIntro] success — introId:', data.introId);
 
       // Add to pending introductions
       setPendingIntroductions(prev => [...prev, currentCandidateForIntro.id]);

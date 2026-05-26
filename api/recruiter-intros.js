@@ -12,6 +12,7 @@ export default async function handler(req, res) {
   if (!recruiterId) return res.status(400).json({ error: 'recruiterId required' });
 
   try {
+    // TODO: this is now a storage path, not a URL — generate a signed URL via /api/get-resume-url (to be built) before using.
     const { data, error } = await supabase
       .from('introduction_requests')
       .select(`

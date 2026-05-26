@@ -47,23 +47,41 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const isReapplication = existing?.status === 'deleted';
     const existingId: string | null = isReapplication ? existing!.id : null;
 
-    // Upload resume to Supabase Storage if provided
-    let resumeUrl: string | null = null;
+    // Upload resume to Supabase Storage if provided.
+    // Bucket 'resumes' is PRIVATE — we store only the storage path here,
+    // not a URL. Consumers must generate a signed URL when they need
+    // to read the file (see /api/get-resume-url — to be built).
+    // The supabase client is initialized with the service-role key
+    // above, so this upload bypasses bucket RLS.
+    let resumePath: string | null = null;
     if (resumeBase64 && resumeFileName) {
       try {
         const buffer = Buffer.from(resumeBase64, 'base64');
         const safeFileName = `${Date.now()}_${(firstName + '_' + lastName).replace(/\s+/g, '_')}.pdf`;
+        const objectPath = `candidates/${safeFileName}`;
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from('resumes')
-          .upload(`candidates/${safeFileName}`, buffer, { contentType: 'application/pdf', upsert: false });
+          .upload(objectPath, buffer, { contentType: 'application/pdf', upsert: false });
         if (!uploadError && uploadData) {
-          const { data: urlData } = supabase.storage.from('resumes').getPublicUrl(uploadData.path);
-          resumeUrl = urlData?.publicUrl || null;
+          // Store just the storage path, NOT a public URL — bucket is private now.
+          resumePath = uploadData.path;
         } else {
-          console.warn('[submit-candidate] resume upload error:', uploadError?.message);
+          console.error('[submit-candidate] resume upload error:', JSON.stringify({
+            message: (uploadError as any)?.message,
+            statusCode: (uploadError as any)?.statusCode,
+            error: (uploadError as any)?.error,
+            name: (uploadError as any)?.name,
+            details: (uploadError as any)?.details,
+            hint: (uploadError as any)?.hint,
+            attemptedPath: objectPath,
+          }));
         }
       } catch (uploadErr: any) {
-        console.warn('[submit-candidate] resume upload threw:', uploadErr.message);
+        console.error('[submit-candidate] resume upload threw:', JSON.stringify({
+          message: uploadErr?.message,
+          name: uploadErr?.name,
+          stack: uploadErr?.stack,
+        }));
       }
     }
 
@@ -96,7 +114,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       label: safeRole,
       profile_description: profileDescription || null,
       open_to_opportunities: true,
-      resume_full_url: resumeUrl,
+      // Storage path (not a URL) — bucket 'resumes' is private.
+      // Consumers must generate a signed URL via /api/get-resume-url before use.
+      resume_full_url: resumePath,
       resume_redacted_url: null,
     };
 

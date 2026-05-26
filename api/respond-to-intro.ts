@@ -67,6 +67,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // Build attachments array — attach resume PDF if available
       const attachments: Array<{ filename: string; content: string }> = [];
 
+      // TODO: this is now a storage path, not a URL — generate a signed URL via /api/get-resume-url (to be built) before using.
       if (candidate?.resume_full_url) {
         try {
           const resumeResponse = await fetch(candidate.resume_full_url);

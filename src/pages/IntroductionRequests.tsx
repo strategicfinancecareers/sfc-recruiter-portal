@@ -182,6 +182,7 @@ const IntroductionRequests = () => {
                 )}
               </div>
 
+              {/* TODO: this is now a storage path, not a URL — generate a signed URL via /api/get-resume-url (to be built) before using. */}
               {approvedModal.candidate?.resume_full_url && (
                 <a
                   href={approvedModal.candidate.resume_full_url}

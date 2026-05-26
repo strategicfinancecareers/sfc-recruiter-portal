@@ -25,7 +25,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const { data: candidate, error } = await supabase
       .from('candidates')
-      .select('id, name, display_name, email, label, profile_description, open_to_opportunities, location, experience, education, highest_education_level, status, candidate_skills(skills(skill))')
+      .select('id, name, display_name, email, label, profile_description, open_to_opportunities, location, experience, education, highest_education_level, status, work_preference, target_salary, linkedin_url, candidate_skills(skills(skill))')
       .eq('email', emailStr)
       .eq('status', 'active')
       .maybeSingle();
@@ -38,10 +38,45 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (req.method === 'PATCH') {
-    const { id, ...updates } = req.body;
+    const { id, skills: skillsArr, ...updates } = req.body;
     if (!id) return res.status(400).json({ error: 'id required' });
-    const { error } = await supabase.from('candidates').update(updates).eq('id', id);
-    if (error) return res.status(500).json({ error: error.message });
+
+    // Try full update first
+    const { error: updateErr } = await supabase.from('candidates').update(updates).eq('id', id);
+
+    if (updateErr) {
+      // Some columns may not exist yet — retry with only confirmed-safe columns
+      console.warn('[candidate-profile] PATCH full update failed, retrying with safe columns:', updateErr.message);
+      const safeColumns = [
+        'profile_description', 'work_preference', 'target_salary',
+        'open_to_opportunities', 'linkedin_url',
+      ];
+      const safeUpdates: Record<string, any> = {};
+      for (const col of safeColumns) {
+        if (col in updates) safeUpdates[col] = (updates as Record<string, any>)[col];
+      }
+      if (Object.keys(safeUpdates).length > 0) {
+        const { error: safeErr } = await supabase.from('candidates').update(safeUpdates).eq('id', id);
+        if (safeErr) return res.status(500).json({ error: safeErr.message });
+      }
+    }
+
+    // Handle skills if provided — delete + re-insert via join table
+    if (Array.isArray(skillsArr)) {
+      await supabase.from('candidate_skills').delete().eq('candidate_id', id);
+      for (const skillName of skillsArr) {
+        if (!skillName?.trim()) continue;
+        const { data: skillRow } = await supabase
+          .from('skills')
+          .upsert({ skill: skillName.trim() }, { onConflict: 'skill' })
+          .select('id')
+          .single();
+        if (skillRow?.id) {
+          await supabase.from('candidate_skills').insert({ candidate_id: id, skill_id: skillRow.id });
+        }
+      }
+    }
+
     return res.status(200).json({ success: true });
   }
 

@@ -6,6 +6,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { supabase } from '@/integrations/supabase/client';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -679,6 +680,14 @@ export default function CandidateApply() {
   const [submitError, setSubmitError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Auth state
+  const [authTab, setAuthTab] = useState<'signup' | 'signin'>('signup');
+  const [authEmail, setAuthEmail] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [authConfirmPassword, setAuthConfirmPassword] = useState('');
+  const [authLoading, setAuthLoading] = useState(false);
+  const [authError, setAuthError] = useState('');
+
   const set = (field: keyof FormState, value: any) =>
     setForm(prev => ({ ...prev, [field]: value }));
 
@@ -854,14 +863,201 @@ export default function CandidateApply() {
 
   // ── Landing ─────────────────────────────────────────────────────────────────
 
-  // "Join the Network" → go straight into the application form
-  const handleStart = () => { setScreen('form'); setStep(1); };
+  // "Join the Network" → create account first
+  const handleStart = () => { setAuthTab('signup'); setAuthError(''); setScreen('auth'); };
 
-  // "Already have a profile?" → go to the candidate dashboard (email lookup)
-  const handleSignIn = () => { window.location.href = '/candidate-dashboard'; };
+  // "Already have a profile?" → sign in tab
+  const handleSignIn = () => { setAuthTab('signin'); setAuthError(''); setScreen('auth'); };
 
   if (screen === 'landing') {
     return <LandingSection onStart={handleStart} onSignIn={handleSignIn} />;
+  }
+
+  // ── Auth (Create Account / Sign In) ─────────────────────────────────────────
+
+  if (screen === 'auth') {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center px-6 py-12">
+        <div className="w-full max-w-md">
+          <button
+            onClick={() => setScreen('landing')}
+            className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 mb-8 transition-colors"
+          >
+            <ChevronLeft className="w-4 h-4" /> Back
+          </button>
+          <p className="font-bold text-lg text-gray-900 tracking-tight mb-6">SFC Talent</p>
+
+          {/* Tabs */}
+          <div className="flex border-b border-gray-200 mb-8">
+            {(['signup', 'signin'] as const).map(tab => (
+              <button
+                key={tab}
+                onClick={() => { setAuthTab(tab); setAuthError(''); }}
+                className={`flex-1 py-3 text-sm font-semibold transition-colors ${
+                  authTab === tab
+                    ? 'border-b-2 border-emerald-600 text-emerald-700'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                {tab === 'signup' ? 'Create Account' : 'Sign In'}
+              </button>
+            ))}
+          </div>
+
+          {authTab === 'signup' ? (
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                setAuthError('');
+                if (authPassword !== authConfirmPassword) {
+                  setAuthError('Passwords do not match.');
+                  return;
+                }
+                if (authPassword.length < 8) {
+                  setAuthError('Password must be at least 8 characters.');
+                  return;
+                }
+                setAuthLoading(true);
+                try {
+                  const { error } = await supabase.auth.signUp({
+                    email: authEmail,
+                    password: authPassword,
+                    options: { emailRedirectTo: 'https://sfc-recruiter-portal.vercel.app/apply' },
+                  });
+                  if (error) {
+                    if (error.message.toLowerCase().includes('already registered')) {
+                      setAuthError('Account already exists. Sign in instead.');
+                      setAuthTab('signin');
+                    } else {
+                      setAuthError(error.message);
+                    }
+                    return;
+                  }
+                  set('email', authEmail);
+                  setScreen('form');
+                  setStep(1);
+                } finally {
+                  setAuthLoading(false);
+                }
+              }}
+              className="space-y-4"
+            >
+              <div>
+                <label className="block text-sm text-gray-700 mb-1.5">Email</label>
+                <input
+                  type="email"
+                  value={authEmail}
+                  onChange={e => setAuthEmail(e.target.value)}
+                  placeholder="you@example.com"
+                  required
+                  autoFocus
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-700 mb-1.5">Password</label>
+                <input
+                  type="password"
+                  value={authPassword}
+                  onChange={e => setAuthPassword(e.target.value)}
+                  placeholder="Min. 8 characters"
+                  required
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-700 mb-1.5">Confirm Password</label>
+                <input
+                  type="password"
+                  value={authConfirmPassword}
+                  onChange={e => setAuthConfirmPassword(e.target.value)}
+                  placeholder="Re-enter password"
+                  required
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                />
+              </div>
+              {authError && (
+                <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2.5">{authError}</p>
+              )}
+              <button
+                type="submit"
+                disabled={authLoading}
+                className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors"
+              >
+                {authLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+                Create Account
+              </button>
+            </form>
+          ) : (
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                setAuthError('');
+                setAuthLoading(true);
+                try {
+                  const { error } = await supabase.auth.signInWithPassword({
+                    email: authEmail,
+                    password: authPassword,
+                  });
+                  if (error) {
+                    setAuthError('Invalid email or password.');
+                    return;
+                  }
+                  // Check if candidate profile exists
+                  const profileRes = await fetch(`/api/candidate-profile?email=${encodeURIComponent(authEmail.toLowerCase().trim())}`);
+                  if (profileRes.ok) {
+                    window.location.href = '/candidate-dashboard';
+                  } else {
+                    // Auth succeeded but no profile yet — go to intake form
+                    set('email', authEmail);
+                    setScreen('form');
+                    setStep(1);
+                  }
+                } finally {
+                  setAuthLoading(false);
+                }
+              }}
+              className="space-y-4"
+            >
+              <div>
+                <label className="block text-sm text-gray-700 mb-1.5">Email</label>
+                <input
+                  type="email"
+                  value={authEmail}
+                  onChange={e => setAuthEmail(e.target.value)}
+                  placeholder="you@example.com"
+                  required
+                  autoFocus
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-700 mb-1.5">Password</label>
+                <input
+                  type="password"
+                  value={authPassword}
+                  onChange={e => setAuthPassword(e.target.value)}
+                  placeholder="••••••••"
+                  required
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                />
+              </div>
+              {authError && (
+                <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2.5">{authError}</p>
+              )}
+              <button
+                type="submit"
+                disabled={authLoading}
+                className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors"
+              >
+                {authLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+                Sign In
+              </button>
+            </form>
+          )}
+        </div>
+      </div>
+    );
   }
 
   // ── Disqualified ─────────────────────────────────────────────────────────────

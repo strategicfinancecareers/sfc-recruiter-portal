@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { UserPlus, LogIn, Loader2, CheckCircle2, X, ChevronLeft } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -31,10 +32,35 @@ type DashView = 'landing' | 'signin' | 'dashboard';
 export default function CandidateDashboard() {
   const [view, setView] = useState<DashView>('landing');
   const [emailInput, setEmailInput] = useState('');
+  const [passwordInput, setPasswordInput] = useState('');
   const [signinLoading, setSigninLoading] = useState(false);
   const [signinError, setSigninError] = useState('');
   const [candidate, setCandidate] = useState<CandidateRow | null>(null);
   const [skills, setSkills] = useState<string[]>([]);
+
+  // ── Session check on mount ───────────────────────────────────────────────────
+  useEffect(() => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!session?.user?.email) return;
+      const email = session.user.email;
+      setEmailInput(email);
+      setSigninLoading(true);
+      try {
+        const res = await fetch(`/api/candidate-profile?email=${encodeURIComponent(email.toLowerCase())}`);
+        if (res.ok) {
+          const { candidate: c } = await res.json();
+          const extracted: string[] = (c.candidate_skills || [])
+            .map((r: { skills: { skill: string } | null }) => r.skills?.skill || '')
+            .filter(Boolean);
+          setCandidate(c as CandidateRow);
+          setSkills(extracted);
+          setView('dashboard');
+        }
+      } finally {
+        setSigninLoading(false);
+      }
+    });
+  }, []);
 
   // ── Sign-in handler ──────────────────────────────────────────────────────────
   const handleSignIn = async (e: React.FormEvent) => {
@@ -42,9 +68,17 @@ export default function CandidateDashboard() {
     setSigninLoading(true);
     setSigninError('');
     try {
+      const { error: authError } = await supabase.auth.signInWithPassword({
+        email: emailInput.toLowerCase().trim(),
+        password: passwordInput,
+      });
+      if (authError) {
+        setSigninError('Invalid email or password.');
+        return;
+      }
       const res = await fetch(`/api/candidate-profile?email=${encodeURIComponent(emailInput.toLowerCase().trim())}`);
       if (res.status === 404) {
-        setSigninError('No profile found with that email. Please check the email you used when applying.');
+        setSigninError('No profile found. Please apply first at /apply.');
         return;
       }
       if (!res.ok) {
@@ -66,9 +100,11 @@ export default function CandidateDashboard() {
   };
 
   const handleSignOut = () => {
+    supabase.auth.signOut();
     setCandidate(null);
     setSkills([]);
     setEmailInput('');
+    setPasswordInput('');
     setSigninError('');
     setView('landing');
   };
@@ -129,8 +165,8 @@ export default function CandidateDashboard() {
             <ChevronLeft className="w-4 h-4" /> Back
           </button>
           <p className="font-semibold text-sm text-gray-900 mb-5">SFC Talent</p>
-          <h1 className="text-xl font-semibold text-gray-900 mb-1">Enter your email</h1>
-          <p className="text-sm text-gray-500 mb-7">We'll pull up your profile dashboard</p>
+          <h1 className="text-xl font-semibold text-gray-900 mb-1">Sign in</h1>
+          <p className="text-sm text-gray-500 mb-7">Access your candidate dashboard</p>
           <form onSubmit={handleSignIn} className="space-y-3">
             <input
               type="email"
@@ -139,6 +175,14 @@ export default function CandidateDashboard() {
               placeholder="you@example.com"
               required
               autoFocus
+              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+            />
+            <input
+              type="password"
+              value={passwordInput}
+              onChange={e => setPasswordInput(e.target.value)}
+              placeholder="••••••••"
+              required
               className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
             />
             {signinError && (
@@ -152,7 +196,7 @@ export default function CandidateDashboard() {
               className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors"
             >
               {signinLoading && <Loader2 className="w-4 h-4 animate-spin" />}
-              Access Dashboard
+              Sign In
             </button>
           </form>
         </div>

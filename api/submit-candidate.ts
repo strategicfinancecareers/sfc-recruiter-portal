@@ -159,23 +159,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
-    // ── Create Supabase auth account + magic link ────────────────────────────
-    let dashboardLink = 'https://sfc-recruiter-portal.vercel.app/candidate-dashboard';
-    try {
-      // Create auth user (ignore error if already exists)
-      await supabase.auth.admin.createUser({ email, email_confirm: true });
-      // Generate magic link
-      const { data: linkData } = await supabase.auth.admin.generateLink({
-        type: 'magiclink',
-        email,
-        options: { redirectTo: 'https://sfc-recruiter-portal.vercel.app/candidate-dashboard' },
-      });
-      if (linkData?.properties?.action_link) {
-        dashboardLink = linkData.properties.action_link;
-      }
-    } catch (authErr: any) {
-      console.warn('[submit-candidate] auth user/link creation failed:', authErr.message);
-    }
+    // Auth account is created during signup — just use the plain dashboard URL
+    const dashboardLink = 'https://sfc-recruiter-portal.vercel.app/candidate-dashboard';
 
     // ── Welcome email to candidate ────────────────────────────────────────────
     const welcomeHtml = '<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">'
@@ -191,7 +176,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       + '<p style="margin:0;font-weight:600">Manage your profile</p>'
       + '<p style="margin:8px 0 12px;color:#666;font-size:14px">Update your bio, skills, and availability anytime from your candidate dashboard.</p>'
       + '<a href="' + dashboardLink + '" style="display:inline-block;background:#0F6E56;color:white;text-decoration:none;padding:12px 24px;border-radius:6px;font-weight:600;font-size:14px">Open My Dashboard →</a>'
-      + '<p style="margin:12px 0 0;color:#999;font-size:12px">This link is one-time use. A new link will be emailed each time you sign in.</p>'
+      + '<p style="margin:12px 0 0;color:#999;font-size:12px">Sign in with the email and password you created during signup.</p>'
       + '</div>'
       + '<p style="color:#666;font-size:14px">Your identity is always protected. We never share your name, contact details, or employer without your explicit consent.</p>'
       + '<hr style="border:none;border-top:1px solid #eee;margin:24px 0">'

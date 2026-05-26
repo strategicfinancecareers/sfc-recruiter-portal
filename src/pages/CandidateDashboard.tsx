@@ -43,8 +43,18 @@ export default function CandidateDashboard() {
   const [skills, setSkills] = useState<string[]>([]);
 
   // ── Session check on mount ───────────────────────────────────────────────────
+  // Always derive the email from a freshly-refreshed session (validated
+  // against the auth server), never from the cached localStorage session.
+  // This prevents the "stale user A session wins after user B verifies"
+  // bug — refreshSession reconciles whatever the auth server actually
+  // considers the current session.
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
+    (async () => {
+      const { error: refreshErr } = await supabase.auth.refreshSession();
+      if (refreshErr) {
+        console.warn('[CandidateDashboard] refreshSession error:', refreshErr.message);
+      }
+      const { data: { session } } = await supabase.auth.getSession();
       if (!session?.user?.email) return;
       const email = session.user.email;
       setEmailInput(email);
@@ -65,7 +75,7 @@ export default function CandidateDashboard() {
       } finally {
         setSigninLoading(false);
       }
-    });
+    })().catch(err => console.error('[CandidateDashboard] session check error:', err));
   }, []);
 
   // ── Sign-in handler ──────────────────────────────────────────────────────────

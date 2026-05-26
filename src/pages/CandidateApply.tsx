@@ -703,15 +703,49 @@ export default function CandidateApply() {
     }
   };
 
+  // ── Session-leak guard ───────────────────────────────────────────────────────
+  // If user A is signed in and clicks user B's verification link in the same
+  // browser, Supabase's localStorage session for A can "win" over the
+  // verification URL processing. Detect verification params in the URL on
+  // mount and sign out any existing local session FIRST so Supabase
+  // reconciles the verification token cleanly. Local-scope signOut only
+  // clears localStorage — the verification token itself stays valid.
+  // This runs ONCE at mount and ONLY when verification params are present —
+  // it never fires on plain dashboard/apply navigation.
+  useEffect(() => {
+    const hash = typeof window !== 'undefined' ? window.location.hash || '' : '';
+    const search = typeof window !== 'undefined' ? window.location.search || '' : '';
+    const verificationRegex = /(access_token=|refresh_token=|token_hash=|type=(signup|recovery|magiclink|invite|email_change))/;
+    const hasVerificationParams = verificationRegex.test(hash) || verificationRegex.test(search);
+
+    if (!hasVerificationParams) return;
+
+    (async () => {
+      const { data: { session: existing } } = await supabase.auth.getSession();
+      if (existing?.user?.email) {
+        console.log('[CandidateApply] verification URL detected — clearing existing local session for', existing.user.email);
+        await supabase.auth.signOut({ scope: 'local' });
+      }
+    })().catch(err => console.error('[CandidateApply] session-leak guard error:', err));
+  }, []);
+
   // ── Only listen for email confirmation while on verify-email screen ───────────
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, _session) => {
       if (
         (event === 'SIGNED_IN' || event === 'USER_UPDATED') &&
-        session?.user?.email_confirmed_at &&
         screen === 'verify-email'
       ) {
-        const email = session.user.email ?? authEmail;
+        // FIX 2 — defensive: never trust the cached session. Refresh against
+        // the server so we route based on the freshest confirmed identity.
+        const { data: refreshed, error: refreshErr } = await supabase.auth.refreshSession();
+        if (refreshErr) {
+          console.warn('[CandidateApply] refreshSession error:', refreshErr.message);
+        }
+        const freshSession = refreshed?.session ?? (await supabase.auth.getSession()).data.session;
+        if (!freshSession?.user?.email_confirmed_at) return;
+
+        const email = freshSession.user.email ?? authEmail;
         await routeConfirmedSession(email);
       }
     });
@@ -918,6 +952,9 @@ export default function CandidateApply() {
 
           <button
             onClick={async () => {
+              // Refresh first so we don't act on a stale cached session
+              // (e.g. user A's session from another tab).
+              await supabase.auth.refreshSession().catch(() => {});
               const { data: { session } } = await supabase.auth.getSession();
               if (session?.user?.email_confirmed_at) {
                 await routeConfirmedSession(session.user.email ?? authEmail);

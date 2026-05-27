@@ -14,9 +14,15 @@ export default async function handler(req, res) {
 
     const { data, error } = await supabase
       .from('introduction_requests')
-      // FK hint required: there are 2 FKs between introduction_requests and jobs
-      // (fk_introduction_requests_job + introduction_requests_job_id_fkey).
-      .select('*, jobs!fk_introduction_requests_job(title, company, location, salary_range)')
+      // FK hints required: there are 2 FKs each between introduction_requests
+      // and jobs / users (auto-generated *_fkey + explicit fk_*).
+      // Recruiter (requester) details are full-reveal on the candidate side
+      // — recruiters are vetted at signup so no anonymity in this direction.
+      .select(`
+        *,
+        jobs!fk_introduction_requests_job(title, company, location, salary_range, job_description_url),
+        requester:users!fk_introduction_requests_requester(first_name, last_name, company)
+      `)
       .eq('candidate_id', candidateId)
       .order('created_at', { ascending: false });
 

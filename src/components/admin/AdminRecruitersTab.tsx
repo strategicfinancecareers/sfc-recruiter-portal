@@ -50,7 +50,13 @@ const fullName = (r: RecruiterRow) =>
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function AdminRecruitersTab() {
+interface AdminRecruitersTabProps {
+  // Called after a successful approve/reject so the parent can refresh
+  // its pending-count badge. Optional — the tab works standalone too.
+  onCountChange?: () => void;
+}
+
+export default function AdminRecruitersTab({ onCountChange }: AdminRecruitersTabProps = {}) {
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -134,6 +140,7 @@ export default function AdminRecruitersTab() {
         variant: body.emailSent ? undefined : 'destructive',
       });
       await load();
+      onCountChange?.();
       setApproveTarget(null);
     } catch (err: any) {
       console.error('[AdminRecruitersTab] approve failed:', err);
@@ -172,6 +179,7 @@ export default function AdminRecruitersTab() {
         variant: body.emailSent ? undefined : 'destructive',
       });
       await load();
+      onCountChange?.();
       setRejectTarget(null);
       setRejectReason('');
     } catch (err: any) {

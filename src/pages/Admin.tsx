@@ -123,6 +123,11 @@ const Admin = () => {
   const [reviewDownloading, setReviewDownloading] = useState(false);
   const [reviewDownloadError, setReviewDownloadError] = useState<string | null>(null);
 
+  // Pending-queue counts driving the tab badges (Candidates + Recruiters).
+  // Reuses the existing candidates state for the candidates count, and a
+  // lightweight /api/admin-pending-counts call for the recruiters count.
+  const [pendingRecruiterCount, setPendingRecruiterCount] = useState<number>(0);
+
   // ── Batch 2 — review-action state ─────────────────────────────────────────
   const [actionLoading, setActionLoading] = useState(false);
   const [confirmAction, setConfirmAction] = useState<
@@ -730,6 +735,27 @@ setCandidates(transformedCandidates);
     return Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000));
   };
 
+  // Refresh the recruiter pending count. Called on mount + after the
+  // Recruiters tab fires a review action so the badge stays accurate.
+  // The candidates count comes from local state (already loaded).
+  const refetchRecruiterCount = async () => {
+    if (!user?.id) return;
+    try {
+      const res = await fetch(`/api/admin-pending-counts?adminUserId=${encodeURIComponent(user.id)}`);
+      if (!res.ok) return;
+      const body = await res.json();
+      setPendingRecruiterCount(body.recruiters ?? 0);
+    } catch (err) {
+      console.error('[Admin] pending counts fetch failed:', err);
+    }
+  };
+  useEffect(() => { refetchRecruiterCount(); }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Pending candidates count derived from already-loaded list.
+  // Explicit equality — never treat NULL/undefined as pending; the
+  // migration backfilled NULL → 'active' (grandfathered).
+  const pendingCandidateCount = candidates.filter(c => c.status === 'pending').length;
+
   // Re-fetch just the candidates list (no users/roles roundtrip).
   // Called after a successful review action to update counts + drawer state.
   const refetchCandidates = async () => {
@@ -859,8 +885,22 @@ setCandidates(transformedCandidates);
 
         <Tabs defaultValue="candidates" className="space-y-6">
             <TabsList className="grid w-full grid-cols-5">
-              <TabsTrigger value="candidates">Candidates</TabsTrigger>
-              <TabsTrigger value="recruiters">Recruiters</TabsTrigger>
+              <TabsTrigger value="candidates" className="relative">
+                Candidates
+                {pendingCandidateCount > 0 && (
+                  <span className="ml-2 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-amber-500 text-white text-[11px] font-semibold leading-none">
+                    {pendingCandidateCount}
+                  </span>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="recruiters" className="relative">
+                Recruiters
+                {pendingRecruiterCount > 0 && (
+                  <span className="ml-2 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-amber-500 text-white text-[11px] font-semibold leading-none">
+                    {pendingRecruiterCount}
+                  </span>
+                )}
+              </TabsTrigger>
               <TabsTrigger value="users">Users</TabsTrigger>
               <TabsTrigger value="introductions">Introductions</TabsTrigger>
               <TabsTrigger value="settings">Settings</TabsTrigger>
@@ -955,7 +995,7 @@ setCandidates(transformedCandidates);
             </TabsContent>
 
             <TabsContent value="recruiters">
-              <AdminRecruitersTab />
+              <AdminRecruitersTab onCountChange={refetchRecruiterCount} />
             </TabsContent>
 
             <TabsContent value="users">

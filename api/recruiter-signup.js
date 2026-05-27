@@ -112,13 +112,21 @@ export default async function handler(req, res) {
       emailErrors.push(`admin: ${err?.message || String(err)}`);
     }
 
-    // Applicant confirmation
+    // Applicant confirmation — recruiter framing, NOT "application"
     try {
       const applicantHtml = `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">
-        <h2 style="color:#0F6E56">Application received ✓</h2>
+        <h2 style="color:#0F6E56">We received your submission</h2>
         <p>Hi ${first_name},</p>
-        <p>Thanks for applying to SFC Talent. Our team reviews each recruiter application personally to ensure quality on both sides of the platform.</p>
-        <p>You'll hear from us within 1–2 business days.</p>
+        <p>Thanks for submitting your details to SFC Talent. We personally vet every recruiter on the platform to keep quality high on both sides.</p>
+        <p>We typically approve submissions within a few hours during US business hours (PDT). You'll get an email at this address as soon as your account is live.</p>
+        <div style="background:#f8f9fa;border:1px solid #e9ecef;border-radius:8px;padding:16px;margin:20px 0">
+          <p style="margin:0 0 8px;color:#666;font-size:13px;font-weight:600">A reminder of what you submitted:</p>
+          <ul style="margin:0;padding-left:18px;color:#333;font-size:14px;line-height:1.7">
+            <li>Company: <strong>${company}</strong></li>
+            <li>LinkedIn: <a href="${linkedin_url}" style="color:#0F6E56">${linkedin_url}</a></li>
+          </ul>
+        </div>
+        <p>If any of that needs to change, just reply to this email.</p>
         <p style="color:#666;font-size:14px">— The SFC Talent team</p>
         <hr style="border:none;border-top:1px solid #eee;margin:24px 0" />
         <p style="color:#999;font-size:12px">SFC Talent · strategicfinancecareers.com</p>
@@ -126,7 +134,7 @@ export default async function handler(req, res) {
       const r = await resend.emails.send({
         from: FROM_ADDR,
         to: emailNorm,
-        subject: 'Your SFC Talent recruiter application is under review',
+        subject: 'We received your SFC Talent recruiter submission',
         html: applicantHtml,
       });
       if (r?.error) {

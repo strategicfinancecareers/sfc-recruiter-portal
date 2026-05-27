@@ -27,7 +27,19 @@ interface IntroRequest {
   id: string;
   created_at: string;
   status: string;
-  jobs?: { title: string | null; company: string | null; salary_range: string | null } | null;
+  jobs?: {
+    title: string | null;
+    company: string | null;
+    salary_range: string | null;
+    job_description_url?: string | null;
+  } | null;
+  // Full reveal — recruiters are vetted, so the candidate sees who's
+  // asking before accepting (no anonymity in this direction).
+  requester?: {
+    first_name: string | null;
+    last_name: string | null;
+    company: string | null;
+  } | null;
 }
 
 type DashView = 'landing' | 'signin' | 'dashboard';
@@ -727,6 +739,15 @@ function Dashboard({
                 const sc = statusStyles[req.status] ?? statusStyles.pending;
                 const sl = statusLabels[req.status] ?? 'Pending';
 
+                const requester = req.requester;
+                const recruiterName = requester
+                  ? [requester.first_name, requester.last_name].filter(Boolean).join(' ').trim()
+                  : '';
+                // Recruiter's own company (their employer) vs the job's company
+                // (the hiring org). They can differ — e.g. an internal TA at a
+                // PE firm hiring for a portfolio company. Show both when distinct.
+                const recruiterCompany = requester?.company || '';
+
                 return (
                   <div key={req.id} className="border border-gray-100 rounded-xl p-4">
                     <div className="flex items-start justify-between gap-3 mb-2">
@@ -742,6 +763,33 @@ function Dashboard({
                         {new Date(req.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                       </p>
                     </div>
+
+                    {/* Full-reveal: recruiter name + company + JD link */}
+                    {(recruiterName || recruiterCompany || job?.job_description_url) && (
+                      <div className="mb-2 text-xs text-gray-600 leading-relaxed space-y-0.5">
+                        {recruiterName && (
+                          <p>
+                            <span className="text-gray-400">From: </span>
+                            <span className="font-medium text-gray-700">{recruiterName}</span>
+                            {recruiterCompany && (
+                              <span className="text-gray-500"> at {recruiterCompany}</span>
+                            )}
+                          </p>
+                        )}
+                        {job?.job_description_url && (
+                          <p>
+                            <a
+                              href={job.job_description_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-emerald-700 hover:underline font-medium"
+                            >
+                              View job description ↗
+                            </a>
+                          </p>
+                        )}
+                      </div>
+                    )}
 
                     <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${sc}`}>
                       {sl}

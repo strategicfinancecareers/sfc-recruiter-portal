@@ -122,6 +122,14 @@ const Admin = () => {
   const [reviewDownloading, setReviewDownloading] = useState(false);
   const [reviewDownloadError, setReviewDownloadError] = useState<string | null>(null);
 
+  // ── Batch 2 — review-action state ─────────────────────────────────────────
+  const [actionLoading, setActionLoading] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<
+    null | { kind: 'approve' | 'reactivate' | 'deactivate' | 'reconsider'; candidate: Candidate }
+  >(null);
+  const [rejectionDialogOpen, setRejectionDialogOpen] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState('');
+
   // Fetch users and candidates data
   useEffect(() => {
     const fetchData = async () => {
@@ -719,6 +727,83 @@ setCandidates(transformedCandidates);
   const daysSince = (iso?: string) => {
     if (!iso) return 0;
     return Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000));
+  };
+
+  // Re-fetch just the candidates list (no users/roles roundtrip).
+  // Called after a successful review action to update counts + drawer state.
+  const refetchCandidates = async () => {
+    const { data, error } = await supabase
+      .from('candidates')
+      .select(`
+        *,
+        candidate_skills(
+          skill_id,
+          skills(id, skill)
+        )
+      `)
+      .order('created_at', { ascending: false });
+    if (error) {
+      console.error('[Admin] refetchCandidates error:', error);
+      return;
+    }
+    const transformed = (data || []).map((c: any) => ({
+      ...c,
+      skills: c.candidate_skills?.map((cs: any) => ({ id: cs.skills.id, skill: cs.skills.skill })) || [],
+    }));
+    setCandidates(transformed);
+  };
+
+  // Send a review action to /api/review-candidate, then refetch + close drawer.
+  // Refetch (rather than optimistic update) keeps the source of truth in one
+  // place; the API is fast and admin actions aren't latency-sensitive.
+  const submitReviewAction = async (
+    candidate: Candidate,
+    action: 'approve' | 'reject' | 'reactivate' | 'deactivate',
+    rejectionReasonText?: string,
+  ) => {
+    if (!user?.id) return;
+    setActionLoading(true);
+    try {
+      const res = await fetch('/api/review-candidate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          candidateId: candidate.id,
+          adminUserId: user.id,
+          action,
+          ...(action === 'reject' ? { rejectionReason: rejectionReasonText || '' } : {}),
+        }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || `Failed (${res.status})`);
+
+      const label = candidate.display_name || candidate.name;
+      const verb: Record<string, string> = {
+        approve: 'Approved', reject: 'Rejected', reactivate: 'Reactivated', deactivate: 'Marked inactive',
+      };
+      toast({
+        title: `${verb[action]} ${label}`,
+        description: body.emailSent
+          ? `Notification email sent to candidate.`
+          : `Status updated. Email not sent: ${body.emailError || 'unknown reason'}.`,
+        variant: body.emailSent ? undefined : 'destructive',
+      });
+
+      await refetchCandidates();
+      setSelectedCandidate(null);
+      setConfirmAction(null);
+      setRejectionDialogOpen(false);
+      setRejectionReason('');
+    } catch (err: any) {
+      console.error('[Admin] review action failed:', err);
+      toast({
+        title: 'Action failed',
+        description: err?.message || 'Unknown error',
+        variant: 'destructive',
+      });
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   // Resume download via /api/get-resume-url with adminUserId param (admin path).
@@ -1488,31 +1573,57 @@ TalentConnect Team"
                         </CardContent>
                       </Card>
 
-                      {/* Action buttons (stubbed — Batch 2 wires up) */}
+                      {/* Action buttons — Batch 2 wired */}
                       {cs === 'pending' && (
                         <div className="flex gap-3">
-                          <Button variant="outline" className="flex-1 border-red-200 text-red-700 hover:bg-red-50" onClick={() => alert('Batch 2 wires this up')}>
+                          <Button
+                            variant="outline"
+                            className="flex-1 border-red-200 text-red-700 hover:bg-red-50"
+                            disabled={actionLoading}
+                            onClick={() => { setRejectionReason(''); setRejectionDialogOpen(true); }}
+                          >
                             <XCircle className="w-4 h-4 mr-2" /> Reject
                           </Button>
-                          <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => alert('Batch 2 wires this up')}>
+                          <Button
+                            className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+                            disabled={actionLoading}
+                            onClick={() => setConfirmAction({ kind: 'approve', candidate: selectedCandidate })}
+                          >
                             <CheckCircle className="w-4 h-4 mr-2" /> Approve
                           </Button>
                         </div>
                       )}
                       {cs === 'active' && (
-                        <Button variant="outline" className="w-full" onClick={() => alert('Batch 2 wires this up')}>
+                        <Button
+                          variant="outline"
+                          className="w-full"
+                          disabled={actionLoading}
+                          onClick={() => setConfirmAction({ kind: 'deactivate', candidate: selectedCandidate })}
+                        >
                           <Pause className="w-4 h-4 mr-2" /> Mark Inactive
                         </Button>
                       )}
                       {cs === 'rejected' && (
-                        <Button variant="outline" className="w-full" onClick={() => alert('Batch 2 wires this up')}>
-                          <RotateCcw className="w-4 h-4 mr-2" /> Reconsider
+                        <Button
+                          variant="outline"
+                          className="w-full"
+                          disabled={actionLoading}
+                          onClick={() => setConfirmAction({ kind: 'reconsider', candidate: selectedCandidate })}
+                        >
+                          <RotateCcw className="w-4 h-4 mr-2" /> Reconsider & Approve
                         </Button>
                       )}
                       {cs === 'inactive' && (
-                        <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => alert('Batch 2 wires this up')}>
+                        <Button
+                          className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+                          disabled={actionLoading}
+                          onClick={() => setConfirmAction({ kind: 'reactivate', candidate: selectedCandidate })}
+                        >
                           <CheckCircle className="w-4 h-4 mr-2" /> Reactivate
                         </Button>
+                      )}
+                      {(selectedCandidate.status === 'deleted') && (
+                        <p className="text-sm text-muted-foreground italic text-center">This candidate has been deleted — no actions available.</p>
                       )}
                     </div>
                   </>
@@ -1520,6 +1631,110 @@ TalentConnect Team"
               })()}
             </SheetContent>
           </Sheet>
+
+          {/* ── Batch 2 — confirm dialogs for approve / reactivate / deactivate / reconsider ── */}
+          <AlertDialog
+            open={!!confirmAction}
+            onOpenChange={(open) => { if (!open && !actionLoading) setConfirmAction(null); }}
+          >
+            <AlertDialogContent>
+              {confirmAction && (() => {
+                const c = confirmAction.candidate;
+                const label = c.display_name || c.name;
+                const cfg: Record<typeof confirmAction.kind, { title: string; body: string; action: 'approve' | 'reactivate' | 'deactivate'; cta: string; }> = {
+                  approve: {
+                    title: `Approve ${label}?`,
+                    body: 'They\'ll get an email notification and become visible to recruiters.',
+                    action: 'approve',
+                    cta: 'Approve',
+                  },
+                  reconsider: {
+                    title: `Reconsider and approve ${label}?`,
+                    body: 'They\'ll get a welcome email and become visible to recruiters again. The previous rejection_reason will be cleared.',
+                    action: 'approve',
+                    cta: 'Approve',
+                  },
+                  reactivate: {
+                    title: `Reactivate ${label}?`,
+                    body: 'They\'ll get a welcome-back email and become visible to recruiters again.',
+                    action: 'reactivate',
+                    cta: 'Reactivate',
+                  },
+                  deactivate: {
+                    title: `Mark ${label} inactive?`,
+                    body: 'They\'ll be hidden from recruiters and will receive an email letting them know.',
+                    action: 'deactivate',
+                    cta: 'Mark Inactive',
+                  },
+                };
+                const c2 = cfg[confirmAction.kind];
+                return (
+                  <>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>{c2.title}</AlertDialogTitle>
+                      <AlertDialogDescription>{c2.body}</AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel disabled={actionLoading}>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        disabled={actionLoading}
+                        onClick={(e) => { e.preventDefault(); submitReviewAction(c, c2.action); }}
+                      >
+                        {actionLoading
+                          ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Working…</>
+                          : c2.cta}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </>
+                );
+              })()}
+            </AlertDialogContent>
+          </AlertDialog>
+
+          {/* ── Batch 2 — rejection-reason dialog (only path that captures text) ── */}
+          <Dialog
+            open={rejectionDialogOpen}
+            onOpenChange={(open) => { if (!open && !actionLoading) { setRejectionDialogOpen(false); setRejectionReason(''); } }}
+          >
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Reject {selectedCandidate?.display_name || selectedCandidate?.name}</DialogTitle>
+                <DialogDescription>
+                  The candidate gets a generic email — the reason below is internal-only and never sent.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-2 py-2">
+                <Label htmlFor="rejection-reason">Reason (internal use only — not sent to candidate)</Label>
+                <Textarea
+                  id="rejection-reason"
+                  value={rejectionReason}
+                  onChange={(e) => setRejectionReason(e.target.value)}
+                  placeholder="e.g. Insufficient experience for current openings"
+                  rows={4}
+                />
+              </div>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  disabled={actionLoading}
+                  onClick={() => { setRejectionDialogOpen(false); setRejectionReason(''); }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="destructive"
+                  disabled={actionLoading}
+                  onClick={() => {
+                    if (selectedCandidate) submitReviewAction(selectedCandidate, 'reject', rejectionReason);
+                  }}
+                >
+                  {actionLoading
+                    ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Rejecting…</>
+                    : <><XCircle className="w-4 h-4 mr-2" />Reject Candidate</>}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
         {/* User Edit Dialog */}
         <Dialog open={!!editingUser} onOpenChange={() => setEditingUser(null)}>

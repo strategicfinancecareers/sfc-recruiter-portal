@@ -35,10 +35,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const accepted = response === 'yes';
 
-    // Update status in database
+    // Update status + responded_at in database.
+    // responded_at is set on every flip (status only flips once in practice,
+    // so this is effectively first-write-wins).
     const { error: updateErr } = await supabase
       .from('introduction_requests')
-      .update({ status: accepted ? 'approved' : 'rejected' })
+      .update({
+        status: accepted ? 'approved' : 'rejected',
+        responded_at: new Date().toISOString(),
+      })
       .eq('id', introId);
     console.log('[respond-to-intro] status update error:', JSON.stringify(updateErr));
 

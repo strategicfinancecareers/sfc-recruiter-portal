@@ -13,6 +13,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Plus, Edit2, Trash2, Users, UserPlus, Eye, Settings, Mail, UserX, X, Check, Download, Loader2, ChevronRight, Briefcase, GraduationCap, MapPin, CheckCircle, XCircle, Pause, RotateCcw } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import AdminIntroductionsTab from "@/components/admin/AdminIntroductionsTab";
 
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from '@/integrations/supabase/client';
@@ -62,44 +63,11 @@ interface Candidate {
   rejection_reason?: string;
 }
 
-interface IntroductionRequest {
-  id: string;
-  recruiterId: string;
-  recruiterName: string;
-  candidateId: string;
-  candidateName: string;
-  candidateRole: string;
-  status: 'pending' | 'accepted' | 'rejected';
-  requestedAt: string;
-  respondedAt?: string;
-  emailSentAt?: string;
-}
+// (Old mock IntroductionRequest interface deleted — the real one lives in
+// useIntroductionRequests and is consumed by AdminIntroductionsTab below.)
 
 
-const mockIntroductions: IntroductionRequest[] = [
-  {
-    id: '1',
-    recruiterId: '1',
-    recruiterName: 'John Recruiter',
-    candidateId: '1',
-    candidateName: 'Sarah Johnson',
-    candidateRole: 'Senior Full Stack Developer',
-    status: 'accepted',
-    requestedAt: '2024-01-15',
-    respondedAt: '2024-01-16',
-    emailSentAt: '2024-01-16',
-  },
-  {
-    id: '2',
-    recruiterId: '1',
-    recruiterName: 'John Recruiter',
-    candidateId: '2',
-    candidateName: 'Michael Chen',
-    candidateRole: 'DevOps Engineer',
-    status: 'pending',
-    requestedAt: '2024-01-14',
-  },
-];
+// (Old mockIntroductions removed — real data flows through useIntroductionRequests.)
 
 const Admin = () => {
   const { toast } = useToast();
@@ -107,7 +75,6 @@ const Admin = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [roles, setRoles] = useState<Array<{ id: string; name: string }>>([]);
-  const [introductions, setIntroductions] = useState<IntroductionRequest[]>(mockIntroductions);
   const [showCandidateForm, setShowCandidateForm] = useState(false);
   const [editingCandidate, setEditingCandidate] = useState<Candidate | null>(null);
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
@@ -1117,47 +1084,7 @@ if (!usersError && usersData) {
             </TabsContent>
 
             <TabsContent value="introductions">
-              <div className="space-y-6">
-                <h2 className="text-xl font-semibold">Introduction Requests</h2>
-                
-                <div className="grid grid-cols-1 gap-4">
-                  {introductions.map((intro) => (
-                    <Card key={intro.id}>
-                      <CardContent className="pt-6">
-                        <div className="flex justify-between items-start">
-                          <div className="flex-1">
-                            <h3 className="font-semibold">{intro.candidateName}</h3>
-                            <p className="text-sm text-blue-600">{intro.candidateRole}</p>
-                            <p className="text-sm text-gray-600 mt-1">
-                              Requested by: {intro.recruiterName}
-                            </p>
-                            <div className="flex items-center space-x-4 mt-2 text-sm text-gray-500">
-                              <span>Requested: {new Date(intro.requestedAt).toLocaleDateString()}</span>
-                              {intro.respondedAt && (
-                                <span>Responded: {new Date(intro.respondedAt).toLocaleDateString()}</span>
-                              )}
-                              {intro.emailSentAt && (
-                                <span>Email sent: {new Date(intro.emailSentAt).toLocaleDateString()}</span>
-                              )}
-                            </div>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <Badge className={getStatusColor(intro.status)}>
-                              {intro.status}
-                            </Badge>
-                            {intro.status === 'accepted' && !intro.emailSentAt && (
-                              <Button size="sm" variant="outline">
-                                <Mail className="mr-1 h-4 w-4" />
-                                Send Intro Email
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              </div>
+              <AdminIntroductionsTab />
             </TabsContent>
 
             <TabsContent value="settings">

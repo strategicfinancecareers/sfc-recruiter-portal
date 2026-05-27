@@ -13,6 +13,7 @@ export interface IntroductionRequest {
   message: string | null;
   created_at: string;
   updated_at: string;
+  responded_at: string | null;
   // Related data
   candidate: {
     id: string;

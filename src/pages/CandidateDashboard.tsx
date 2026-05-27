@@ -20,6 +20,7 @@ interface CandidateRow {
   preferred_cities?: string[];
   target_roles?: string[];
   skills?: string[];
+  status?: 'pending' | 'active' | 'rejected' | 'inactive' | 'deleted';
 }
 
 interface IntroRequest {
@@ -246,6 +247,64 @@ const COMP_OPTIONS = [
   { value: '300k-plus',  label: '$300,000+' },
 ];
 
+// ─── Status banner ────────────────────────────────────────────────────────────
+// Shown at the top of the candidate dashboard. Frames the rest of the page
+// based on where the candidate is in the approval lifecycle.
+
+function StatusBanner({ status }: { status?: string }) {
+  if (status === 'active') return null;
+
+  if (status === 'pending') {
+    return (
+      <div className="rounded-xl border border-amber-200 bg-amber-50 px-5 py-4">
+        <p className="text-sm font-semibold text-amber-900">⏳ Your profile is under review</p>
+        <p className="text-sm text-amber-800 mt-1 leading-relaxed">
+          Our team manually vets every candidate. We'll email you the moment your profile is approved (usually within 1–2 business days). You can still review and edit your details below.
+        </p>
+      </div>
+    );
+  }
+
+  if (status === 'rejected') {
+    return (
+      <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4">
+        <p className="text-sm font-semibold text-red-900">Application not accepted</p>
+        <p className="text-sm text-red-800 mt-1 leading-relaxed">
+          Your application wasn't accepted at this time. If you'd like to know more or appeal,
+          email us at <a href="mailto:talent@strategicfinancecareers.com" className="underline font-medium">talent@strategicfinancecareers.com</a>.
+        </p>
+      </div>
+    );
+  }
+
+  if (status === 'inactive') {
+    return (
+      <div className="rounded-xl border border-gray-200 bg-gray-50 px-5 py-4">
+        <p className="text-sm font-semibold text-gray-900">⏸ Profile paused</p>
+        <p className="text-sm text-gray-700 mt-1 leading-relaxed">
+          Your profile is paused and not visible to recruiters. Email{' '}
+          <a href="mailto:talent@strategicfinancecareers.com" className="underline font-medium">talent@strategicfinancecareers.com</a>{' '}
+          to reactivate it.
+        </p>
+      </div>
+    );
+  }
+
+  if (status === 'deleted') {
+    return (
+      <div className="rounded-xl border border-gray-200 bg-gray-50 px-5 py-4">
+        <p className="text-sm font-semibold text-gray-900">Account not found</p>
+        <p className="text-sm text-gray-700 mt-1">
+          We couldn't find an active profile for your account. Please contact{' '}
+          <a href="mailto:talent@strategicfinancecareers.com" className="underline font-medium">talent@strategicfinancecareers.com</a>.
+        </p>
+      </div>
+    );
+  }
+
+  return null;
+}
+
 // ─── Dashboard component ──────────────────────────────────────────────────────
 
 function Dashboard({
@@ -387,6 +446,8 @@ function Dashboard({
       </header>
 
       <div className="max-w-2xl mx-auto px-4 py-8 space-y-6">
+
+        <StatusBanner status={candidate.status} />
 
         {/* ── Section 1: Profile (read-only + edit toggle) ── */}
         <div className="bg-white border border-gray-200 rounded-xl p-6">
@@ -629,7 +690,8 @@ function Dashboard({
           )}
         </div>
 
-        {/* ── Section 2: Introduction Requests ── */}
+        {/* ── Section 2: Introduction Requests (only for active candidates — pending/rejected/inactive can't have intros) ── */}
+        {candidate.status === 'active' && (
         <div className="bg-white border border-gray-200 rounded-xl p-6">
           <div className="flex items-center gap-2 mb-4">
             <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wider">Introduction Requests</h2>
@@ -715,6 +777,7 @@ function Dashboard({
             </div>
           )}
         </div>
+        )}
 
       </div>
     </div>

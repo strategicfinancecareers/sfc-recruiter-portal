@@ -80,57 +80,32 @@ export const useIntroductionRequests = () => {
         }));
         setRequests(transformed);
       } else {
-        // Admin: direct Supabase query (admins have unrestricted RLS access)
-        const { data, error: qErr } = await supabase
-          .from('introduction_requests')
-          .select(`
-            *,
-            candidate:candidates!fk_introduction_requests_candidate (
-              id,
-              name,
-              display_name,
-              email,
-              phone,
-              location,
-              experience,
-              education,
-              highest_education_level,
-              label,
-              profile_description,
-              resume_full_url,
-              candidate_skills (
-                skills (
-                  id,
-                  skill
-                )
-              )
-            ),
-            requester:users!fk_introduction_requests_requester (
-              id,
-              first_name,
-              last_name,
-              email
-            ),
-            job:jobs!fk_introduction_requests_job (
-              id,
-              title,
-              company,
-              location
-            )
-          `)
-          .order('created_at', { ascending: false });
-
-        if (qErr) throw qErr;
-
-        const transformed: IntroductionRequest[] = (data || []).map((req: any) => ({
+        // Admin / owner: route through service-role API. Direct browser
+        // queries on introduction_requests with a users embed hit
+        // "permission denied for table users" (PG 42501) — the embed
+        // resolves through auth.users in a way that PostgREST refuses
+        // without the service role. /api/admin-intros does the same
+        // SELECT shape server-side and enforces admin/owner auth.
+        const res = await fetch(`/api/admin-intros?adminUserId=${encodeURIComponent(user.id)}`);
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.error || `API error ${res.status}`);
+        }
+        const { requests: raw } = await res.json();
+        // The admin endpoint doesn't currently embed candidate_skills (the
+        // admin Introductions tab doesn't render skills, and AdminPendingCandidates
+        // is gone). Default to [] to satisfy the IntroductionRequest type.
+        const transformed: IntroductionRequest[] = (raw || []).map((req: any) => ({
           ...req,
           candidate: {
-            ...req.candidate,
+            ...(req.candidate || {}),
             skills: (req.candidate?.candidate_skills || []).map((cs: any) => ({
-              id: cs.skills.id,
-              skill: cs.skills.skill,
-            })),
+              id: cs.skills?.id,
+              skill: cs.skills?.skill,
+            })).filter((s: any) => s.id && s.skill),
           },
+          requester: req.requester || { id: req.requester_id, first_name: '—', last_name: '', email: '' },
+          job: req.job || null,
         }));
         setRequests(transformed);
       }

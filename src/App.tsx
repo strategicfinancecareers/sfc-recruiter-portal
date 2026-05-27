@@ -8,6 +8,8 @@ import { AuthProvider } from "./contexts/AuthContext";
 import Home from "./pages/Home";
 import Login from "./pages/Login";
 import SignUp from "./pages/SignUp";
+import SignUpPending from "./pages/SignUpPending";
+import SignUpRejected from "./pages/SignUpRejected";
 import ForgotPassword from "./pages/ForgotPassword";
 import Dashboard from "./pages/Dashboard";
 import CandidateSearch from "./pages/CandidateSearch";
@@ -37,6 +39,8 @@ const App = () => (
             <Route path="/" element={<Home />} />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<SignUp />} />
+            <Route path="/signup/pending" element={<SignUpPending />} />
+            <Route path="/signup/rejected" element={<SignUpRejected />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/apply" element={<CandidateApply />} />
             <Route path="/candidate-dashboard" element={<CandidateDashboard />} />

@@ -13,6 +13,17 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requireAdmin 
   if (isLoading) return <LoaderScreen />;
   if (!user) return <Navigate to="/login" replace />;
 
+  // ── Recruiter vetting gate ──────────────────────────────────────────────────
+  // Applies only to users with role='recruiter'. Admins and owners bypass.
+  // Grandfathered recruiters (recruiter_status IS NULL) also bypass — they
+  // were on the platform before vetting was introduced.
+  if (user.role === 'recruiter') {
+    if (isProfileLoading) return <LoaderScreen />;
+    if (user.recruiter_status === 'pending') return <Navigate to="/signup/pending" replace />;
+    if (user.recruiter_status === 'rejected') return <Navigate to="/signup/rejected" replace />;
+    // 'approved' or null → continue
+  }
+
   if (requireAdmin) {
     if (isProfileLoading) return <LoaderScreen />;
     if (user.role !== 'admin' && user.role !== 'owner') {

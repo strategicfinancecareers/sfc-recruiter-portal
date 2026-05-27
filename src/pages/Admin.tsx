@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Plus, Edit2, Trash2, Users, UserPlus, Eye, Settings, Mail, UserX, X, Check, Download, Loader2, ChevronRight, Briefcase, GraduationCap, MapPin, CheckCircle, XCircle, Pause, RotateCcw } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import AdminIntroductionsTab from "@/components/admin/AdminIntroductionsTab";
+import AdminRecruitersTab from "@/components/admin/AdminRecruitersTab";
 
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from '@/integrations/supabase/client';
@@ -857,8 +858,9 @@ setCandidates(transformedCandidates);
         </div>
 
         <Tabs defaultValue="candidates" className="space-y-6">
-            <TabsList className="grid w-full grid-cols-4">
+            <TabsList className="grid w-full grid-cols-5">
               <TabsTrigger value="candidates">Candidates</TabsTrigger>
+              <TabsTrigger value="recruiters">Recruiters</TabsTrigger>
               <TabsTrigger value="users">Users</TabsTrigger>
               <TabsTrigger value="introductions">Introductions</TabsTrigger>
               <TabsTrigger value="settings">Settings</TabsTrigger>
@@ -950,6 +952,10 @@ setCandidates(transformedCandidates);
                   })}
                 </div>
               </div>
+            </TabsContent>
+
+            <TabsContent value="recruiters">
+              <AdminRecruitersTab />
             </TabsContent>
 
             <TabsContent value="users">

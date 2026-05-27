@@ -14,34 +14,108 @@ const GoogleIcon = () => (
   </svg>
 );
 
+// Browser-side LinkedIn URL validation — must contain `linkedin.com/in/`.
+// Server (api/recruiter-signup) re-validates the same pattern.
+const LINKEDIN_PATTERN = /linkedin\.com\/in\//i;
+
 const SignUp = () => {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [linkedinUrl, setLinkedinUrl] = useState('');
+  const [company, setCompany] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [localLoading, setLocalLoading] = useState(false);
-  const { signup, user, isLoading } = useAuth();
+  const [error, setError] = useState<string | null>(null);
+  const { user, isLoading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
   useEffect(() => {
-    if (user) navigate('/start-here', { replace: true });
+    // If they hit /signup while already signed in as an approved recruiter,
+    // bounce them to the app. Pending/rejected statuses are handled by
+    // ProtectedRoute redirects elsewhere; not relevant on this public route.
+    if (user && (user.recruiter_status === 'approved' || user.recruiter_status == null)) {
+      navigate('/start-here', { replace: true });
+    }
   }, [user, navigate]);
 
   if (isLoading) return <LoaderScreen />;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
+
+    // Client-side validation. Server re-validates everything.
+    if (!LINKEDIN_PATTERN.test(linkedinUrl.trim())) {
+      setError('Please enter a valid LinkedIn profile URL (must contain linkedin.com/in/)');
+      return;
+    }
+    if (!company.trim()) {
+      setError('Company is required.');
+      return;
+    }
+
     setLocalLoading(true);
     try {
-      await signup(email, password, firstName, lastName);
+      // 1. Create the auth user.
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+        email: email.trim().toLowerCase(),
+        password,
+        options: {
+          data: { first_name: firstName.trim(), last_name: lastName.trim() },
+        },
+      });
+      if (signUpError) throw new Error(signUpError.message);
+
+      const authUserId = signUpData.user?.id;
+      if (!authUserId) throw new Error('Sign-up succeeded but no user id was returned. Try again.');
+
+      // 2. Insert public.users + fire admin notify + applicant confirmation
+      //    emails via service-role API. Server enforces LinkedIn regex
+      //    again, sets role_id=recruiter, recruiter_status='pending'.
+      const apiRes = await fetch('/api/recruiter-signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          authUserId,
+          email: email.trim().toLowerCase(),
+          first_name: firstName.trim(),
+          last_name: lastName.trim(),
+          linkedin_url: linkedinUrl.trim(),
+          company: company.trim(),
+        }),
+      });
+      const apiBody = await apiRes.json().catch(() => ({}));
+      if (!apiRes.ok) throw new Error(apiBody.error || `Signup API failed (${apiRes.status})`);
+
+      // 3. Sign out the unverified session so they don't end up half-authed
+      //    on /signup/pending. They'll sign in once approved.
+      await supabase.auth.signOut().catch(() => {});
+
+      // 4. Land on the pending page.
+      navigate('/signup/pending', { replace: true });
+    } catch (err: any) {
+      console.error('[SignUp] submit error:', err);
+      setError(err?.message || 'Something went wrong. Please try again.');
+      toast({
+        title: 'Signup failed',
+        description: err?.message || 'Unknown error',
+        variant: 'destructive',
+      });
     } finally {
       setLocalLoading(false);
     }
   };
 
   const handleGoogle = async () => {
+    // Google OAuth path. AuthContext's fetchProfile auto-provisions new
+    // Google users with recruiter_status='pending' (see the OAuth fallback
+    // there), so they'll land on /signup/pending via the ProtectedRoute
+    // gate. They miss the LinkedIn + Company capture, which is a known
+    // gap — admin can ask for those via email until we build a "complete
+    // your recruiter profile" step.
     await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: { redirectTo: 'https://sfc-recruiter-portal.vercel.app/start-here' },
@@ -51,17 +125,15 @@ const SignUp = () => {
   return (
     <div className="min-h-screen flex">
       {/* ── Left panel — form ── */}
-      <div className="w-full lg:w-[420px] xl:w-[480px] flex flex-col bg-[#f8f8f8] px-10 py-12 shrink-0">
-        {/* Logo */}
+      <div className="w-full lg:w-[480px] xl:w-[540px] flex flex-col bg-[#f8f8f8] px-10 py-12 shrink-0">
         <div className="mb-10">
           <span className="font-bold text-lg text-gray-900 tracking-tight">SFC Talent</span>
         </div>
 
         <div className="flex-1 flex flex-col justify-center max-w-sm w-full mx-auto lg:mx-0">
-          <h1 className="text-2xl font-semibold text-gray-900 mb-1">Get started</h1>
-          <p className="text-sm text-gray-500 mb-6">Create a new recruiter account</p>
+          <h1 className="text-2xl font-semibold text-gray-900 mb-1">Apply as a recruiter</h1>
+          <p className="text-sm text-gray-500 mb-6">We vet every recruiter to keep quality high. Approval usually takes 1–2 business days.</p>
 
-          {/* Google */}
           <button
             type="button"
             onClick={handleGoogle}
@@ -71,17 +143,11 @@ const SignUp = () => {
             Continue with Google
           </button>
 
-          {/* Divider */}
           <div className="relative my-4">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t border-gray-200" />
-            </div>
-            <div className="relative flex justify-center text-xs">
-              <span className="bg-[#f8f8f8] px-3 text-gray-400">or</span>
-            </div>
+            <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-gray-200" /></div>
+            <div className="relative flex justify-center text-xs"><span className="bg-[#f8f8f8] px-3 text-gray-400">or</span></div>
           </div>
 
-          {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -109,15 +175,42 @@ const SignUp = () => {
             </div>
 
             <div>
-              <label className="block text-sm text-gray-700 mb-1.5">Email</label>
+              <label className="block text-sm text-gray-700 mb-1.5">Work email</label>
               <input
                 type="email"
-                placeholder="you@example.com"
+                placeholder="you@company.com"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 required
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
               />
+            </div>
+
+            <div>
+              <label className="block text-sm text-gray-700 mb-1.5">Company</label>
+              <input
+                type="text"
+                placeholder="Acme Capital"
+                value={company}
+                onChange={e => setCompany(e.target.value)}
+                required
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm text-gray-700 mb-1.5">LinkedIn profile URL</label>
+              <input
+                type="url"
+                placeholder="https://www.linkedin.com/in/janesmith"
+                value={linkedinUrl}
+                onChange={e => setLinkedinUrl(e.target.value)}
+                required
+                pattern=".*linkedin\.com/in/.*"
+                title="Must contain linkedin.com/in/"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+              />
+              <p className="text-xs text-gray-400 mt-1">We use this for vetting only — never shared with candidates.</p>
             </div>
 
             <div>
@@ -129,6 +222,7 @@ const SignUp = () => {
                   value={password}
                   onChange={e => setPassword(e.target.value)}
                   required
+                  minLength={8}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 pr-10 text-sm bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                 />
                 <button
@@ -146,12 +240,16 @@ const SignUp = () => {
               </div>
             </div>
 
+            {error && (
+              <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2.5">{error}</p>
+            )}
+
             <button
               type="submit"
               disabled={localLoading}
               className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:opacity-60 text-white rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors mt-1"
             >
-              {localLoading ? 'Creating account…' : 'Sign up'}
+              {localLoading ? 'Submitting application…' : 'Submit application'}
             </button>
           </form>
 
@@ -161,13 +259,11 @@ const SignUp = () => {
           </p>
         </div>
 
-        {/* Footer */}
         <p className="text-xs text-gray-400 mt-10 leading-relaxed max-w-sm mx-auto lg:mx-0">
           By continuing, you agree to SFC Talent's{' '}
           <a href="https://strategicfinancecareers.com" className="underline hover:text-gray-600">Terms of Service</a>
           {' '}and{' '}
-          <a href="https://strategicfinancecareers.com" className="underline hover:text-gray-600">Privacy Policy</a>,
-          and to receive product updates.
+          <a href="https://strategicfinancecareers.com" className="underline hover:text-gray-600">Privacy Policy</a>.
         </p>
       </div>
 

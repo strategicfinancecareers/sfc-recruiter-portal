@@ -12,6 +12,13 @@ interface Profile {
   role: 'recruiter' | 'admin' | 'owner' | 'candidate';
   has_accepted_terms?: boolean;
   notify_intro_requests?: boolean;
+  // Recruiter vetting columns (migration: add_recruiter_vetting)
+  recruiter_status?: 'pending' | 'approved' | 'rejected' | null;
+  linkedin_url?: string | null;
+  company?: string | null;
+  rejection_reason?: string | null;
+  approved_at?: string | null;
+  approved_by?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -84,33 +91,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const role = data.roles?.name as 'recruiter' | 'admin' | 'owner' | 'candidate' || 'recruiter';
         return { ...data, role };
       } else {
-        // New Google OAuth user — create a row in public.users with recruiter role
-        try {
-          const { data: { user: authUser } } = await supabase.auth.getUser();
-          if (authUser) {
-            const newProfile = {
-              id: userId,
-              email: authUser.email ?? '',
-              first_name: authUser.user_metadata?.full_name?.split(' ')[0] ?? '',
-              last_name: authUser.user_metadata?.full_name?.split(' ').slice(1).join(' ') ?? '',
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-            };
-            await (supabase as any).from('users').insert(newProfile);
-            // Re-fetch to get the role join
-            const { data: created } = await supabase
-              .from('users')
-              .select('*, roles(name)')
-              .eq('id', userId)
-              .maybeSingle();
-            if (created) {
-              const role = (created as any).roles?.name as 'recruiter' | 'admin' | 'owner' | 'candidate' || 'recruiter';
-              return { ...created, role } as Profile;
-            }
-          }
-        } catch (provisionErr) {
-          console.error('Error provisioning new OAuth user:', provisionErr);
-        }
+        // No public.users row for this auth user.
+        //
+        // BUG 3 — historically this branch auto-provisioned a public.users
+        // row for any session without one (intended for new Google OAuth
+        // recruiters). That leaked candidate auth sessions into
+        // public.users: a candidate who supabase.auth.signUp's via /apply
+        // but hasn't yet submitted the form has an auth.users row AND no
+        // candidates row, so any candidate-table check has a race window.
+        //
+        // The only safe answer is: don't insert here, ever. Candidates
+        // get exactly zero rows in public.users. Email/password
+        // recruiter signups go through /signup → /api/recruiter-signup
+        // (service-role insert). Google OAuth recruiter signup is
+        // currently a no-op here — they end up with a session but no
+        // public.users row, AuthContext.user = null, and ProtectedRoute
+        // bounces them to /login. Follow-up TODO: add a /signup/google
+        // completion step that captures LinkedIn + Company and calls
+        // /api/recruiter-signup. For now Google OAuth on /signup is a
+        // dead end; recruiters must use email/password.
         return null;
       }
     } catch (error) {

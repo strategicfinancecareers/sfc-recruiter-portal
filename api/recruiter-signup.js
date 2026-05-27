@@ -126,7 +126,6 @@ export default async function handler(req, res) {
             <li>LinkedIn: <a href="${linkedin_url}" style="color:#0F6E56">${linkedin_url}</a></li>
           </ul>
         </div>
-        <p>If any of that needs to change, just reply to this email.</p>
         <p style="color:#666;font-size:14px">— The SFC Talent team</p>
         <hr style="border:none;border-top:1px solid #eee;margin:24px 0" />
         <p style="color:#999;font-size:12px">SFC Talent · strategicfinancecareers.com</p>

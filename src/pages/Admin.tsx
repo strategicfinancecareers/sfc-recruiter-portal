@@ -123,10 +123,12 @@ const Admin = () => {
   const [reviewDownloading, setReviewDownloading] = useState(false);
   const [reviewDownloadError, setReviewDownloadError] = useState<string | null>(null);
 
-  // Pending-queue counts driving the tab badges (Candidates + Recruiters).
-  // Reuses the existing candidates state for the candidates count, and a
-  // lightweight /api/admin-pending-counts call for the recruiters count.
+  // Pending-queue counts driving the tab badges. Candidates count is
+  // derived from local state. Recruiters + Intros counts come from a
+  // lightweight /api/admin-pending-counts call (one round-trip, refetch
+  // after status-changing actions in either tab).
   const [pendingRecruiterCount, setPendingRecruiterCount] = useState<number>(0);
+  const [pendingIntrosCount, setPendingIntrosCount] = useState<number>(0);
 
   // ── Batch 2 — review-action state ─────────────────────────────────────────
   const [actionLoading, setActionLoading] = useState(false);
@@ -735,21 +737,22 @@ setCandidates(transformedCandidates);
     return Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000));
   };
 
-  // Refresh the recruiter pending count. Called on mount + after the
-  // Recruiters tab fires a review action so the badge stays accurate.
+  // Refresh the recruiter + intros pending counts in one API call.
+  // Called on mount + after either tab fires a status-changing action.
   // The candidates count comes from local state (already loaded).
-  const refetchRecruiterCount = async () => {
+  const refetchPendingCounts = async () => {
     if (!user?.id) return;
     try {
       const res = await fetch(`/api/admin-pending-counts?adminUserId=${encodeURIComponent(user.id)}`);
       if (!res.ok) return;
       const body = await res.json();
       setPendingRecruiterCount(body.recruiters ?? 0);
+      setPendingIntrosCount(body.intros ?? 0);
     } catch (err) {
       console.error('[Admin] pending counts fetch failed:', err);
     }
   };
-  useEffect(() => { refetchRecruiterCount(); }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { refetchPendingCounts(); }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Pending candidates count derived from already-loaded list.
   // Explicit equality — never treat NULL/undefined as pending; the
@@ -902,7 +905,14 @@ setCandidates(transformedCandidates);
                 )}
               </TabsTrigger>
               <TabsTrigger value="users">Users</TabsTrigger>
-              <TabsTrigger value="introductions">Introductions</TabsTrigger>
+              <TabsTrigger value="introductions" className="relative">
+                Introductions
+                {pendingIntrosCount > 0 && (
+                  <span className="ml-2 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-amber-500 text-white text-[11px] font-semibold leading-none">
+                    {pendingIntrosCount}
+                  </span>
+                )}
+              </TabsTrigger>
               <TabsTrigger value="settings">Settings</TabsTrigger>
             </TabsList>
 
@@ -995,7 +1005,7 @@ setCandidates(transformedCandidates);
             </TabsContent>
 
             <TabsContent value="recruiters">
-              <AdminRecruitersTab onCountChange={refetchRecruiterCount} />
+              <AdminRecruitersTab onCountChange={refetchPendingCounts} />
             </TabsContent>
 
             <TabsContent value="users">
@@ -1215,7 +1225,7 @@ if (!usersError && usersData) {
             </TabsContent>
 
             <TabsContent value="introductions">
-              <AdminIntroductionsTab />
+              <AdminIntroductionsTab onCountChange={refetchPendingCounts} />
             </TabsContent>
 
             <TabsContent value="settings">

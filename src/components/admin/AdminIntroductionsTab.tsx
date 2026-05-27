@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { format } from 'date-fns';
+import { format, formatDistanceToNow } from 'date-fns';
 import type { DateRange } from 'react-day-picker';
 import { Calendar as CalendarIcon, Loader2, RefreshCw, Mail } from 'lucide-react';
 
@@ -43,10 +43,22 @@ const fmt = (iso?: string | null) => (iso ? format(new Date(iso), 'MMM d') : '�
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function AdminIntroductionsTab() {
+interface AdminIntroductionsTabProps {
+  // Called after a successful Resend (or future status-changing action)
+  // so the parent can refresh its pending-count badge. No-op for resend
+  // itself (count doesn't change) but symmetric with other admin tabs.
+  onCountChange?: () => void;
+}
+
+export default function AdminIntroductionsTab({ onCountChange }: AdminIntroductionsTabProps = {}) {
   const { user } = useAuth();
   const { toast } = useToast();
   const { requests, loading, error, refetchRequests } = useIntroductionRequests();
+
+  // Optimistic last_nudged_at overrides keyed by intro id — applied on top
+  // of the server-fetched value so the "Last nudged: X ago" line updates
+  // immediately on a successful resend, without waiting for a refetch.
+  const [optimisticNudgedAt, setOptimisticNudgedAt] = useState<Record<string, string>>({});
 
   // Filters
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
@@ -113,6 +125,11 @@ export default function AdminIntroductionsTab() {
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body?.error || body?.detail || `Failed (${res.status})`);
+      // Optimistic update: server returns last_nudged_at; fall back to
+      // 'now' if the stamp UPDATE failed server-side (email still went out).
+      const stampedAt = body?.last_nudged_at || new Date().toISOString();
+      setOptimisticNudgedAt(prev => ({ ...prev, [intro.id]: stampedAt }));
+      onCountChange?.();
       toast({
         title: 'Email resent',
         description: intro.candidate?.email
@@ -303,19 +320,30 @@ export default function AdminIntroductionsTab() {
                     <TableCell className="text-sm">{fmt(intro.responded_at)}</TableCell>
                     <TableCell className="text-right">
                       {isPending ? (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={busy}
-                          onClick={() => handleResend(intro)}
-                          title="Resend request to candidate"
-                        >
-                          {busy ? (
-                            <><Loader2 className="w-3 h-3 mr-1 animate-spin" /> Sending</>
-                          ) : (
-                            <><Mail className="w-3 h-3 mr-1" /> Resend</>
-                          )}
-                        </Button>
+                        <div className="flex flex-col items-end gap-1">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={busy}
+                            onClick={() => handleResend(intro)}
+                            title="Resend request to candidate"
+                          >
+                            {busy ? (
+                              <><Loader2 className="w-3 h-3 mr-1 animate-spin" /> Sending</>
+                            ) : (
+                              <><Mail className="w-3 h-3 mr-1" /> Resend</>
+                            )}
+                          </Button>
+                          {(() => {
+                            const nudgedAt = optimisticNudgedAt[intro.id] || intro.last_nudged_at;
+                            if (!nudgedAt) return null;
+                            return (
+                              <p className="text-[11px] text-muted-foreground leading-tight">
+                                Last nudged: {formatDistanceToNow(new Date(nudgedAt))} ago
+                              </p>
+                            );
+                          })()}
+                        </div>
                       ) : (
                         <span className="text-xs text-muted-foreground">—</span>
                       )}

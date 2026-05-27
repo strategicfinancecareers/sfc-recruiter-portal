@@ -37,7 +37,7 @@ export default async function handler(req, res) {
   }
 
   // Counts in parallel — head:true skips returning rows
-  const [candRes, recRes] = await Promise.all([
+  const [candRes, recRes, introRes] = await Promise.all([
     supabase
       .from('candidates')
       .select('*', { count: 'exact', head: true })
@@ -47,17 +47,22 @@ export default async function handler(req, res) {
       .select('*', { count: 'exact', head: true })
       .eq('role_id', RECRUITER_ROLE_ID)
       .eq('recruiter_status', 'pending'),
+    supabase
+      .from('introduction_requests')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'pending'),
   ]);
 
-  if (candRes.error || recRes.error) {
+  if (candRes.error || recRes.error || introRes.error) {
     console.error('[admin-pending-counts] count error:', JSON.stringify({
-      cand: candRes.error, rec: recRes.error,
+      cand: candRes.error, rec: recRes.error, intro: introRes.error,
     }));
-    return res.status(500).json({ error: (candRes.error || recRes.error)?.message });
+    return res.status(500).json({ error: (candRes.error || recRes.error || introRes.error)?.message });
   }
 
   return res.status(200).json({
     candidates: candRes.count ?? 0,
     recruiters: recRes.count ?? 0,
+    intros: introRes.count ?? 0,
   });
 }

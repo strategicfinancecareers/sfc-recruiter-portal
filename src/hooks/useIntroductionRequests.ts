@@ -14,6 +14,8 @@ export interface IntroductionRequest {
   created_at: string;
   updated_at: string;
   responded_at: string | null;
+  // Stamped each time an admin clicks "Resend" in the admin Introductions tab.
+  last_nudged_at: string | null;
   // Related data
   candidate: {
     id: string;

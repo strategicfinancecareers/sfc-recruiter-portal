@@ -962,8 +962,11 @@ setCandidates(transformedCandidates);
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
                                 <p className="font-semibold text-sm text-gray-900 truncate">
-                                  {candidate.display_name || candidate.label || candidate.name}
+                                  {candidate.name || candidate.display_name || candidate.label}
                                 </p>
+                                {candidate.display_name && candidate.display_name !== candidate.name && (
+                                  <p className="text-xs text-muted-foreground truncate">{candidate.display_name}</p>
+                                )}
                                 <Badge variant="outline" className={`text-xs ${candidateStatusBadgeClass(cs)}`}>
                                   {cs}
                                 </Badge>
@@ -1506,7 +1509,7 @@ TalentConnect Team"
                   <>
                     <SheetHeader className="pb-4 border-b">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <SheetTitle className="text-xl">{selectedCandidate.display_name || selectedCandidate.label || selectedCandidate.name}</SheetTitle>
+                        <SheetTitle className="text-xl">{selectedCandidate.name || selectedCandidate.display_name || selectedCandidate.label}</SheetTitle>
                         <Badge variant="outline" className={candidateStatusBadgeClass(cs)}>{cs}</Badge>
                       </div>
                       <SheetDescription>
@@ -1696,7 +1699,7 @@ TalentConnect Team"
             <AlertDialogContent>
               {confirmAction && (() => {
                 const c = confirmAction.candidate;
-                const label = c.display_name || c.name;
+                const label = c.name || c.display_name;
                 const cfg: Record<typeof confirmAction.kind, { title: string; body: string; action: 'approve' | 'reactivate' | 'deactivate'; cta: string; }> = {
                   approve: {
                     title: `Approve ${label}?`,
@@ -1754,7 +1757,7 @@ TalentConnect Team"
           >
             <DialogContent className="max-w-md">
               <DialogHeader>
-                <DialogTitle>Reject {selectedCandidate?.display_name || selectedCandidate?.name}</DialogTitle>
+                <DialogTitle>Reject {selectedCandidate?.name || selectedCandidate?.display_name}</DialogTitle>
                 <DialogDescription>
                   The candidate gets a generic email — the reason below is internal-only and never sent.
                 </DialogDescription>

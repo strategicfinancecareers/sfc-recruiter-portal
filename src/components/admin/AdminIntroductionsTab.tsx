@@ -134,7 +134,7 @@ export default function AdminIntroductionsTab({ onCountChange }: AdminIntroducti
         title: 'Email resent',
         description: intro.candidate?.email
           ? `Sent to ${intro.candidate.email}`
-          : `Sent to ${intro.candidate?.display_name || 'candidate'}.`,
+          : `Sent to ${intro.candidate?.name || intro.candidate?.display_name || 'candidate'}.`,
       });
     } catch (err: any) {
       console.error('[AdminIntroductionsTab] resend failed:', err);
@@ -298,7 +298,13 @@ export default function AdminIntroductionsTab({ onCountChange }: AdminIntroducti
                     <TableCell className="text-sm">{fmt(intro.created_at)}</TableCell>
                     <TableCell className="text-sm">{recruiterLabel(intro.requester)}</TableCell>
                     <TableCell className="text-sm font-medium">
-                      {intro.candidate?.display_name || '—'}
+                      {/* Admin sees real candidate name first, anonymous label as subtitle. */}
+                      <div>
+                        <p>{intro.candidate?.name || intro.candidate?.display_name || '—'}</p>
+                        {intro.candidate?.display_name && intro.candidate.display_name !== intro.candidate.name && (
+                          <p className="text-[11px] text-muted-foreground leading-tight">{intro.candidate.display_name}</p>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell className="text-sm">
                       {intro.job ? (

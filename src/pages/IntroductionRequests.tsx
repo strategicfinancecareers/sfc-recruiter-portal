@@ -1,4 +1,4 @@
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import RedactedResume from "@/components/RedactedResume";
 import LoaderScreen from "@/components/LoaderScreen";
-import { CheckCircle, XCircle, Clock, ArrowUpDown, Download, Mail, Phone, Loader2 } from "lucide-react";
+import { CheckCircle, XCircle, Clock, Download, Mail, Phone, Loader2, MapPin, Calendar, GraduationCap, Briefcase, Eye } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useIntroductionRequests, type IntroductionRequest } from "../hooks/useIntroductionRequests";
@@ -26,8 +26,11 @@ const IntroductionRequests = () => {
 
   const [downloadingResume, setDownloadingResume] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
-  const [sortField, setSortField] = useState<'candidate' | 'job' | 'company' | 'requested' | 'requester' | 'status'>('requested');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  // Cards display intros sorted by request date (newest first). The
+  // multi-column sort UI from the old table layout is gone; if we add
+  // sort controls back, restore these as useState.
+  const sortField: 'candidate' | 'job' | 'company' | 'requested' | 'requester' | 'status' = 'requested';
+  const sortDir: 'asc' | 'desc' = 'desc';
 
   // State for approved candidate modal
   const [approvedModal, setApprovedModal] = useState<{ open: boolean; request: IntroductionRequest | null; candidate: FullCandidate | null; loading: boolean }>({
@@ -37,16 +40,7 @@ const IntroductionRequests = () => {
     loading: false,
   });
 
-  const handleSort = (field: 'candidate' | 'job' | 'company' | 'requested' | 'requester' | 'status') => {
-    if (sortField === field) {
-      setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortField(field);
-      setSortDir('asc');
-    }
-  };
-
-  const openApprovedModal = (request: IntroductionRequest) => {
+const openApprovedModal = (request: IntroductionRequest) => {
     // Use already-loaded candidate data — no second network call needed
     const c = request.candidate;
     setDownloadError(null);
@@ -256,72 +250,165 @@ const IntroductionRequests = () => {
         {(['pending', 'approved', 'rejected', 'all'] as const).map(status => (
           <TabsContent key={status} value={status} className="space-y-4">
             {sortedRequests(status).length > 0 ? (
-              <div className="rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>
-                        <Button variant="ghost" className="px-0 font-medium" onClick={() => handleSort('candidate')}>
-                          Candidate <ArrowUpDown className="ml-1 h-4 w-4" />
-                        </Button>
-                      </TableHead>
-                      <TableHead>
-                        <Button variant="ghost" className="px-0 font-medium" onClick={() => handleSort('job')}>
-                          Job Title <ArrowUpDown className="ml-1 h-4 w-4" />
-                        </Button>
-                      </TableHead>
-                      <TableHead>
-                        <Button variant="ghost" className="px-0 font-medium" onClick={() => handleSort('company')}>
-                          Company <ArrowUpDown className="ml-1 h-4 w-4" />
-                        </Button>
-                      </TableHead>
-                      <TableHead>
-                        <Button variant="ghost" className="px-0 font-medium" onClick={() => handleSort('requested')}>
-                          Requested <ArrowUpDown className="ml-1 h-4 w-4" />
-                        </Button>
-                      </TableHead>
-                      <TableHead>
-                        <Button variant="ghost" className="px-0 font-medium" onClick={() => handleSort('requester')}>
-                          Requester <ArrowUpDown className="ml-1 h-4 w-4" />
-                        </Button>
-                      </TableHead>
-                      {status === 'all' && (
-                        <TableHead>
-                          <Button variant="ghost" className="px-0 font-medium" onClick={() => handleSort('status')}>
-                            Status <ArrowUpDown className="ml-1 h-4 w-4" />
-                          </Button>
-                        </TableHead>
-                      )}
-                      {user?.role === 'admin' && (
-                        <TableHead className="text-right">Actions</TableHead>
-                      )}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {sortedRequests(status).map((request: IntroductionRequest) => (
-                      <TableRow key={request.id}>
-                        <TableCell className="font-medium">
-                          {request.status === 'approved' ? (
-                            // Approved: clickable button opens the full-details modal
+              // Card grid — mirrors the Browse Candidates page layout so the
+              // recruiter portal feels visually consistent. Same Card shape,
+              // padding, hover shadow, header/content rhythm, badge style.
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {sortedRequests(status).map((request: IntroductionRequest) => {
+                  // Identity reveal rule:
+                  //   approved → real candidate name (post-approval reveal)
+                  //   pending/rejected → anonymous display_name
+                  // Admin sees the real name as a small subtitle either way.
+                  const isApproved = request.status === 'approved';
+                  const isAdmin = user?.role === 'admin';
+                  const titleName = isApproved
+                    ? (request.candidate.name || request.candidate.display_name)
+                    : request.candidate.display_name;
+                  const adminSubtitle = isAdmin && !isApproved && request.candidate.name && request.candidate.name !== request.candidate.display_name
+                    ? request.candidate.name
+                    : null;
+
+                  return (
+                    <Card
+                      key={request.id}
+                      className="transition-all duration-200 hover:shadow-lg h-full flex flex-col"
+                    >
+                      <CardHeader className="pb-3">
+                        <div className="flex justify-between items-start gap-2">
+                          <div className="flex-1 min-w-0">
+                            <CardTitle className="text-lg font-heading truncate">{titleName}</CardTitle>
+                            {adminSubtitle && (
+                              <p className="text-sm text-muted-foreground truncate">{adminSubtitle}</p>
+                            )}
+                            <CardDescription className="text-primary font-medium truncate">
+                              {request.candidate.label}
+                            </CardDescription>
+                          </div>
+                          <div className="shrink-0">
+                            {getStatusBadge(request.status)}
+                          </div>
+                        </div>
+                      </CardHeader>
+
+                      <CardContent className="space-y-4 flex flex-col h-full">
+                        {/* Job + company */}
+                        <div className="text-sm text-muted-foreground">
+                          <div className="flex items-start gap-1.5">
+                            <Briefcase className="h-4 w-4 mt-0.5 shrink-0" />
+                            <div className="min-w-0">
+                              <p className="text-foreground font-medium truncate">
+                                {request.job?.title || 'General introduction'}
+                              </p>
+                              {request.job?.company && (
+                                <p className="text-xs truncate">{request.job.company}</p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Candidate metadata — same icon set as Browse */}
+                        <div className="space-y-2">
+                          {request.candidate.location && (
+                            <div className="flex items-center text-sm text-muted-foreground">
+                              <MapPin className="h-4 w-4 mr-1" />
+                              <span className="truncate">{request.candidate.location}</span>
+                            </div>
+                          )}
+                          {request.candidate.experience != null && (
+                            <div className="flex items-center text-sm text-muted-foreground">
+                              <Calendar className="h-4 w-4 mr-1" />
+                              {request.candidate.experience} years experience
+                            </div>
+                          )}
+                          {request.candidate.education && (
+                            <div className="flex items-center text-sm text-muted-foreground">
+                              <GraduationCap className="h-4 w-4 mr-1" />
+                              <span className="truncate">{request.candidate.education}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Skills (top 3 + count) — matches Browse */}
+                        {request.candidate.skills && request.candidate.skills.length > 0 && (
+                          <div className="flex flex-wrap gap-1">
+                            {request.candidate.skills.slice(0, 3).map(skill => (
+                              <Badge key={skill.id} variant="secondary" className="text-xs">
+                                {skill.skill}
+                              </Badge>
+                            ))}
+                            {request.candidate.skills.length > 3 && (
+                              <Badge variant="outline" className="text-xs">
+                                +{request.candidate.skills.length - 3} more
+                              </Badge>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Footer: requester + date + status-appropriate action */}
+                        <div className="mt-auto pt-3 border-t space-y-3">
+                          <div className="flex items-center justify-between text-xs text-muted-foreground">
+                            <span className="truncate">
+                              Sent by {request.requester.first_name} {request.requester.last_name}
+                            </span>
+                            <span className="shrink-0 ml-2">
+                              {new Date(request.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                            </span>
+                          </div>
+
+                          {/* Status-appropriate CTAs */}
+                          {request.status === 'approved' && (
                             <Button
-                              variant="link"
-                              className="p-0 h-auto font-medium text-green-700"
+                              size="sm"
+                              variant="outline"
+                              className="w-full"
                               onClick={() => openApprovedModal(request)}
                             >
-                              {request.candidate.display_name}
+                              <Eye className="mr-1 h-4 w-4" />
+                              View full profile
                             </Button>
-                          ) : (
-                            // Pending / Rejected: existing redacted profile dialog
+                          )}
+                          {request.status === 'pending' && (
+                            <p className="text-xs text-center text-muted-foreground italic">
+                              Awaiting candidate response
+                            </p>
+                          )}
+
+                          {/* Admin-only approve/reject for pending */}
+                          {isAdmin && request.status === 'pending' && (
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleRequestAction(request.id, 'reject')}
+                                className="border-red-200 text-red-700 hover:bg-red-50 flex-1"
+                              >
+                                <XCircle className="w-4 h-4 mr-1" />
+                                Reject
+                              </Button>
+                              <Button
+                                size="sm"
+                                onClick={() => handleRequestAction(request.id, 'approve')}
+                                className="bg-green-600 hover:bg-green-700 flex-1"
+                              >
+                                <CheckCircle className="w-4 h-4 mr-1" />
+                                Approve
+                              </Button>
+                            </div>
+                          )}
+
+                          {/* Redacted-profile dialog trigger for pending/rejected (preserves existing behavior) */}
+                          {!isApproved && (
                             <Dialog>
                               <DialogTrigger asChild>
-                                <Button variant="link" className="p-0 h-auto font-medium">
-                                  {request.candidate.display_name}
+                                <Button size="sm" variant="ghost" className="w-full text-xs text-muted-foreground hover:text-foreground">
+                                  <Eye className="mr-1 h-3 w-3" />
+                                  View redacted profile
                                 </Button>
                               </DialogTrigger>
                               <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
                                 <DialogHeader>
                                   <DialogTitle className="font-heading">{request.candidate.display_name}</DialogTitle>
-                                  {user?.role === 'admin' && (
+                                  {isAdmin && (
                                     <p className="text-sm text-muted-foreground">{request.candidate.name}</p>
                                   )}
                                   <DialogDescription>{request.candidate.label}</DialogDescription>
@@ -389,49 +476,11 @@ const IntroductionRequests = () => {
                               </DialogContent>
                             </Dialog>
                           )}
-                        </TableCell>
-                        <TableCell>
-                          {request.job ? (
-                            <span>{request.job.title}</span>
-                          ) : (
-                            <span className="text-muted-foreground">General introduction request</span>
-                          )}
-                        </TableCell>
-                        <TableCell>{request.job?.company ?? "-"}</TableCell>
-                        <TableCell>{new Date(request.created_at).toLocaleDateString()}</TableCell>
-                        <TableCell>{request.requester.first_name} {request.requester.last_name}</TableCell>
-                        {status === 'all' && (
-                          <TableCell>{getStatusBadge(request.status)}</TableCell>
-                        )}
-                        {user?.role === 'admin' && (
-                          <TableCell className="text-right">
-                            {request.status === 'pending' ? (
-                              <>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => handleRequestAction(request.id, 'reject')}
-                                  className="border-red-200 text-red-700 hover:bg-red-50 mr-2"
-                                >
-                                  <XCircle className="w-4 h-4 mr-1" />
-                                  Reject
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  onClick={() => handleRequestAction(request.id, 'approve')}
-                                  className="bg-green-600 hover:bg-green-700"
-                                >
-                                  <CheckCircle className="w-4 h-4 mr-1" />
-                                  Approve
-                                </Button>
-                              </>
-                            ) : null}
-                          </TableCell>
-                        )}
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
               </div>
             ) : (
               <div className="text-center py-12">

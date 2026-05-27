@@ -66,7 +66,7 @@ const Dashboard = () => {
           supabase
             .from('candidates')
             .select('*', { count: 'exact', head: true })
-            .or('status.eq.active,status.is.null'),
+            .eq('status', 'active'),
           fetch(`/api/recruiter-intros?recruiterId=${encodeURIComponent(user.id)}`),
         ]);
 

@@ -40,12 +40,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .eq('email', email.toLowerCase())
       .maybeSingle();
 
-    if (existing?.status === 'active') {
-      // Already a live profile — don't create a duplicate
+    // Any non-deleted existing row blocks a fresh insert (active, pending,
+    // rejected, inactive). Only 'deleted' rows can be re-activated by a new
+    // submission — that's the re-application path.
+    if (existing && existing.status !== 'deleted') {
       return res.status(200).json({ success: true, candidateId: existing.id, alreadyExists: true });
     }
 
-    // Track whether this is a re-application from a deleted account
     const isReapplication = existing?.status === 'deleted';
     const existingId: string | null = isReapplication ? existing!.id : null;
 
@@ -123,9 +124,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     };
 
     // ── Extended payload (columns that require migrations) ───────────────────
+    // status: 'pending' is set explicitly so re-applications (which UPDATE a
+    // 'deleted' row, bypassing the column default) are also routed back into
+    // the admin review queue. For fresh INSERTs this matches the DB default
+    // set by the candidate-approval migration.
     const extendedPayload = {
       ...corePayload,
-      status: 'active',
+      status: 'pending',
       primary_background: primaryBackground || null,
       secondary_backgrounds: Array.isArray(secondaryBackgrounds) ? secondaryBackgrounds : [],
       detailed_experience: Array.isArray(detailedExperience) ? detailedExperience : [],
@@ -186,13 +191,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // ── Welcome email to candidate ────────────────────────────────────────────
     const welcomeHtml = '<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">'
-      + '<h2 style="color:#0F6E56">You\'re in! 🎉</h2>'
+      + '<h2 style="color:#0F6E56">Application received ✓</h2>'
       + '<p>Hi ' + firstName + ',</p>'
-      + '<p>Your profile is live on SFC Talent and visible to recruiters right now. Here\'s what happens next:</p>'
+      + '<p>Thanks for applying to SFC Talent. Your profile is now <strong>under review</strong> by our team — we manually vet every candidate before introducing them to top finance teams.</p>'
+      + '<p>What happens next:</p>'
       + '<ul>'
-      + '<li>Recruiters can browse your anonymous profile</li>'
-      + '<li>When a recruiter requests an introduction, you\'ll get an email</li>'
-      + '<li>You have <strong>48 hours to respond</strong> — just reply YES or NO</li>'
+      + '<li>Our team reviews your profile (usually within 1–2 business days)</li>'
+      + '<li>We\'ll email you the moment your profile is approved</li>'
+      + '<li>Once approved, recruiters can browse your anonymous profile and request introductions</li>'
+      + '<li>You\'ll have <strong>48 hours to respond</strong> to each intro request — just reply YES or NO</li>'
       + '</ul>'
       + '<div style="background:#f0faf6;border-left:4px solid #0F6E56;padding:16px;border-radius:4px;margin:24px 0">'
       + '<p style="margin:0;font-weight:600">Manage your profile</p>'
@@ -211,7 +218,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       body: JSON.stringify({
         from: 'SFC Talent <noreply@strategicfinancecareers.com>',
         to: [email],
-        subject: 'Welcome to SFC Talent — Your profile is live',
+        subject: 'Welcome to SFC Talent — Your application is under review',
         html: welcomeHtml,
       }),
     }).catch(err => console.warn('[submit-candidate] welcome email failed:', err.message));

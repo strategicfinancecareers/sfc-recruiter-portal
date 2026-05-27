@@ -12,14 +12,37 @@ export default async function handler(req, res) {
   );
 
   if (req.method === 'GET') {
-    const { candidateId, requesterId } = req.query;
-    console.log('[get-resume-url] entry:', { method: 'GET', candidateId, requesterId });
+    const { candidateId, requesterId, adminUserId } = req.query;
+    console.log('[get-resume-url] entry:', { method: 'GET', candidateId, requesterId, adminUserId });
 
-    if (!candidateId || !requesterId) {
-      return res.status(400).json({ error: 'candidateId and requesterId required' });
+    if (!candidateId || (!requesterId && !adminUserId)) {
+      return res.status(400).json({ error: 'candidateId and (requesterId | adminUserId) required' });
     }
 
-    // Authorization: recruiter must have an approved intro request for this candidate.
+    // ── Admin path: any admin/owner can download any candidate's resume ────
+    if (adminUserId) {
+      const { data: userRow, error: userErr } = await supabase
+        .from('users')
+        .select('id, is_active, roles ( name )')
+        .eq('id', adminUserId)
+        .maybeSingle();
+
+      if (userErr) {
+        console.error('[get-resume-url] admin lookup failed:', JSON.stringify(userErr));
+        return res.status(500).json({ error: userErr.message });
+      }
+      const roleName = userRow?.roles?.name;
+      if (!userRow || userRow.is_active === false || (roleName !== 'admin' && roleName !== 'owner')) {
+        console.warn('[get-resume-url] auth FAIL (admin): user/role invalid');
+        return res.status(403).json({ error: 'Forbidden' });
+      }
+
+      const result = await generateResumeSignedUrl(supabase, candidateId, 3600);
+      if (result.status !== 200) return res.status(result.status).json({ error: result.error });
+      return res.status(200).json({ url: result.url });
+    }
+
+    // ── Recruiter path: must have an approved intro request for this candidate ──
     const { data: intro, error: introErr } = await supabase
       .from('introduction_requests')
       .select('id')

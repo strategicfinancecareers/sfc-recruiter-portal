@@ -41,9 +41,10 @@ export function useCandidates() {
             )
           )
         `)
-        // Only show active candidates (pending_review are hidden until approved)
-        // Handles both before/after the status column migration
-        .or('status.eq.active,status.is.null');
+        // Recruiters only see approved (status='active') candidates.
+        // Pending/rejected/inactive are filtered out. The candidate-approval
+        // migration backfills NULL statuses to 'active' so no null check needed.
+        .eq('status', 'active');
 
       if (candidatesError) throw candidatesError;
 

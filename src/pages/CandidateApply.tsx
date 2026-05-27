@@ -641,9 +641,9 @@ function SuccessScreen({ firstName }: { firstName: string }) {
         <div className="w-16 h-16 rounded-full bg-emerald-50 flex items-center justify-center mx-auto mb-6">
           <CheckCircle2 className="w-8 h-8 text-emerald-600" />
         </div>
-        <h2 className="text-3xl font-bold text-gray-900 mb-3">You're in! 🎉</h2>
+        <h2 className="text-3xl font-bold text-gray-900 mb-3">Application submitted ✓</h2>
         <p className="text-gray-500 leading-relaxed mb-8">
-          {firstName ? `Welcome, ${firstName}. ` : ''}Your profile is live.
+          {firstName ? `Thanks, ${firstName}. ` : ''}Your profile is <strong>under review</strong>. We manually vet every candidate — we'll email you once it's approved (usually within 1–2 business days).
         </p>
 
         {/* Dashboard access box */}

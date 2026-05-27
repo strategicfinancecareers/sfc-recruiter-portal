@@ -15,6 +15,7 @@ import Account from "./pages/Account";
 import Jobs from "./pages/Jobs";
 import Favorites from "./pages/Favorites";
 import Admin from "./pages/Admin";
+import AdminPendingCandidates from "./pages/AdminPendingCandidates";
 import IntroductionRequests from "./pages/IntroductionRequests";
 import StartHere from "./pages/StartHere";
 import Layout from "./components/Layout";
@@ -60,6 +61,11 @@ const App = () => (
               <Route path="admin" element={
                 <ProtectedRoute requireAdmin>
                   <Admin />
+                </ProtectedRoute>
+              } />
+              <Route path="admin/pending-candidates" element={
+                <ProtectedRoute requireAdmin>
+                  <AdminPendingCandidates />
                 </ProtectedRoute>
               } />
             </Route>

@@ -23,11 +23,14 @@ export default async function handler(req, res) {
       // ── Step 1: candidate row ────────────────────────────────────────────────
       console.log('[candidate-profile] step 1: querying candidates by email');
 
+      // Candidates can view their OWN profile in any state (pending, active,
+      // rejected) — only 'deleted' rows are hidden. Recruiter-side queries
+      // filter by status='active' separately in useCandidates / API endpoints.
       const { data: candidate, error: candidateError } = await supabase
         .from('candidates')
         .select('id, name, display_name, email, label, profile_description, open_to_opportunities, location, experience, education, highest_education_level, status, work_preference, target_salary, preferred_cities, target_roles, linkedin_url, primary_background, secondary_backgrounds')
         .eq('email', emailStr)
-        .eq('status', 'active')
+        .neq('status', 'deleted')
         .maybeSingle();
 
       if (candidateError) {

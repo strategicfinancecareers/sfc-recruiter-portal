@@ -115,7 +115,9 @@ export default function AdminIntroductionsTab() {
       if (!res.ok) throw new Error(body?.error || body?.detail || `Failed (${res.status})`);
       toast({
         title: 'Email resent',
-        description: `Sent to ${intro.candidate?.display_name || 'candidate'}.`,
+        description: intro.candidate?.email
+          ? `Sent to ${intro.candidate.email}`
+          : `Sent to ${intro.candidate?.display_name || 'candidate'}.`,
       });
     } catch (err: any) {
       console.error('[AdminIntroductionsTab] resend failed:', err);
@@ -268,9 +270,11 @@ export default function AdminIntroductionsTab() {
             </TableHeader>
             <TableBody>
               {filtered.map(intro => {
+                // Resend is available on ANY pending intro. No age gate —
+                // admin should be able to nudge a candidate that's been
+                // sitting for 1 hour just as easily as one sitting for a
+                // week.
                 const isPending = intro.status === 'pending';
-                const ageMs = Date.now() - new Date(intro.created_at).getTime();
-                const isStale = isPending && ageMs > ONE_DAY_MS;
                 const busy = !!resending[intro.id];
                 return (
                   <TableRow key={intro.id}>
@@ -298,12 +302,13 @@ export default function AdminIntroductionsTab() {
                     </TableCell>
                     <TableCell className="text-sm">{fmt(intro.responded_at)}</TableCell>
                     <TableCell className="text-right">
-                      {isStale ? (
+                      {isPending ? (
                         <Button
                           size="sm"
                           variant="outline"
                           disabled={busy}
                           onClick={() => handleResend(intro)}
+                          title="Resend request to candidate"
                         >
                           {busy ? (
                             <><Loader2 className="w-3 h-3 mr-1 animate-spin" /> Sending</>

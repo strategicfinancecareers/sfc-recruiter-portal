@@ -32,6 +32,12 @@ export interface IntroductionRequest {
     // Storage path (bucket is private). Use /api/get-resume-url for a signed download URL.
     resume_full_url?: string | null;
     skills: Array<{ id: string; skill: string }>;
+    // SFC Take (Batch 2) — recruiters see the full set ONLY after intro is approved.
+    sfc_take?: string | null;
+    sfc_role_fit?: string[] | null;
+    sfc_strengths?: string[] | null;
+    sfc_considerations?: string[] | null;
+    sfc_take_published_at?: string | null;
   };
   requester: {
     id: string;

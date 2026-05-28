@@ -15,6 +15,8 @@ import { Plus, Edit2, Trash2, Users, UserPlus, Eye, Settings, Mail, UserX, X, Ch
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import AdminIntroductionsTab from "@/components/admin/AdminIntroductionsTab";
 import AdminRecruitersTab from "@/components/admin/AdminRecruitersTab";
+import SfcTakeEditor from "@/components/admin/SfcTakeEditor";
+import SfcAiSettings from "@/components/admin/SfcAiSettings";
 
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from '@/integrations/supabase/client';
@@ -62,6 +64,14 @@ interface Candidate {
   linkedin_url?: string;
   resume_full_url?: string;
   rejection_reason?: string;
+  // ── SFC Take (Batch 2) ──────────────────────────────────────────────────
+  sfc_take?: string | null;
+  sfc_role_fit?: string[] | null;
+  sfc_strengths?: string[] | null;
+  sfc_considerations?: string[] | null;
+  sfc_take_draft_generated_at?: string | null;
+  sfc_take_published_at?: string | null;
+  sfc_take_model?: string | null;
 }
 
 // (Old mock IntroductionRequest interface deleted — the real one lives in
@@ -1234,7 +1244,10 @@ if (!usersError && usersData) {
             <TabsContent value="settings">
               <div className="space-y-6">
                 <h2 className="text-xl font-semibold">System Settings</h2>
-                
+
+                {/* Batch 2 — SFC AI framework editor + auto-draft toggle */}
+                {user?.id && <SfcAiSettings adminUserId={user.id} />}
+
                 <Card>
                   <CardHeader>
                     <CardTitle>Email Settings</CardTitle>
@@ -1519,6 +1532,16 @@ TalentConnect Team"
                     </SheetHeader>
 
                     <div className="py-4 space-y-5">
+                      {/* SFC Take — Batch 2. Sits at the top so admin reviews
+                          AI's read before scrolling to the structured data. */}
+                      {user?.id && (
+                        <SfcTakeEditor
+                          candidate={selectedCandidate}
+                          adminUserId={user.id}
+                          onChanged={refetchCandidates}
+                        />
+                      )}
+
                       {/* Identity (admin-only) */}
                       <Card>
                         <CardHeader className="pb-2">

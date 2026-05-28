@@ -21,7 +21,7 @@ export default async function handler(req, res) {
       .from('introduction_requests')
       .select(`
         *,
-        candidate:candidates!fk_introduction_requests_candidate(id, name, display_name, email, phone, location, experience, education, highest_education_level, label, profile_description, resume_full_url),
+        candidate:candidates!fk_introduction_requests_candidate(id, name, display_name, email, phone, location, experience, education, highest_education_level, label, profile_description, resume_full_url, sfc_take, sfc_role_fit, sfc_strengths, sfc_considerations, sfc_take_published_at),
         requester:users!fk_introduction_requests_requester(id, first_name, last_name, email),
         job:jobs!fk_introduction_requests_job(id, title, company, location)
       `)

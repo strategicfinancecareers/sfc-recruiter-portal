@@ -305,6 +305,40 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }),
     });
 
+    // ── Batch 2 — auto-draft SFC Take in the background ─────────────────────
+    // Non-blocking: AI failure must NOT fail the submission. We don't await.
+    // The toggle lives in app_settings.sfc_take_auto_draft_enabled so admin
+    // can flip it off without a deploy.
+    if (candidateId) {
+      try {
+        const { data: toggle } = await supabase
+          .from('app_settings')
+          .select('value')
+          .eq('key', 'sfc_take_auto_draft_enabled')
+          .maybeSingle();
+        const enabled = (toggle as any)?.value === true || (toggle as any)?.value === 'true';
+        if (enabled) {
+          const draftBase = process.env.VERCEL_URL
+            ? `https://${process.env.VERCEL_URL}`
+            : 'https://sfc-recruiter-portal.vercel.app';
+          // Fire-and-forget. Logs but never rethrows.
+          void fetch(`${draftBase}/api/generate-sfc-take`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-internal-call': process.env.INTERNAL_API_SECRET || '',
+            },
+            body: JSON.stringify({ candidateId }),
+          }).catch(err => {
+            console.error('[submit-candidate] auto-draft kickoff failed:', err?.message || err);
+          });
+          console.log('[submit-candidate] auto-draft kickoff fired for', candidateId);
+        }
+      } catch (autoErr: any) {
+        console.warn('[submit-candidate] auto-draft toggle check failed:', autoErr?.message || autoErr);
+      }
+    }
+
     return res.status(200).json({ success: true, candidateId });
   } catch (error: any) {
     console.error('[submit-candidate] unhandled error:', error.message, JSON.stringify(error));

@@ -234,6 +234,56 @@ const openApprovedModal = (request: IntroductionRequest) => {
                   )}
                 </>
               )}
+
+              {/* SFC Take — full reveal post-approval (Batch 2). No name
+                  redaction needed here; the candidate's identity is already
+                  visible above. */}
+              {approvedModal.request?.candidate?.sfc_take_published_at && approvedModal.request?.candidate?.sfc_take && (
+                <div className="border-t pt-4 space-y-4">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider font-semibold text-emerald-700 italic mb-1.5">SFC Take</p>
+                    <p className="text-sm text-foreground leading-relaxed whitespace-pre-line">
+                      {approvedModal.request.candidate.sfc_take}
+                    </p>
+                  </div>
+
+                  {approvedModal.request.candidate.sfc_role_fit && approvedModal.request.candidate.sfc_role_fit.length > 0 && (
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground font-medium mb-1.5">Role fit</p>
+                      <div className="flex flex-wrap gap-1">
+                        {approvedModal.request.candidate.sfc_role_fit.map((rf: string, i: number) => (
+                          <Badge key={`rf-${i}`} variant="outline" className="text-xs border-emerald-200 bg-emerald-50 text-emerald-800">{rf}</Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {approvedModal.request.candidate.sfc_strengths && approvedModal.request.candidate.sfc_strengths.length > 0 && (
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground font-medium mb-1.5">Strengths</p>
+                      <div className="flex flex-wrap gap-1">
+                        {approvedModal.request.candidate.sfc_strengths.map((s: string, i: number) => (
+                          <Badge key={`st-${i}`} variant="outline" className="text-xs">{s}</Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {approvedModal.request.candidate.sfc_considerations && approvedModal.request.candidate.sfc_considerations.length > 0 && (
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground font-medium mb-1.5">
+                        Considerations
+                        <span className="ml-1 normal-case text-muted-foreground/70 font-normal">(positioning notes)</span>
+                      </p>
+                      <div className="flex flex-wrap gap-1">
+                        {approvedModal.request.candidate.sfc_considerations.map((c: string, i: number) => (
+                          <Badge key={`co-${i}`} variant="outline" className="text-xs border-amber-200 bg-amber-50 text-amber-900">{c}</Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </DialogContent>

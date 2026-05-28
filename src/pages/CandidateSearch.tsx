@@ -62,6 +62,8 @@ export default function CandidateSearch() {
   const [pendingIntroductions, setPendingIntroductions] = useState<string[]>([]);
   const [completedIntroductions, setCompletedIntroductions] = useState<string[]>([]);
   const [selectedCandidates, setSelectedCandidates] = useState<string[]>([]);
+  // Per-card "Read more" expansion for the SFC Take preview (Batch 2).
+  const [expandedTakes, setExpandedTakes] = useState<Set<string>>(new Set());
   const [showJobSelectionDialog, setShowJobSelectionDialog] = useState(false);
   const [currentCandidateForIntro, setCurrentCandidateForIntro] = useState<Candidate | null>(null);
   const [userJobs, setUserJobs] = useState<Job[]>([]);
@@ -631,6 +633,61 @@ export default function CandidateSearch() {
                         </Badge>
                       )}
                     </div>
+
+                    {/* SFC Take preview — Batch 2. Only renders when admin has
+                        explicitly published. Anonymity preserved: any
+                        occurrence of the candidate's real name or first
+                        name in the AI-generated text is swapped for the
+                        anonymous display_name before render. */}
+                    {candidate.sfc_take_published_at && candidate.sfc_take && (() => {
+                      const real = candidate.name || '';
+                      const anon = candidate.display_name || 'this candidate';
+                      let safe = candidate.sfc_take;
+                      if (real && real !== anon) {
+                        // Full name first (longest match), then first name as a word boundary.
+                        safe = safe.split(real).join(anon);
+                        const first = real.split(/\s+/)[0];
+                        if (first && first !== anon) {
+                          const esc = first.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                          safe = safe.replace(new RegExp(`\\b${esc}\\b`, 'g'), anon);
+                        }
+                      }
+                      const isExpanded = expandedTakes.has(candidate.id);
+                      const TRUNCATE = 80;
+                      const isLong = safe.length > TRUNCATE;
+                      const display = isExpanded || !isLong ? safe : safe.slice(0, TRUNCATE).trimEnd() + '…';
+                      return (
+                        <div className="border-t pt-3 mt-1">
+                          <p className="text-[10px] uppercase tracking-wider font-semibold text-emerald-700 italic mb-1.5">SFC Take</p>
+                          <p className="text-xs text-foreground leading-relaxed">
+                            {display}
+                            {isLong && (
+                              <button
+                                type="button"
+                                onClick={() => setExpandedTakes(prev => {
+                                  const next = new Set(prev);
+                                  if (isExpanded) next.delete(candidate.id); else next.add(candidate.id);
+                                  return next;
+                                })}
+                                className="ml-1 text-emerald-700 hover:underline font-medium"
+                              >
+                                {isExpanded ? 'Show less' : 'Read more'}
+                              </button>
+                            )}
+                          </p>
+                          {candidate.sfc_role_fit && candidate.sfc_role_fit.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-2">
+                              {candidate.sfc_role_fit.map((rf, i) => (
+                                <Badge key={`${rf}-${i}`} variant="outline" className="text-[10px] border-emerald-200 bg-emerald-50 text-emerald-800">
+                                  {rf}
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+
                     <div className="flex space-x-2 pt-2 mt-auto">
                       <Button
                         variant="outline"

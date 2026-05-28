@@ -20,6 +20,13 @@ export interface Candidate {
   resume_redacted_url?: string;
   skills: Array<{ id: string; skill: string }>;
   is_favorite?: boolean; // This will be computed based on user_favorites table
+  // SFC Take (Batch 2) — recruiters see these ONLY when sfc_take_published_at is non-null.
+  // Filter happens at render time, not in the SELECT, so the hook can stay shared with admin views.
+  sfc_take?: string | null;
+  sfc_role_fit?: string[] | null;
+  sfc_strengths?: string[] | null;
+  sfc_considerations?: string[] | null;
+  sfc_take_published_at?: string | null;
 }
 
 export function useCandidates() {

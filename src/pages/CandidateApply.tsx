@@ -671,7 +671,13 @@ function SuccessScreen({ firstName }: { firstName: string }) {
 const TOTAL_STEPS = 6;
 
 export default function CandidateApply() {
-  const [screen, setScreen] = useState<Screen>('landing');
+  // Landing for the marketing surface now lives at "/" (src/pages/Home.tsx).
+  // /apply opens directly on the auth screen (signup tab by default), so
+  // hitting this route from the new home page lands on the form, not on
+  // the embedded LandingSection. The LandingSection component is still in
+  // this file for the unlikely case anyone navigates back to 'landing'
+  // via setScreen, but the initial state skips it.
+  const [screen, setScreen] = useState<Screen>('auth');
   const [step, setStep] = useState(1);
   const [form, setForm] = useState<FormState>(INITIAL_FORM);
   const [parsing, setParsing] = useState(false);
@@ -790,7 +796,9 @@ export default function CandidateApply() {
 
   const handleBack = () => {
     if (step > 1) setStep(s => s - 1);
-    else setScreen('landing');
+    // /apply no longer owns the landing surface — back from step 1 goes
+    // to the canonical front door at "/".
+    else window.location.href = '/';
   };
 
   // ── Resume Upload & Parse ───────────────────────────────────────────────────
@@ -995,7 +1003,9 @@ export default function CandidateApply() {
       <div className="min-h-screen bg-white flex items-center justify-center px-6 py-12">
         <div className="w-full max-w-md">
           <button
-            onClick={() => setScreen('landing')}
+            // The marketing landing is now "/" — back from the auth tab
+            // returns there rather than the legacy embedded LandingSection.
+            onClick={() => { window.location.href = '/'; }}
             className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 mb-8 transition-colors"
           >
             <ChevronLeft className="w-4 h-4" /> Back

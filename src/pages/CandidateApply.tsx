@@ -1016,7 +1016,7 @@ export default function CandidateApply() {
       // anchored to the marketing surface at "/".
       <div className="min-h-screen flex">
         {/* ── Left panel — form (mirrors SignUp.tsx) ── */}
-        <div className="w-full lg:w-[480px] xl:w-[540px] flex flex-col bg-[#f8f8f8] px-10 py-12 shrink-0">
+        <div className="w-full min-[860px]:w-[480px] xl:w-[540px] flex flex-col bg-[#f8f8f8] px-10 py-12 shrink-0">
           {/* Top row: brand + Back. SignUp.tsx omits the Back button; we keep
               it because /apply is the only auth route that's typically
               reached from "/" (not from a return visit), so a quick
@@ -1032,7 +1032,7 @@ export default function CandidateApply() {
             </button>
           </div>
 
-          <div className="flex-1 flex flex-col justify-center max-w-sm w-full mx-auto lg:mx-0">
+          <div className="flex-1 flex flex-col justify-center max-w-sm w-full mx-auto min-[860px]:mx-0">
             {/* Heading mirrors SignUp.tsx's "Apply as a recruiter" */}
             <h1 className="text-2xl font-semibold text-gray-900 mb-1">Join as a professional</h1>
             <p className="text-sm text-gray-500 mb-6">Stay anonymous until you choose to say yes. Free, no recruiter spam — usually takes 5 minutes.</p>
@@ -1206,7 +1206,7 @@ export default function CandidateApply() {
           )}
 
           {/* Terms footer mirrors SignUp.tsx */}
-          <p className="text-xs text-gray-400 mt-10 leading-relaxed max-w-sm mx-auto lg:mx-0">
+          <p className="text-xs text-gray-400 mt-10 leading-relaxed max-w-sm mx-auto min-[860px]:mx-0">
             By continuing, you agree to SFC Talent&rsquo;s{' '}
             <a href="https://strategicfinancecareers.com" className="underline hover:text-gray-600">Terms of Service</a>
             {' '}and{' '}
@@ -1219,7 +1219,7 @@ export default function CandidateApply() {
 
         {/* ── Right panel — professional-framed value panel (landing tokens) ── */}
         <div
-          className="hidden lg:flex flex-1 items-center justify-center px-16"
+          className="hidden min-[860px]:flex flex-1 items-center justify-center px-16"
           style={{ background: '#f4f1ea', color: '#0e0e0d' }}
         >
           <div className="max-w-md w-full">

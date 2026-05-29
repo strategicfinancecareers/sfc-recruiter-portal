@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SFC Talent — The modern way to hire finance talent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=Manrope:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#f4f1ea; --ink:#0e0e0d; --forest:#008037; --forest-deep:#006a2d; --white:#fff;
+    --line:rgba(14,14,13,.12); --line-soft:rgba(14,14,13,.07); --muted:rgba(14,14,13,.55);
+    --mono:'Geist Mono',ui-monospace,monospace; --serif:'Newsreader',Georgia,serif; --sans:'Manrope',system-ui,sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{background:var(--paper);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;line-height:1.5;overflow-x:hidden}
+  body::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.4;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E")}
+  .wrap{position:relative;z-index:1;max-width:1120px;margin:0 auto;padding:0 32px}
+  .mono-label{font-family:var(--mono);font-size:10.5px;font-weight:500;letter-spacing:.2em;text-transform:uppercase;color:var(--muted)}
+
+  nav.bar{position:sticky;top:0;z-index:50;background:rgba(244,241,234,.82);backdrop-filter:saturate(140%) blur(12px);border-bottom:1px solid var(--line-soft)}
+  .bar-inner{display:flex;align-items:center;justify-content:space-between;height:66px}
+  .brand{display:flex;align-items:center;gap:11px;text-decoration:none;color:var(--ink)}
+  .brand .mark{width:29px;height:29px;border-radius:3px;background:var(--forest);display:grid;place-items:center;color:var(--paper);font-family:var(--serif);font-weight:600;font-size:15px}
+  .brand .name{font-family:var(--mono);font-size:10px;letter-spacing:.2em;text-transform:uppercase;line-height:1.2}
+  .brand .name b{display:block;font-family:var(--sans);font-weight:700;font-size:14px;letter-spacing:-.01em;text-transform:none}
+  .nav-mid{display:flex;gap:28px}
+  .nav-mid a{font-size:13.5px;color:var(--ink);text-decoration:none;opacity:.7;transition:opacity .2s}.nav-mid a:hover{opacity:1}
+  .nav-right{display:flex;align-items:center;gap:18px}
+  .login{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink);text-decoration:none;opacity:.72}.login:hover{opacity:1}.login svg{width:14px;height:14px}
+  .btn{font-family:var(--sans);font-weight:600;font-size:13.5px;border:1px solid var(--ink);background:var(--ink);color:var(--paper);padding:10px 18px;border-radius:2px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:9px;transition:transform .18s,background .2s}
+  .btn:hover{transform:translateY(-1px)}
+  .btn.forest{background:var(--forest);border-color:var(--forest)}.btn.forest:hover{background:var(--forest-deep)}
+  .btn.ghost{background:transparent;color:var(--ink)}.btn.ghost:hover{background:var(--ink);color:var(--paper)}
+  .btn .arr{transition:transform .2s}.btn:hover .arr{transform:translateX(3px)}
+
+  .hero{padding:60px 0 14px;text-align:center}
+  .eyebrow{display:inline-flex;align-items:center;gap:9px;border:1px solid var(--line);border-radius:100px;padding:7px 15px 7px 12px;background:rgba(255,255,255,.5);margin-bottom:26px}
+  .eyebrow .dot{width:7px;height:7px;border-radius:50%;background:var(--forest);position:relative}
+  .eyebrow .dot::after{content:"";position:absolute;inset:-4px;border-radius:50%;border:1px solid var(--forest);opacity:.4;animation:pulse 2.4s ease-out infinite}
+  @keyframes pulse{0%{transform:scale(.6);opacity:.7}100%{transform:scale(1.7);opacity:0}}
+  h1.hero-title{font-family:var(--serif);font-weight:500;font-size:clamp(34px,5vw,60px);line-height:1.05;letter-spacing:-.02em;max-width:16ch;margin:0 auto}
+  h1.hero-title em{font-style:italic;color:var(--forest);font-weight:400}
+  .hero-sub{margin:22px auto 0;max-width:42ch;font-size:16px;color:var(--muted);line-height:1.6}
+  .hero-sub b{color:var(--ink);font-weight:600}
+
+  .flow-sec{padding:30px 0 52px}
+  .flow-head{display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:26px}
+  .flow-head .mono-label{color:var(--forest);font-size:13.5px}.flow-head .hr{height:1px;width:46px;background:var(--line)}
+
+  .stage{position:relative;display:grid;grid-template-columns:1fr 96px 1fr;align-items:start}
+  .lane-head{display:flex;align-items:center;gap:8px;margin-bottom:14px;height:22px}
+  .lane-head .ic{width:16px;height:16px;color:var(--muted)}
+  .lane-head .mono-label{font-size:12.5px;color:var(--ink);opacity:.8}
+
+  .pool{display:flex;flex-direction:column;gap:9px}
+  .tcard{background:var(--white);border:1px solid var(--line);border-radius:5px;padding:13px 15px;display:flex;align-items:center;gap:13px;transition:border-color .35s,box-shadow .35s,transform .35s,opacity .35s;position:relative}
+  .tcard .ava{width:34px;height:34px;border-radius:4px;background:var(--paper);border:1px solid var(--line);flex:none;display:grid;place-items:center;color:var(--muted)}
+  .tcard .ava svg{width:15px;height:15px}
+  .tcard .info{flex:1;min-width:0}
+  .tcard .info .role{font-weight:600;font-size:13.5px}
+  .tcard .info .meta{font-family:var(--mono);font-size:10.5px;color:var(--muted);margin-top:3px;letter-spacing:.02em}
+  .tcard .code{font-family:var(--mono);font-size:10px;color:var(--muted)}
+  .tcard.scan{border-color:var(--forest);box-shadow:0 0 0 3px rgba(0,128,55,.1);transform:translateX(3px)}
+  .tcard.dimmed{opacity:.5}
+  .req-tag{position:absolute;right:13px;font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--forest);opacity:0;transition:opacity .3s}
+  .stage[data-state="request"] .tcard.protag .req-tag,.stage[data-state="match"] .tcard.protag .req-tag{opacity:1}
+  .stage[data-state="request"] .tcard.protag{border-color:var(--forest);box-shadow:0 0 0 3px rgba(0,128,55,.12)}
+  .pool-more{font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;color:var(--muted);text-align:center;padding-top:4px}
+
+  .r-reveal{display:none;background:var(--white);border:1px solid rgba(0,128,55,.3);border-radius:5px;padding:18px;min-height:300px}
+  .stage[data-state="match"] .panel{border-color:rgba(0,128,55,.3)}
+  .stage[data-state="match"] .pool{display:none}
+  .stage[data-state="match"] .r-reveal{display:block;animation:fade .5s both}
+
+  .pcol .panel{background:var(--white);border:1px solid var(--line);border-radius:5px;padding:18px;min-height:300px;display:flex;flex-direction:column;position:relative;overflow:hidden}
+  .p-current{display:flex;align-items:flex-start;gap:13px;padding-bottom:14px;border-bottom:1px solid var(--line-soft)}
+  .p-current .ava{width:40px;height:40px;border-radius:5px;background:var(--forest);color:#fff;display:grid;place-items:center;font-weight:700;font-size:15px;flex:none}
+  .p-id{flex:1;min-width:0}
+  .p-name{font-weight:700;font-size:16px;color:var(--muted);letter-spacing:-.01em;opacity:.55}
+  .p-current .role{font-weight:600;font-size:14px}
+  .p-current .meta{font-family:var(--mono);font-size:10.5px;color:var(--muted);margin-top:3px}
+  .hidden-pill{display:inline-flex;align-items:center;gap:6px;margin-top:8px;font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--forest);background:rgba(0,128,55,.07);border:1px solid rgba(0,128,55,.2);border-radius:100px;padding:4px 9px}
+  .hidden-pill svg{width:11px;height:11px}
+  .p-blurb{font-family:var(--serif);font-size:13.5px;line-height:1.5;color:rgba(14,14,13,.72);padding:13px 0;border-bottom:1px solid var(--line-soft)}
+  .p-status{margin-top:auto;padding-top:13px;display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:10.5px;letter-spacing:.04em;color:var(--muted)}
+  .p-status .pdot{width:6px;height:6px;border-radius:50%;background:var(--forest);animation:blink 1.6s infinite}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
+
+  .intro{position:absolute;left:18px;right:18px;bottom:18px;background:var(--paper);border:1px solid var(--forest);border-radius:5px;padding:15px;transform:translateY(140%);opacity:0;transition:transform .5s cubic-bezier(.2,.8,.2,1),opacity .4s}
+  .stage[data-state="request"] .intro{transform:translateY(0);opacity:1}
+  .intro .ihead{display:flex;align-items:center;gap:9px;margin-bottom:9px}
+  .intro .ihead .logo{width:28px;height:28px;border-radius:5px;background:var(--ink);color:var(--paper);display:grid;place-items:center;font-weight:700;font-size:13px}
+  .intro .ihead .co b{font-size:13px;display:block;line-height:1.1}
+  .intro .ihead .co span{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--forest)}
+  .intro .ihead .tag{margin-left:auto;font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+  .intro .irole{font-family:var(--serif);font-size:17px;font-weight:500;letter-spacing:-.01em}
+  .intro .iterms{font-family:var(--mono);font-size:11px;color:var(--forest);margin:3px 0 13px}
+  .intro .iact{display:flex;gap:9px}
+  .mini{flex:1;font-family:var(--sans);font-weight:600;font-size:12.5px;border-radius:2px;padding:10px;cursor:pointer;border:1px solid var(--ink);transition:transform .15s,background .2s;display:flex;align-items:center;justify-content:center;gap:7px}
+  .mini:hover{transform:translateY(-1px)}.mini svg{width:13px;height:13px}
+  .mini.go{background:var(--forest);border-color:var(--forest);color:#fff}.mini.go:hover{background:var(--forest-deep)}
+  .mini.alt{background:transparent;color:var(--muted);flex:0 0 84px}
+  @keyframes apulse{0%,100%{box-shadow:0 0 0 0 rgba(0,128,55,.4)}50%{box-shadow:0 0 0 7px rgba(0,128,55,0)}}
+  .stage[data-state="request"] #acceptBtn{animation:apulse 1.8s ease-out infinite}
+
+  .p-reveal{display:none}
+  .stage[data-state="match"] .p-current,.stage[data-state="match"] .p-blurb,.stage[data-state="match"] .p-status,.stage[data-state="match"] .intro{display:none}
+  .stage[data-state="match"] .p-reveal{display:block;animation:fade .5s both}
+
+  .got{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--forest);margin-bottom:11px;display:flex;align-items:center;gap:7px}
+  .got svg{width:13px;height:13px}
+  .reveal-name{font-family:var(--serif);font-weight:500;font-size:18px;letter-spacing:-.01em;margin-bottom:2px}
+  .reveal-tagline{font-family:var(--sans);font-size:12px;color:var(--muted);margin-bottom:12px}
+  .reveal-list{list-style:none}
+  .reveal-list li{display:flex;align-items:center;gap:9px;font-size:12.5px;padding:6px 0;border-bottom:1px solid var(--line-soft);opacity:0;transform:translateX(-6px);animation:slidein .45s forwards}
+  .reveal-list li:last-child{border-bottom:0}
+  .reveal-list li svg{width:13px;height:13px;color:var(--forest);flex:none}
+  .reveal-list li b{font-weight:600}
+  .reveal-list li:nth-child(1){animation-delay:.12s}.reveal-list li:nth-child(2){animation-delay:.22s}
+  .reveal-list li:nth-child(3){animation-delay:.32s}.reveal-list li:nth-child(4){animation-delay:.42s}
+  @keyframes slidein{to{opacity:1;transform:none}}
+  @keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+  .spine{display:flex;flex-direction:column;align-items:center;padding-top:34px;position:relative;height:100%}
+  .spine .track{position:absolute;top:42px;bottom:8px;width:2px;background:repeating-linear-gradient(var(--line) 0 5px,transparent 5px 11px)}
+  .node{position:relative;z-index:2;width:40px;height:40px;border-radius:50%;background:var(--white);border:1.5px solid var(--line);display:grid;place-items:center;transition:all .45s}
+  .node svg{width:17px;height:17px;color:var(--muted);transition:color .4s}
+  .node .check{opacity:0;position:absolute;transition:opacity .3s}
+  .node .lock{opacity:1;transition:opacity .3s}
+  .stage[data-state="match"] .node{border-color:var(--forest);background:var(--white);box-shadow:0 0 0 6px rgba(0,128,55,.08)}
+  .stage[data-state="match"] .node .check{opacity:1;color:var(--forest)}
+  .stage[data-state="match"] .node .lock{opacity:0}
+  .node-cap{font-family:var(--mono);font-size:8.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-top:11px;text-align:center;max-width:84px;line-height:1.5;transition:color .4s}
+  .stage[data-state="match"] .node-cap{color:var(--forest)}
+  .node-cap .a{display:block}.node-cap .b{display:none}
+  .stage[data-state="match"] .node-cap .a{display:none}.stage[data-state="match"] .node-cap .b{display:block}
+
+  .link-svg{position:absolute;left:0;right:0;top:54px;height:2px;z-index:1;pointer-events:none}
+  .link-svg .ln{stroke:var(--forest);stroke-width:2;stroke-dasharray:600;stroke-dashoffset:600}
+  .stage[data-state="match"] .link-svg .ln{stroke-dashoffset:0;transition:stroke-dashoffset .9s ease .15s}
+
+  .controls{text-align:center;margin-top:26px}
+  .controls .replay{display:inline-flex;align-items:center;gap:8px;font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);background:none;border:0;cursor:pointer}
+  .controls .replay:hover{color:var(--ink)}.controls .replay svg{width:13px;height:13px}
+
+  .band{border-top:1px solid var(--line)}
+  .band-grid{display:grid;grid-template-columns:1fr 1fr;max-width:1120px;margin:0 auto;padding:0 32px}
+  .band-cell{background:transparent;padding:40px;display:flex;flex-direction:column;gap:6px}
+  .band-cell+.band-cell{border-left:1px solid var(--line)}
+  .band-cell:first-child{padding-left:0}
+  .band-cell:last-child{padding-right:0}
+  .band-cell .mono-label{margin-bottom:4px}
+  .band-cell h3{font-family:var(--serif);font-weight:500;font-size:21px;letter-spacing:-.01em}
+  .band-cell p{font-size:13.5px;color:var(--muted);max-width:38ch;margin-bottom:14px}
+  .band-cell .row{display:flex;align-items:center;gap:14px;margin-top:auto}
+  .band-cell .note{font-family:var(--mono);font-size:10.5px;color:var(--muted)}
+
+  footer{padding:34px 0 50px}
+  .foot-inner{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px}
+  .foot-inner .fbrand{font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}
+  .foot-links{display:flex;gap:20px}.foot-links a{font-size:12.5px;color:var(--muted);text-decoration:none}.foot-links a:hover{color:var(--ink)}
+
+  .rise{opacity:0;transform:translateY(16px);animation:rise .8s cubic-bezier(.2,.7,.2,1) forwards}
+  @keyframes rise{to{opacity:1;transform:none}}
+  .d1{animation-delay:.05s}.d2{animation-delay:.15s}.d3{animation-delay:.28s}.d4{animation-delay:.4s}
+
+  @media(max-width:860px){
+    .nav-mid{display:none}.login span{display:none}
+    .stage{grid-template-columns:1fr}
+    .spine{flex-direction:row;justify-content:center;gap:14px;padding:20px 0;height:auto;order:2}
+    .spine .track{display:none}.node-cap{max-width:none}
+    .pcol{order:3}.link-svg{display:none}
+    .band-grid{grid-template-columns:1fr;padding:0 20px}.wrap{padding:0 20px}
+    .band-cell,.band-cell:first-child,.band-cell:last-child{padding:30px 0}
+  }
+</style>
+</head>
+<body>
+
+<nav class="bar">
+  <div class="wrap bar-inner">
+    <a class="brand" href="/" data-route="home"><span class="mark">S</span><span class="name">Strategic Finance<b>SFC&nbsp;Talent</b></span></a>
+    <div class="nav-mid"><a href="#flow">How It Works</a><a href="#join">Talent</a><a href="#join">Companies</a></div>
+    <div class="nav-right">
+      <a class="login" href="/recruiter/login" data-route="recruiter-login"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 9h18M8 6V4h8v2"/></svg><span>Recruiter login</span></a>
+      <a class="login" href="/login" data-route="professional-login"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg><span>Professional login</span></a>
+      <a class="btn forest" href="#join">Join the Network<svg class="arr" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero wrap">
+  <div class="eyebrow rise d1"><span class="dot"></span><span class="mono-label">The modern way to hire finance talent</span></div>
+  <h1 class="hero-title rise d2">Where elite finance talent and top firms meet <em>quietly</em>.</h1>
+  <p class="hero-sub rise d3">Professional profiles remain anonymous until an introduction is made.</p>
+</header>
+
+<section class="flow-sec wrap rise d4" id="flow">
+  <div class="flow-head"><span class="hr"></span><span class="mono-label">How an introduction happens</span><span class="hr"></span></div>
+
+  <div class="stage" id="stage" data-state="browse">
+
+    <!-- RECRUITER -->
+    <div class="rcol">
+      <div class="lane-head"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 9h18M8 6V4h8v2"/></svg><span class="mono-label">Recruiter — search vetted talent</span></div>
+
+      <div class="pool" id="pool">
+        <div class="tcard" data-i="0"><span class="ava"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg></span><div class="info"><div class="role">Investment Banking Associate</div><div class="meta">TMT · NYC · 2 yrs</div></div><span class="code">#A-1392</span></div>
+
+        <div class="tcard protag" data-i="1"><span class="ava"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg></span><div class="info"><div class="role">Private Equity Associate</div><div class="meta">MM Buyout · NYC · 4 yrs</div></div><span class="code">#A-2207</span><span class="req-tag">Intro requested</span></div>
+
+        <div class="tcard" data-i="2"><span class="ava"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg></span><div class="info"><div class="role">Management Consultant</div><div class="meta">Strategy · Chicago · 5 yrs</div></div><span class="code">#A-1955</span></div>
+
+        <div class="tcard" data-i="3"><span class="ava"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg></span><div class="info"><div class="role">FP&amp;A Manager</div><div class="meta">SaaS · Remote · 7 yrs</div></div><span class="code">#A-1841</span></div>
+
+        <div class="tcard" data-i="4"><span class="ava"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg></span><div class="info"><div class="role">VP, Corporate Finance</div><div class="meta">Healthcare · Boston · 10 yrs</div></div><span class="code">#A-1107</span></div>
+
+        <div class="pool-more">+ 240 vetted professionals</div>
+      </div>
+
+      <div class="r-reveal">
+        <div class="got"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12l5 5L20 6"/></svg>Introduction accepted — you can now see</div>
+        <div class="reveal-name">Marcus Reyes</div>
+        <div class="reveal-tagline">Private Equity Associate · MM Buyout · 4 yrs</div>
+        <ul class="reveal-list">
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12l5 5L20 6"/></svg><span>Full name &amp; <b>resume</b></span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12l5 5L20 6"/></svg><span>marcus.reyes@gmail.com</span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12l5 5L20 6"/></svg><span>+1 (415) 555-0182</span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12l5 5L20 6"/></svg><span>linkedin.com/in/marcusreyes</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- CENTER SPINE -->
+    <div class="spine">
+      <div class="track"></div>
+      <svg class="link-svg" viewBox="0 0 100 2" preserveAspectRatio="none"><line class="ln" x1="0" y1="1" x2="100" y2="1"/></svg>
+      <div class="node">
+        <svg class="lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+        <svg class="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12l5 5L20 6"/></svg>
+      </div>
+      <div class="node-cap"><span class="a">Hidden until<br>you approve</span><span class="b">You approved —<br>introduction made</span></div>
+    </div>
+
+    <!-- PROFESSIONAL -->
+    <div class="pcol">
+      <div class="lane-head"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg><span class="mono-label">Professional — open, anonymously</span></div>
+
+      <div class="panel">
+        <div class="p-current">
+          <span class="ava">MR</span>
+          <div class="p-id">
+            <div class="p-name">Marcus Reyes</div>
+            <div class="meta">Private Equity Associate · MM Buyout · NYC · 4 yrs</div>
+            <div class="hidden-pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>Hidden from recruiters until matched</div>
+          </div>
+        </div>
+        <div class="p-blurb">Four years in middle-market private equity — diligence, operating models, and board-level work. Thinks like an operator, not just an investor: built to run strategic finance at a high-growth company.</div>
+        <div class="p-status"><span class="pdot"></span>Open to opportunities · invisible to your employer &amp; network</div>
+
+        <div class="intro">
+          <div class="ihead">
+            <span class="logo">A</span>
+            <div class="co"><b>Affirm</b><span>Hiring · MD, Talent</span></div>
+            <span class="tag">just now</span>
+          </div>
+          <div class="irole">Strategic Finance Manager</div>
+          <div class="iterms">$170k · Remote</div>
+          <div class="iact">
+            <button class="mini go" id="acceptBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12l5 5L20 6"/></svg>Accept introduction</button>
+            <button class="mini alt" id="passBtn">Pass</button>
+          </div>
+        </div>
+
+        <div class="p-reveal">
+          <div class="got"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12l5 5L20 6"/></svg>You're connected — you can now see</div>
+          <div class="reveal-name">Affirm — Strategic Finance Manager</div>
+          <div class="reveal-tagline">$170k · Remote</div>
+          <ul class="reveal-list">
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12l5 5L20 6"/></svg><span>Company &amp; <b>full role detail</b></span></li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12l5 5L20 6"/></svg><span>Dana Okafor · MD, Talent</span></li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12l5 5L20 6"/></svg><span>Comp &amp; scope detail</span></li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12l5 5L20 6"/></svg><span>Next steps to connect</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="controls"><button class="replay" id="replayBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 1 3 6.7L3 16"/><path d="M3 21v-5h5"/></svg>Replay</button></div>
+</section>
+
+<section class="band" id="join">
+  <div class="band-grid">
+    <div class="band-cell">
+      <span class="mono-label">For recruiters</span>
+      <h3>Hire vetted finance talent.</h3>
+      <p>Request warm introductions to pre-screened, passive operators — surfaced only when there's mutual interest.</p>
+      <div class="row"><a class="btn ghost" href="/recruiter-signup" data-route="recruiter-signup">Hire Strategic Finance Talent<svg class="arr" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a><span class="note">Membership · by application</span></div>
+    </div>
+    <div class="band-cell">
+      <span class="mono-label">For professionals</span>
+      <h3>Start being approached — privately.</h3>
+      <p>Be open to opportunities without your employer or network ever knowing. You stay anonymous until you choose to say yes.</p>
+      <div class="row"><a class="btn forest" href="/apply" data-route="professional-signup">Join the Talent Network<svg class="arr" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a><span class="note">5-minute form · free</span></div>
+    </div>
+  </div>
+</section>
+
+<footer class="wrap">
+  <div class="foot-inner">
+    <span class="fbrand">SFC Talent — Strategic Finance Careers</span>
+    <div class="foot-links"><a href="#flow">How it works</a><a href="/apply" data-route="professional-signup">For professionals</a><a href="/recruiter-signup" data-route="recruiter-signup">For recruiters</a><a href="/login" data-route="professional-login">Log in</a></div>
+  </div>
+</footer>
+
+<script>
+  var stage=document.getElementById('stage');
+  var cards=Array.prototype.slice.call(document.querySelectorAll('.tcard'));
+  var PROTAG=1;
+  var timers=[], scanInt=null, phase='browse';
+  var reduce=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function clearAll(){timers.forEach(clearTimeout);timers=[];if(scanInt){clearInterval(scanInt);scanInt=null;}}
+  function highlight(i){cards.forEach(function(c,idx){c.classList.toggle('scan',idx===i);c.classList.toggle('dimmed',i>=0&&idx!==i);});}
+  function clearHighlight(){cards.forEach(function(c){c.classList.remove('scan','dimmed');});}
+
+  function browse(){
+    clearAll();phase='browse';stage.dataset.state='browse';
+    var i=0;highlight(0);
+    scanInt=setInterval(function(){i=(i+1)%cards.length;highlight(i);},850);
+    timers.push(setTimeout(function(){request();},2900));
+  }
+  function request(){
+    clearAll();phase='request';stage.dataset.state='request';
+    highlight(PROTAG);
+    // stop here — wait for the user to click Accept
+  }
+  function match(){
+    clearAll();phase='match';stage.dataset.state='match';
+    clearHighlight();
+    // rests here — no loop
+  }
+
+  document.getElementById('acceptBtn').addEventListener('click',function(){if(phase==='request'){clearAll();match();}});
+  document.getElementById('passBtn').addEventListener('click',function(){clearAll();browse();});
+  document.getElementById('replayBtn').addEventListener('click',function(){clearAll();browse();});
+
+  if(reduce){phase='request';stage.dataset.state='request';highlight(PROTAG);}
+  else{browse();}  // scans, then rests at the approval step waiting for a click
+</script>
+</body>
+</html>

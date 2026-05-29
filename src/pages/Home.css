@@ -176,6 +176,92 @@ html:has(.sfc-home) {
 .sfc-home .btn .arr { transition: transform 0.2s; }
 .sfc-home .btn:hover .arr { transform: translateX(3px); }
 
+/* ── Nav "Join the Network" dropdown ────────────────────────────────────────
+ * The trigger reuses the .btn.forest token from above. The panel sits
+ * absolutely below the nav, in the landing's same line/paper/ink tokens.
+ * Keyboard navigation is handled in Home.tsx; aria attributes drive
+ * focus/hover visual states. */
+.sfc-home .join-dd { position: relative; }
+.sfc-home .join-dd-trigger {
+  /* Inherits .btn.forest styling; just give the caret some breathing room. */
+  padding-right: 14px;
+}
+.sfc-home .join-dd-trigger .caret {
+  transition: transform 0.2s;
+  flex: none;
+}
+.sfc-home .join-dd-trigger[aria-expanded='true'] .caret { transform: rotate(180deg); }
+.sfc-home .join-dd-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 260px;
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 6px;
+  z-index: 60;
+  box-shadow: 0 18px 40px -20px rgba(14, 14, 13, 0.25),
+              0 4px 10px -4px rgba(14, 14, 13, 0.08);
+  /* Open animation — respects reduced-motion via the global media block below. */
+  animation: sfc-home-dd-in 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@keyframes sfc-home-dd-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: none; }
+}
+.sfc-home .join-dd-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  background: transparent;
+  border: 0;
+  border-radius: 3px;
+  padding: 10px 12px;
+  cursor: pointer;
+  text-align: left;
+  text-decoration: none;
+  color: var(--ink);
+  font-family: var(--sans);
+  transition: background 0.15s;
+}
+.sfc-home .join-dd-item:hover,
+.sfc-home .join-dd-item:focus-visible {
+  background: rgba(0, 128, 55, 0.07);
+  outline: none;
+}
+.sfc-home .join-dd-item .lbl {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--forest);
+}
+.sfc-home .join-dd-item .txt {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+.sfc-home .join-dd-item .arr {
+  /* Match the .btn .arr translateX hover from the original landing. */
+  display: inline-block;
+  margin-left: auto;
+  transition: transform 0.2s;
+}
+.sfc-home .join-dd-item:hover .arr,
+.sfc-home .join-dd-item:focus-visible .arr {
+  transform: translateX(3px);
+}
+.sfc-home .join-dd-item .txt-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
 /* Hero */
 .sfc-home .hero { padding: 60px 0 14px; text-align: center; }
 .sfc-home .eyebrow {
@@ -773,7 +859,8 @@ html:has(.sfc-home) {
   .sfc-home .reveal-list li,
   .sfc-home .stage[data-state='match'] .r-reveal,
   .sfc-home .stage[data-state='match'] .p-reveal,
-  .sfc-home .stage[data-state='match'] .link-svg .ln {
+  .sfc-home .stage[data-state='match'] .link-svg .ln,
+  .sfc-home .join-dd-panel {
     animation: none !important;
     transition: none !important;
   }

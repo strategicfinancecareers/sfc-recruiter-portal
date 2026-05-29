@@ -8,6 +8,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 
+// Newsreader needed for the right-side value panel heading on the auth
+// screen so the /apply page matches the landing's serif identity. Other
+// landing tokens (cream / ink / brand green) are inlined via style /
+// Tailwind on the relevant elements; no new CSS file required.
+// (These import side-effects are deduped per-build by Vite if the same
+// packages are already imported elsewhere in the app, e.g. Home.tsx.)
+import '@fontsource-variable/newsreader';
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const COMPANY_LOGOS = [
@@ -1000,17 +1008,34 @@ export default function CandidateApply() {
 
   if (screen === 'auth') {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center px-6 py-12">
-        <div className="w-full max-w-md">
-          <button
-            // The marketing landing is now "/" — back from the auth tab
-            // returns there rather than the legacy embedded LandingSection.
-            onClick={() => { window.location.href = '/'; }}
-            className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 mb-8 transition-colors"
-          >
-            <ChevronLeft className="w-4 h-4" /> Back
-          </button>
-          <p className="font-bold text-lg text-gray-900 tracking-tight mb-6">SFC Talent</p>
+      // Split-screen shell mirrors src/pages/SignUp.tsx so the /apply
+      // (professional) and /signup (recruiter) pages read as a matched
+      // pair. Left panel layout/spacing/responsive break match SignUp.tsx
+      // exactly. Right panel uses the landing tokens (cream / ink / brand
+      // green / Newsreader) so the professional side stays visually
+      // anchored to the marketing surface at "/".
+      <div className="min-h-screen flex">
+        {/* ── Left panel — form (mirrors SignUp.tsx) ── */}
+        <div className="w-full lg:w-[480px] xl:w-[540px] flex flex-col bg-[#f8f8f8] px-10 py-12 shrink-0">
+          {/* Top row: brand + Back. SignUp.tsx omits the Back button; we keep
+              it because /apply is the only auth route that's typically
+              reached from "/" (not from a return visit), so a quick
+              escape hatch is useful. */}
+          <div className="mb-10 flex items-center justify-between">
+            <span className="font-bold text-lg text-gray-900 tracking-tight">SFC Talent</span>
+            <button
+              type="button"
+              onClick={() => { window.location.href = '/'; }}
+              className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 transition-colors"
+            >
+              <ChevronLeft className="w-4 h-4" /> Back
+            </button>
+          </div>
+
+          <div className="flex-1 flex flex-col justify-center max-w-sm w-full mx-auto lg:mx-0">
+            {/* Heading mirrors SignUp.tsx's "Apply as a recruiter" */}
+            <h1 className="text-2xl font-semibold text-gray-900 mb-1">Join as a professional</h1>
+            <p className="text-sm text-gray-500 mb-6">Stay anonymous until you choose to say yes. Free, no recruiter spam — usually takes 5 minutes.</p>
 
           {/* Tabs */}
           <div className="flex border-b border-gray-200 mb-8">
@@ -1179,6 +1204,102 @@ export default function CandidateApply() {
               </button>
             </form>
           )}
+
+          {/* Terms footer mirrors SignUp.tsx */}
+          <p className="text-xs text-gray-400 mt-10 leading-relaxed max-w-sm mx-auto lg:mx-0">
+            By continuing, you agree to SFC Talent&rsquo;s{' '}
+            <a href="https://strategicfinancecareers.com" className="underline hover:text-gray-600">Terms of Service</a>
+            {' '}and{' '}
+            <a href="https://strategicfinancecareers.com" className="underline hover:text-gray-600">Privacy Policy</a>.
+          </p>
+        </div>
+        {/* End left panel inner */}
+        </div>
+        {/* End left panel */}
+
+        {/* ── Right panel — professional-framed value panel (landing tokens) ── */}
+        <div
+          className="hidden lg:flex flex-1 items-center justify-center px-16"
+          style={{ background: '#f4f1ea', color: '#0e0e0d' }}
+        >
+          <div className="max-w-md w-full">
+            <p
+              className="mb-7"
+              style={{
+                fontFamily: '"Geist Mono Variable", "Geist Mono", ui-monospace, monospace',
+                fontSize: '10.5px',
+                fontWeight: 500,
+                letterSpacing: '0.2em',
+                textTransform: 'uppercase',
+                color: 'rgba(14,14,13,.55)',
+              }}
+            >
+              For professionals
+            </p>
+
+            <h2
+              className="leading-tight tracking-tight mb-5"
+              style={{
+                fontFamily: '"Newsreader Variable", "Newsreader", Georgia, serif',
+                fontWeight: 500,
+                fontSize: 'clamp(28px, 3vw, 38px)',
+                lineHeight: 1.1,
+                letterSpacing: '-0.02em',
+              }}
+            >
+              Stay{' '}
+              <em style={{ fontStyle: 'italic', color: '#008037', fontWeight: 400 }}>anonymous</em>.
+              <br />Stay open.
+            </h2>
+
+            <p className="mb-9" style={{ color: 'rgba(14,14,13,.65)', fontSize: '15px', lineHeight: 1.6, maxWidth: '38ch' }}>
+              Get warm introductions from top firms — without your employer or network ever knowing.
+            </p>
+
+            <ul className="space-y-4">
+              {[
+                'Profile stays hidden until you approve an intro',
+                'Free — no recruiter spam, ever',
+                '~5-minute form to join',
+                'Pass on anything that doesn’t fit, no questions asked',
+              ].map(line => (
+                <li key={line} className="flex items-start gap-3" style={{ fontSize: '14px', color: '#0e0e0d' }}>
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      width: 22, height: 22, flex: 'none',
+                      borderRadius: 4,
+                      background: 'rgba(0,128,55,.1)',
+                      border: '1px solid rgba(0,128,55,.25)',
+                      display: 'inline-grid',
+                      placeItems: 'center',
+                      color: '#008037',
+                      marginTop: 1,
+                    }}
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6">
+                      <path d="M5 12l5 5L20 6" />
+                    </svg>
+                  </span>
+                  <span style={{ lineHeight: 1.5 }}>{line}</span>
+                </li>
+              ))}
+            </ul>
+
+            <p
+              className="mt-10"
+              style={{
+                fontFamily: '"Geist Mono Variable", "Geist Mono", ui-monospace, monospace',
+                fontSize: '10.5px',
+                fontWeight: 500,
+                letterSpacing: '0.18em',
+                textTransform: 'uppercase',
+                color: 'rgba(14,14,13,.45)',
+              }}
+            >
+              SFC Talent — Strategic Finance Careers
+            </p>
+          </div>
         </div>
       </div>
     );

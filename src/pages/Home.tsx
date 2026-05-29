@@ -230,9 +230,11 @@ export default function Home() {
           </div>
 
           <div className="nav-right">
-            {/* TODO: split Recruiter login + Professional login into separate
-                routes once dedicated sign-in flows exist. For now both go
-                to /login. */}
+            {/* Recruiter login → /login (Login.tsx, hardcoded to the
+                recruiter context). Professional login → /candidate-dashboard
+                (its landing has its own sign-in card for professionals;
+                Login.tsx explicitly says "Sign in to your recruiter
+                account" so it's the wrong destination for them). */}
             <Link className="login" to="/login" data-route="recruiter-login">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
                 <rect x="3" y="6" width="18" height="13" rx="2" />
@@ -240,7 +242,7 @@ export default function Home() {
               </svg>
               <span>Recruiter login</span>
             </Link>
-            <Link className="login" to="/login" data-route="professional-login">
+            <Link className="login" to="/candidate-dashboard" data-route="professional-login">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
                 <circle cx="12" cy="8" r="4" />
                 <path d="M4 20c0-4 4-6 8-6s8 2 8 6" />

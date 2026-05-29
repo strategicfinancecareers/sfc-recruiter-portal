@@ -695,7 +695,16 @@ export default function CandidateApply() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Auth state
-  const [authTab, setAuthTab] = useState<'signup' | 'signin'>('signup');
+  // Initial tab honors ?mode=signin in the URL so the landing's
+  // "Professional login" link can deep-link returning users straight to
+  // the Sign-in tab. Anything else (including absence of the param)
+  // keeps the existing default of 'signup'. Read synchronously at
+  // first render via initialState — no useEffect needed.
+  const [authTab, setAuthTab] = useState<'signup' | 'signin'>(() => {
+    if (typeof window === 'undefined') return 'signup';
+    const params = new URLSearchParams(window.location.search);
+    return params.get('mode') === 'signin' ? 'signin' : 'signup';
+  });
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
   const [authConfirmPassword, setAuthConfirmPassword] = useState('');

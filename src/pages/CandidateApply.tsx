@@ -1190,7 +1190,12 @@ export default function CandidateApply() {
                   const { error } = await supabase.auth.signUp({
                     email: authEmail,
                     password: authPassword,
-                    options: { emailRedirectTo: 'https://sfc-recruiter-portal.vercel.app/apply' },
+                    // emailRedirectTo lands the candidate back on /apply
+                    // with the Sign In tab pre-selected via ?mode=signin,
+                    // so they don't see "Create Account" again after
+                    // they just verified. The ?mode=signin lazy-initializer
+                    // in this same file's authTab useState picks it up.
+                    options: { emailRedirectTo: 'https://sfc-recruiter-portal.vercel.app/apply?mode=signin' },
                   });
                   if (error) {
                     if (error.message.toLowerCase().includes('already registered')) {

@@ -128,11 +128,11 @@ const SignUp = () => {
   };
 
   // ── Sign In handler ───────────────────────────────────────────────────
-  // Reuses the existing recruiter auth path (AuthContext.login →
-  // supabase.auth.signInWithPassword), the same as /login. On success
-  // the useEffect above watching `user` will navigate approved
-  // recruiters to /start-here; ProtectedRoute on any other authed
-  // route handles pending → /signup/pending and rejected → /signup/rejected.
+  // Recruiter auth path: AuthContext.login → supabase.auth.signInWithPassword.
+  // On success the useEffect above watching `user` will navigate
+  // approved recruiters to /start-here; ProtectedRoute on any other
+  // authed route handles pending → /signup/pending and rejected →
+  // /signup/rejected.
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setSigninError(null);

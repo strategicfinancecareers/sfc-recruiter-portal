@@ -11,10 +11,8 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requireAdmin 
   const { user, isLoading, isProfileLoading } = useAuth();
 
   if (isLoading) return <LoaderScreen />;
-  // Recruiter sign-in lives at /signup?mode=signin now (single front
-  // door). /login still works via redirect for old bookmarks but
-  // routing protected routes through the canonical URL avoids the
-  // extra hop.
+  // Recruiter sign-in lives at /signup?mode=signin (single front door).
+  // /login was removed in fix/recruiter-login-consolidate.
   if (!user) return <Navigate to="/signup?mode=signin" replace />;
 
   // ── Recruiter vetting gate ──────────────────────────────────────────────────

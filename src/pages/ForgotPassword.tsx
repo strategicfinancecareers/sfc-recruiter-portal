@@ -20,7 +20,13 @@ const ForgotPassword = () => {
     setIsLoading(true);
     
     try {
-      const redirectUrl = `${window.location.origin}/login`;
+      // /login is gone — redirect the reset-password email back to
+       // the consolidated recruiter front door so it doesn't 404.
+       // Note: no page in the app currently handles type=recovery
+       // (no supabase.auth.updateUser, no recovery UI). Building real
+       // password-recovery support is a separate tracked item; this
+       // change just keeps the email link addressable.
+      const redirectUrl = `${window.location.origin}/signup?mode=signin`;
       
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: redirectUrl,

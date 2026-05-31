@@ -32,7 +32,52 @@ export default async function handler(req, res) {
       console.error('[recruiter-intros] query error:', error);
       return res.status(500).json({ error: error.message });
     }
-    return res.status(200).json({ requests: data || [] });
+
+    // ── Anonymity scrub ───────────────────────────────────────────────────
+    // Strict rule: a recruiter only sees the candidate's real identity
+    // when the candidate has explicitly accepted the introduction
+    // (status='approved'). For pending/rejected/anything-else, strip
+    // every PII field server-side so the network payload contains zero
+    // identifying data — UI gates downstream are a second line of defence,
+    // not the primary one.
+    //
+    // Fields kept (anonymized profile): id, display_name, label, location,
+    // experience, education, highest_education_level, profile_description.
+    // Fields stripped on non-approved: name, email, phone, resume_full_url,
+    // sfc_take, sfc_role_fit, sfc_strengths, sfc_considerations,
+    // sfc_take_published_at (the SFC Take is a post-approval reveal too
+    // when surfaced via an intro context).
+    const scrubbed = (data || []).map((req) => {
+      if (req.status === 'approved') return req;
+      const c = req.candidate;
+      if (!c) return req;
+      return {
+        ...req,
+        candidate: {
+          id: c.id,
+          display_name: c.display_name,
+          label: c.label,
+          location: c.location,
+          experience: c.experience,
+          education: c.education,
+          highest_education_level: c.highest_education_level,
+          profile_description: c.profile_description,
+          // Explicitly null the PII so the type shape stays consistent
+          // for the downstream IntroductionRequest hook transform.
+          name: null,
+          email: null,
+          phone: null,
+          resume_full_url: null,
+          sfc_take: null,
+          sfc_role_fit: null,
+          sfc_strengths: null,
+          sfc_considerations: null,
+          sfc_take_published_at: null,
+        },
+      };
+    });
+
+    return res.status(200).json({ requests: scrubbed });
   } catch (err) {
     console.error('[recruiter-intros] handler error:', err);
     return res.status(500).json({ error: err.message });

@@ -66,7 +66,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     console.log('[respond-to-intro] candidate fields:', JSON.stringify({ name: candidate?.name, display_name: candidate?.display_name, email: candidate?.email, phone: candidate?.phone, has_resume: !!candidate?.resume_full_url }));
 
+    // candidateName is used in the ACCEPTED-branch email, where reveal is
+    // explicit and intentional — name on acceptance is the whole point.
+    // The REJECTED-branch email below uses anonName instead so we never
+    // leak identity on a no.
     const candidateName = candidate?.name || candidate?.display_name || 'The candidate';
+    const anonName = candidate?.display_name || 'A candidate';
     const jobTitle = job?.title;
     const company = job?.company;
 
@@ -119,11 +124,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const { data: noEmailData, error: noEmailErr } = await resend.emails.send({
         from: 'SFC Talent <noreply@strategicfinancecareers.com>',
         to: toList,
-        subject: `${candidateName} passed on the ${jobTitle} role`,
+        // Use anonName (display_name) — anonymity guarantee: identity is
+        // revealed ONLY on acceptance. Pass = no reveal.
+        subject: `${anonName} passed on the ${jobTitle} role`,
         html: '<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">'
           + '<img src="https://sfc-recruiter-portal.vercel.app/logo.png" height="40" style="margin-bottom:24px" />'
           + '<h2 style="color:#333">Update on your introduction request</h2>'
-          + `<p><strong>${candidateName}</strong> has passed on the <strong>${jobTitle}</strong> opportunity at this time.</p>`
+          + `<p><strong>${anonName}</strong> has passed on the <strong>${jobTitle}</strong> opportunity at this time.</p>`
           + `<p>Don't worry — there are more great candidates available. <a href="https://sfc-recruiter-portal.vercel.app/browse" style="color:#0F6E56">Browse candidates</a> to find your next match.</p>`
           + '<hr style="border:none;border-top:1px solid #eee;margin:24px 0" />'
           + '<p style="color:#999;font-size:12px">SFC Talent · strategicfinancecareers.com</p>'

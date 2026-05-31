@@ -2191,11 +2191,6 @@ export default function CandidateApply() {
                 <Input type="email" value={form.email} onChange={e => set('email', e.target.value)}
                   placeholder="you@example.com" className="mt-2"
                   readOnly={isEditMode} disabled={isEditMode} />
-                {isEditMode && (
-                  <p className="text-xs text-gray-500 mt-1.5">
-                    Name and email are locked. Contact <a href="mailto:talent@strategicfinancecareers.com" className="text-emerald-700 underline">talent@strategicfinancecareers.com</a> to change them.
-                  </p>
-                )}
               </div>
 
               <div>
@@ -2384,9 +2379,6 @@ export default function CandidateApply() {
                 <a href="mailto:talent@strategicfinancecareers.com" className="text-emerald-700 underline font-medium">talent@strategicfinancecareers.com</a>.
               </div>
             )}
-            <p className="text-xs text-gray-500 mt-4 leading-relaxed">
-              To replace your resume, email <a href="mailto:talent@strategicfinancecareers.com" className="text-emerald-700 underline">talent@strategicfinancecareers.com</a>.
-            </p>
           </div>
         )}
         {step === 3 && !isEditMode && (

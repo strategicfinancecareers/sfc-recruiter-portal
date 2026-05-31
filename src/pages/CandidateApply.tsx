@@ -2015,14 +2015,29 @@ export default function CandidateApply() {
                 </div>
                 <div>
                   <Label>Education level</Label>
-                  <RadioGroup name="educationLevel" value={form.educationLevel}
-                    onChange={v => set('educationLevel', v)}
-                    options={[
-                      { value: 'Bachelors', label: "Bachelor's" },
-                      { value: 'Masters', label: "Master's" },
-                      { value: 'MBA', label: 'MBA' },
-                      { value: 'PhD', label: 'PhD' },
-                    ]} />
+                  {/* Same option set as the previous radio group. The
+                      empty <option value=""> renders as the placeholder
+                      when form.educationLevel is empty OR holds a value
+                      that isn't in the known list (e.g. a resume parser
+                      returned an unmapped string) — the <select> falls
+                      back to value="" rather than throwing. State key /
+                      writes are unchanged: still set('educationLevel', v)
+                      → submit payload still sends highest_education_level. */}
+                  <select
+                    value={
+                      ['Bachelors', 'Masters', 'MBA', 'PhD'].includes(form.educationLevel)
+                        ? form.educationLevel
+                        : ''
+                    }
+                    onChange={e => set('educationLevel', e.target.value)}
+                    className="mt-2 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  >
+                    <option value="">Select education level</option>
+                    <option value="Bachelors">Bachelor&rsquo;s</option>
+                    <option value="Masters">Master&rsquo;s</option>
+                    <option value="MBA">MBA</option>
+                    <option value="PhD">PhD</option>
+                  </select>
                 </div>
               </div>
 

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
+import { authedFetch } from '@/integrations/supabase/authedFetch';
 
 // Newsreader needed for the right-side value panel heading on the auth
 // screen so the /apply page matches the landing's serif identity. Other
@@ -784,7 +785,7 @@ export default function CandidateApply() {
   // ── Route a confirmed session: check profile, go to dashboard or form ─────────
   const routeConfirmedSession = async (email: string) => {
     set('email', email);
-    const profileRes = await fetch(`/api/candidate-profile?email=${encodeURIComponent(email.toLowerCase())}`);
+    const profileRes = await authedFetch(`/api/candidate-profile?email=${encodeURIComponent(email.toLowerCase())}`);
     if (profileRes.ok) {
       window.location.href = '/candidate-dashboard';
     } else {
@@ -1276,7 +1277,8 @@ export default function CandidateApply() {
                     return;
                   }
                   // Check if candidate profile exists
-                  const profileRes = await fetch(`/api/candidate-profile?email=${encodeURIComponent(authEmail.toLowerCase().trim())}`);
+                  // Just signed in above; authedFetch attaches the fresh session token.
+                  const profileRes = await authedFetch(`/api/candidate-profile?email=${encodeURIComponent(authEmail.toLowerCase().trim())}`);
                   if (profileRes.ok) {
                     window.location.href = '/candidate-dashboard';
                   } else {

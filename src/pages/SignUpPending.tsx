@@ -36,7 +36,7 @@ export default function SignUpPending() {
         <div className="text-center border-t pt-6 space-y-3 text-sm">
           <p className="text-gray-500">
             Already approved?{' '}
-            <Link to="/login" className="text-emerald-600 hover:underline font-medium">Sign in here</Link>
+            <Link to="/signup?mode=signin" className="text-emerald-600 hover:underline font-medium">Sign in here</Link>
           </p>
           <p className="text-gray-400 text-xs">
             Questions? Email{' '}

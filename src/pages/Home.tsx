@@ -230,14 +230,13 @@ export default function Home() {
           </div>
 
           <div className="nav-right">
-            {/* Recruiter login → /login (Login.tsx, hardcoded to the
-                recruiter context). Professional login → /apply?mode=signin
-                which opens the existing auth screen on the Sign-in tab
-                via the URL-param hook in CandidateApply.tsx — works for
-                returning users (whose only previous destination,
-                /candidate-dashboard, dead-ended for anyone not already
-                authenticated). */}
-            <Link className="login" to="/login" data-route="recruiter-login">
+            {/* Recruiter login → /signup?mode=signin (the recruiter
+                signup page now hosts both Create Account + Sign In via
+                a tab toggle; /signup is the single recruiter front
+                door). Professional login → /apply?mode=signin which
+                opens that page's auth screen on the Sign-in tab via
+                the URL-param hook in CandidateApply.tsx. */}
+            <Link className="login" to="/signup?mode=signin" data-route="recruiter-login">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
                 <rect x="3" y="6" width="18" height="13" rx="2" />
                 <path d="M3 9h18M8 6V4h8v2" />

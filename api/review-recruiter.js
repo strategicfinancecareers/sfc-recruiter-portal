@@ -101,7 +101,7 @@ export default async function handler(req, res) {
           <h2 style="color:#0F6E56">Welcome to SFC Talent 🎉</h2>
           <p>Hi ${firstName},</p>
           <p>Great news — your recruiter application has been approved. You can now sign in and start browsing our network of vetted finance candidates.</p>
-          <div style="margin:24px 0"><a href="${APP_URL}/login" style="display:inline-block;background:#0F6E56;color:white;text-decoration:none;padding:12px 24px;border-radius:6px;font-weight:600">Sign in →</a></div>
+          <div style="margin:24px 0"><a href="${APP_URL}/signup?mode=signin" style="display:inline-block;background:#0F6E56;color:white;text-decoration:none;padding:12px 24px;border-radius:6px;font-weight:600">Sign in →</a></div>
           <p style="color:#666;font-size:14px">A few notes:</p>
           <ul style="color:#666;font-size:14px">
             <li>Candidates are pre-vetted by our team and stay anonymous until they accept an intro</li>

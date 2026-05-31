@@ -106,7 +106,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // (service-role insert). Google OAuth recruiter signup is
         // currently a no-op here — they end up with a session but no
         // public.users row, AuthContext.user = null, and ProtectedRoute
-        // bounces them to /login. Follow-up TODO: add a /signup/google
+        // bounces them to /signup?mode=signin. Follow-up TODO: add a /signup/google
         // completion step that captures LinkedIn + Company and calls
         // /api/recruiter-signup. For now Google OAuth on /signup is a
         // dead end; recruiters must use email/password.

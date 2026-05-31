@@ -1033,19 +1033,52 @@ export default function CandidateApply() {
         setEditBaseline(stripFormForDraft(dbForm));
 
         // ── Draft overlay (autosave restore) + initial step jump ──
-        // Draft is applied AFTER the clean DB prefill so the user
-        // sees their unsaved edits on top of a fully-hydrated form.
-        // If the draft has a stale shape we silently fall back to
-        // the clean prefill — never throw.
+        // Smart overlay (fix for the stale-empty-draft clobber bug):
+        // a previous testing session could leave a draft in
+        // localStorage whose fields are empty strings / nulls / empty
+        // arrays. The previous spread-merge let those empty values
+        // overwrite the freshly-loaded DB values (name, email,
+        // linkedin all rendered blank because the stale draft's
+        // empty strings won the merge). Three guards now:
+        //   1. Strip resume fields defensively (same as before).
+        //   2. Per-field overlay: only include keys whose draft value
+        //      is "meaningful" — non-empty string, non-empty array,
+        //      non-null. This protects good DB values from being
+        //      clobbered by empty fields in a stale draft. Trade-off:
+        //      a user who explicitly CLEARED a field won't see the
+        //      cleared state restored across reload; they need to
+        //      re-clear after restoring. Acceptable until we move to
+        //      a per-field dirty-tracking model.
+        //   3. If the meaningful overlay contributes nothing beyond
+        //      the DB baseline, discard the draft entirely (clearDraft
+        //      + skip the restore banner). Stops legacy / test-noise
+        //      drafts from showing a misleading "we restored your
+        //      edits" banner when there's nothing real to restore.
+        const isMeaningful = (v: unknown): boolean => {
+          if (v == null) return false;
+          if (typeof v === 'string') return v.trim().length > 0;
+          if (Array.isArray(v)) return v.length > 0;
+          return true; // booleans, numbers, objects all count as set
+        };
         const draft = loadDraft(c.id);
         if (draft && typeof draft === 'object') {
-          // Re-strip resume fields defensively even though saveDraft
-          // strips them, in case a draft from a future version
-          // leaks them in.
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
           const { resumeFile, resumeBase64, resumeParsed, parseWarning, ...safe } = draft as any;
-          setForm(prev => ({ ...prev, ...safe }));
-          setDraftRestored(true);
+          const overlay: Record<string, unknown> = {};
+          for (const k of Object.keys(safe)) {
+            if (isMeaningful(safe[k])) overlay[k] = safe[k];
+          }
+          const overlaid = { ...dbForm, ...overlay } as FormState;
+          const baselineStr = JSON.stringify(stripFormForDraft(dbForm));
+          const overlaidStr = JSON.stringify(stripFormForDraft(overlaid));
+          if (overlaidStr === baselineStr) {
+            // Draft contributes nothing — clean it up so it stops
+            // haunting future sessions / triggering the banner.
+            clearDraft(c.id);
+          } else {
+            setForm(overlaid);
+            setDraftRestored(true);
+          }
         }
         setStep(resolveInitialStep());
         setEditLoading(false);
@@ -1315,6 +1348,13 @@ export default function CandidateApply() {
   // Step 6 (Review) requires every prior validator to be true.
   const stepValidators = [null, canProceedStep1, canProceedStep2, canProceedStep3, canProceedStep4, canProceedStep5] as const;
   const canVisitStep = (target: number): boolean => {
+    // EDIT mode: the profile is already complete (admin-approved),
+    // so every tab is freely clickable from any step. The forward-
+    // gating that walks earlier validators is a CREATE-mode safety
+    // for new applicants only — it would otherwise block an editor
+    // who briefly emptied a required field (e.g. cleared LinkedIn
+    // while updating it) from jumping to other tabs to look around.
+    if (isEditMode) return true;
     if (target <= step) return true;          // backward / current always ok
     for (let i = 1; i < target; i++) {
       if (!stepValidators[i]) return false;

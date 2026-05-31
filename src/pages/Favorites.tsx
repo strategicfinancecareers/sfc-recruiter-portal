@@ -21,7 +21,12 @@ interface LocalCandidate {
 const Favorites = () => {
   const { user } = useAuth();
   const { toast } = useToast();
-  const { candidates: allCandidates, loading, toggleFavorite: toggleCandidateFavorite } = useCandidates();
+  // Admins/owners need the real `name` for the admin-only subtitle.
+  // Recruiters do NOT receive `name` in the hook payload — see
+  // useCandidates docstring for the full anonymity contract.
+  const { candidates: allCandidates, loading, toggleFavorite: toggleCandidateFavorite } = useCandidates({
+    includeName: user?.role === 'admin' || user?.role === 'owner',
+  });
   const [localState, setLocalState] = useState<Record<string, LocalCandidate>>({});
   const [selectMode, setSelectMode] = useState(false);
   const [selectedCandidate, setSelectedCandidate] = useState<any>(null);

@@ -2,44 +2,88 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
+// Recruiter-facing candidate shape. Narrowed deliberately to ONLY the
+// columns the recruiter browse/search and AnonymousCandidateCard
+// actually render. The pre-narrowing version was a select('*') that
+// shipped every candidate's email/phone/linkedin/resume path/work
+// authorization/sponsorship/comp target/etc. to every recruiter's
+// browser even though no component displayed them — a quiet leak of
+// the candidate's anonymity model. Adding a column back here means
+// committing to surfacing it in the recruiter UI.
+//
+// `name` (real name) is gated behind the includeName flag and is set
+// ONLY when the caller is an admin or owner. Recruiters never receive
+// the real name in the payload; the SFC Take is server-scrubbed at
+// generation + publish so it can be rendered as-is.
 export interface Candidate {
   id: string;
-  name: string;
   display_name: string;
-  email: string;
-  phone?: string;
+  label: string;
   location: string;
   experience: number;
   education: string;
   highest_education_level?: string;
-  label: string;
   profile_description?: string;
+  primary_background?: string;
+  secondary_backgrounds?: string[];
   open_to_opportunities?: boolean;
-  // Storage path (bucket is private). Use /api/get-resume-url for a signed download URL.
-  resume_full_url?: string;
-  resume_redacted_url?: string;
   skills: Array<{ id: string; skill: string }>;
-  is_favorite?: boolean; // This will be computed based on user_favorites table
+  is_favorite?: boolean; // Computed in the hook from user_favorites — not selected.
   // SFC Take (Batch 2) — recruiters see these ONLY when sfc_take_published_at is non-null.
   // Filter happens at render time, not in the SELECT, so the hook can stay shared with admin views.
   sfc_take?: string | null;
   sfc_role_fit?: string[] | null;
-  sfc_strengths?: string[] | null;
-  sfc_considerations?: string[] | null;
   sfc_take_published_at?: string | null;
+  // Admin-only: real name is included in the payload ONLY when
+  // includeName=true is passed to useCandidates by an admin/owner
+  // caller. Undefined for recruiters.
+  name?: string;
 }
 
-export function useCandidates() {
+// Recruiter-safe column allow-list. NO sensitive PII (email, phone,
+// linkedin_url, resume_full_url, resume_redacted_url, work_authorized_us,
+// requires_sponsorship), NO unused preference fields (target_salary,
+// target_roles, industries, etc.), NO unused SFC Take fields
+// (sfc_strengths, sfc_considerations are not rendered by any recruiter
+// component), NO real name. Admin includeName=true appends `name` to
+// this list at query time.
+const RECRUITER_COLUMNS = [
+  'id',
+  'display_name',
+  'label',
+  'location',
+  'experience',
+  'education',
+  'highest_education_level',
+  'profile_description',
+  'primary_background',
+  'secondary_backgrounds',
+  'open_to_opportunities',
+  'sfc_take',
+  'sfc_take_published_at',
+  'sfc_role_fit',
+].join(', ');
+
+export function useCandidates(opts: { includeName?: boolean } = {}) {
+  const { includeName = false } = opts;
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
   const fetchCandidates = async () => {
     try {
+      // Admin/owner callers pass includeName=true so the real-name
+      // subtitle on /browse + /favorites can still render. Recruiters
+      // never get `name` in the payload (the SFC Take is server-side
+      // name-scrubbed in api/generate-sfc-take + api/publish-sfc-take
+      // so no client-side scrub needs the real name).
+      const columns = includeName
+        ? `${RECRUITER_COLUMNS}, name`
+        : RECRUITER_COLUMNS;
       const { data: candidatesData, error: candidatesError } = await supabase
         .from('candidates')
         .select(`
-          *,
+          ${columns},
           candidate_skills!inner(
             skill_id,
             skills!inner(

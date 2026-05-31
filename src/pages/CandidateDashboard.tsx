@@ -648,6 +648,31 @@ function Card({
 
 // ─── Profile tab ────────────────────────────────────────────────────────────
 
+// Per-section deep-link map. Keep in sync with TAB_TO_STEP in
+// CandidateApply.tsx — the wizard accepts ?tab=<name> and resolves
+// to the right step. Sections that span multiple wizard tabs link to
+// the most specific one (e.g. preferences vs experience).
+const WIZARD_TAB = {
+  contact: '/apply?edit=1&tab=contact',
+  experience: '/apply?edit=1&tab=experience',
+  resume: '/apply?edit=1&tab=resume',
+  preferences: '/apply?edit=1&tab=preferences',
+  workAuth: '/apply?edit=1&tab=work-auth',
+  review: '/apply?edit=1&tab=review',
+} as const;
+
+function EditLink({ to, label = 'Edit' }: { to: string; label?: string }) {
+  return (
+    <Link
+      to={to}
+      className="text-xs font-semibold transition-colors hover:underline"
+      style={{ color: BRAND }}
+    >
+      {label}
+    </Link>
+  );
+}
+
 function ProfileTab({
   candidate,
   skills,
@@ -660,11 +685,19 @@ function ProfileTab({
   // from /api/candidate-profile (bearer-gated, candidate-self only),
   // saves via the same endpoint's PATCH (column whitelist enforces
   // status/approval immutability), then routes back here. This tab
-  // shows the read-only summary only.
+  // shows the read-only summary plus per-section deep-link Edit
+  // affordances that drop the user straight onto the right wizard
+  // tab via ?edit=1&tab=<name>.
   const bio = candidate.profile_description || '';
   const displaySkills = skills;
   const workPrefDisplay = (candidate.work_preferences && candidate.work_preferences.join(', '))
     || candidate.work_preference;
+
+  const hasPrefsRow =
+    !!candidate.target_salary ||
+    (candidate.preferred_cities && candidate.preferred_cities.length > 0) ||
+    (candidate.target_roles && candidate.target_roles.length > 0);
+  const hasIndustriesRow = !!(candidate.industries && candidate.industries.length > 0);
 
   return (
     <Card
@@ -683,12 +716,15 @@ function ProfileTab({
     >
       <div className="space-y-4">
         <div>
-          <p
-            className="text-2xl"
-            style={{ fontFamily: SERIF, fontWeight: 500, letterSpacing: '-0.01em', color: INK }}
-          >
-            {candidate.label || 'Finance Professional'}
-          </p>
+          <div className="flex items-start justify-between gap-3">
+            <p
+              className="text-2xl"
+              style={{ fontFamily: SERIF, fontWeight: 500, letterSpacing: '-0.01em', color: INK }}
+            >
+              {candidate.label || 'Finance Professional'}
+            </p>
+            <EditLink to={WIZARD_TAB.review} label="Edit role" />
+          </div>
           <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2">
             {candidate.location && <span className="text-sm" style={{ color: 'rgba(14,14,13,.6)' }}>{candidate.location}</span>}
             {candidate.experience != null && <span className="text-sm" style={{ color: 'rgba(14,14,13,.6)' }}>{candidate.experience} yrs exp</span>}
@@ -706,45 +742,73 @@ function ProfileTab({
             )}
           </div>
         </div>
-        {bio && <p className="text-sm leading-relaxed" style={{ color: 'rgba(14,14,13,.75)' }}>{bio}</p>}
-        {displaySkills.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 pt-1">
-            {displaySkills.map(s => (
-              <span
-                key={s}
-                className="px-2.5 py-1 rounded-full text-xs font-medium border"
-                style={{ background: 'rgba(0,128,55,.06)', color: BRAND, borderColor: 'rgba(0,128,55,.18)' }}
-              >
-                {s}
-              </span>
-            ))}
+        {bio && (
+          <div className="flex items-start justify-between gap-3">
+            <p className="text-sm leading-relaxed flex-1" style={{ color: 'rgba(14,14,13,.75)' }}>{bio}</p>
+            <EditLink to={WIZARD_TAB.review} label="Edit bio" />
           </div>
         )}
-        <div className="space-y-1 pt-2">
-          {candidate.target_salary && (
-            <p className="text-xs" style={{ color: 'rgba(14,14,13,.5)' }}>Target comp: {COMP_OPTIONS.find(o => o.value === candidate.target_salary)?.label ?? candidate.target_salary}</p>
-          )}
-          {candidate.preferred_cities && candidate.preferred_cities.length > 0 && (
-            <p className="text-xs" style={{ color: 'rgba(14,14,13,.5)' }}>Cities: {candidate.preferred_cities.join(', ')}</p>
-          )}
-          {candidate.target_roles && candidate.target_roles.length > 0 && (
-            <p className="text-xs" style={{ color: 'rgba(14,14,13,.5)' }}>Target roles: {candidate.target_roles.join(', ')}</p>
-          )}
-          {candidate.industries && candidate.industries.length > 0 && (
-            <p className="text-xs" style={{ color: 'rgba(14,14,13,.5)' }}>Industries: {candidate.industries.join(', ')}</p>
-          )}
-          {candidate.linkedin_url && (
+        {displaySkills.length > 0 && (
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <p style={{ fontFamily: MONO, fontSize: 10.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(14,14,13,.55)' }}>Skills</p>
+              <EditLink to={WIZARD_TAB.review} label="Edit skills" />
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {displaySkills.map(s => (
+                <span
+                  key={s}
+                  className="px-2.5 py-1 rounded-full text-xs font-medium border"
+                  style={{ background: 'rgba(0,128,55,.06)', color: BRAND, borderColor: 'rgba(0,128,55,.18)' }}
+                >
+                  {s}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+        {hasPrefsRow && (
+          <div className="pt-2 border-t" style={{ borderColor: 'rgba(14,14,13,.08)' }}>
+            <div className="flex items-center justify-between pt-2 mb-1">
+              <p style={{ fontFamily: MONO, fontSize: 10.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(14,14,13,.55)' }}>Preferences</p>
+              <EditLink to={WIZARD_TAB.preferences} label="Edit preferences" />
+            </div>
+            <div className="space-y-1">
+              {candidate.target_salary && (
+                <p className="text-xs" style={{ color: 'rgba(14,14,13,.5)' }}>Target comp: {COMP_OPTIONS.find(o => o.value === candidate.target_salary)?.label ?? candidate.target_salary}</p>
+              )}
+              {candidate.preferred_cities && candidate.preferred_cities.length > 0 && (
+                <p className="text-xs" style={{ color: 'rgba(14,14,13,.5)' }}>Cities: {candidate.preferred_cities.join(', ')}</p>
+              )}
+              {candidate.target_roles && candidate.target_roles.length > 0 && (
+                <p className="text-xs" style={{ color: 'rgba(14,14,13,.5)' }}>Target roles: {candidate.target_roles.join(', ')}</p>
+              )}
+            </div>
+          </div>
+        )}
+        {hasIndustriesRow && (
+          <div className="pt-2 border-t" style={{ borderColor: 'rgba(14,14,13,.08)' }}>
+            <div className="flex items-center justify-between pt-2 mb-1">
+              <p style={{ fontFamily: MONO, fontSize: 10.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(14,14,13,.55)' }}>Background</p>
+              <EditLink to={WIZARD_TAB.experience} label="Edit background" />
+            </div>
+            <p className="text-xs" style={{ color: 'rgba(14,14,13,.5)' }}>Industries: {(candidate.industries || []).join(', ')}</p>
+          </div>
+        )}
+        {candidate.linkedin_url && (
+          <div className="flex items-center justify-between pt-1">
             <a
               href={candidate.linkedin_url}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-xs font-medium hover:underline pt-1"
+              className="inline-flex items-center gap-1 text-xs font-medium hover:underline"
               style={{ color: BRAND }}
             >
               LinkedIn <ExternalLink className="w-3 h-3" />
             </a>
-          )}
-        </div>
+            <EditLink to={WIZARD_TAB.contact} label="Edit contact" />
+          </div>
+        )}
       </div>
     </Card>
   );

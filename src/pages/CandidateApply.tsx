@@ -1,5 +1,9 @@
-import { useState, useRef, useEffect } from 'react';
-import { useSearchParams, Link } from 'react-router-dom';
+import { useState, useRef, useEffect, useMemo } from 'react';
+import { useSearchParams, Link, useNavigate } from 'react-router-dom';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import {
   CheckCircle2, Upload, Loader2, ChevronRight, ChevronLeft,
   X, Plus, RefreshCw, Mail, FileText,
@@ -754,6 +758,99 @@ export default function CandidateApply() {
   // the embedded LandingSection. The LandingSection component is still in
   // this file for the unlikely case anyone navigates back to 'landing'
   // via setScreen, but the initial state skips it.
+  // ── Edit-mode autosave + deep-link helpers ───────────────────────────────
+  // ONLY applied when ?edit=1. Create flow gets no draft persistence —
+  // new applicants fill and submit, and abandoning the wizard
+  // intentionally discards the work (the alternative would silently
+  // persist someone's email/phone/resume metadata to localStorage
+  // before they've consented, which we never want).
+  //
+  // Storage shape (versioned so a future field rename or shape change
+  // can invalidate stale drafts cleanly without a crash):
+  //   { version: 1, savedAt: ISO, form: <stripped FormState> }
+  // Stripped = no resumeFile (File object isn't JSON-serializable),
+  // no resumeBase64 (potentially huge), no resumeParsed (transient
+  // parse result). The resume itself is handled out-of-band — the
+  // existing single-resume model on the DB row stands until a
+  // multi-resume build replaces it.
+  const DRAFT_VERSION = 1;
+  const draftKey = (candidateId: string) => `sfc:wizard-draft:${candidateId}`;
+  type DraftEnvelope = { version: number; savedAt: string; form: Partial<FormState> };
+
+  const stripFormForDraft = (f: FormState): Partial<FormState> => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { resumeFile, resumeBase64, resumeParsed, parseWarning, ...rest } = f;
+    return rest;
+  };
+
+  const loadDraft = (candidateId: string): Partial<FormState> | null => {
+    try {
+      const raw = localStorage.getItem(draftKey(candidateId));
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as DraftEnvelope;
+      if (!parsed || parsed.version !== DRAFT_VERSION || !parsed.form) return null;
+      return parsed.form;
+    } catch (err) {
+      console.warn('[CandidateApply] loadDraft failed — discarding stale draft:', err);
+      return null;
+    }
+  };
+  const saveDraft = (candidateId: string, f: FormState) => {
+    try {
+      const envelope: DraftEnvelope = {
+        version: DRAFT_VERSION,
+        savedAt: new Date().toISOString(),
+        form: stripFormForDraft(f),
+      };
+      localStorage.setItem(draftKey(candidateId), JSON.stringify(envelope));
+    } catch (err) {
+      // localStorage can throw on quota / disabled / private mode.
+      // Autosave is a nice-to-have, never the source of truth —
+      // swallow + warn.
+      console.warn('[CandidateApply] saveDraft failed:', err);
+    }
+  };
+  const clearDraft = (candidateId: string) => {
+    try { localStorage.removeItem(draftKey(candidateId)); } catch {}
+  };
+
+  const [draftRestored, setDraftRestored] = useState(false);
+  const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null);
+
+  // Baseline snapshot captured AT prefill time — the DB version of the
+  // form, stripped of resume fields (same shape as what saveDraft
+  // persists). isDirty compares the current form against this; a
+  // restored draft counts as dirty because draft != DB. After "Save
+  // Changes" succeeds we navigate away, so the baseline doesn't need
+  // to be re-stamped mid-session.
+  const [editBaseline, setEditBaseline] = useState<Partial<FormState> | null>(null);
+  // Cancel-confirmation modal state. Controlled so we can open it
+  // programmatically (when dirty) or bypass it (when clean).
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const navigate = useNavigate();
+
+  // Map ?tab=<name> → step index. Both ?tab=preferences and ?step=4
+  // are accepted (numeric wins if both are present). Out-of-range or
+  // unknown values silently fall back to step 1.
+  const TAB_TO_STEP: Record<string, number> = {
+    contact: 1,
+    experience: 2,
+    resume: 3,
+    preferences: 4,
+    'work-auth': 5,
+    review: 6,
+  };
+  const resolveInitialStep = (): number => {
+    const raw = (searchParams.get('step') || '').trim();
+    if (raw) {
+      const n = Number(raw);
+      if (Number.isInteger(n) && n >= 1 && n <= 6) return n;
+    }
+    const tab = (searchParams.get('tab') || '').toLowerCase().trim();
+    if (tab && TAB_TO_STEP[tab]) return TAB_TO_STEP[tab];
+    return 1;
+  };
+
   // ── Edit mode ──────────────────────────────────────────────────────────────
   // /apply?edit=1 puts the wizard into "edit existing candidate" mode.
   // In this mode we skip every create-only branch (signup, email
@@ -880,7 +977,10 @@ export default function CandidateApply() {
         // re-uploaded in edit mode (single-resume model preserved).
         setEditResumeFilename(c.resume_full_url ? String(c.resume_full_url).split('/').pop() || '' : '');
 
-        setForm({
+        // Build the DB→FormState map into a local const so we can both
+        // setForm() it AND snapshot it as the dirty-detection baseline
+        // before the draft overlay potentially mutates it.
+        const dbForm: FormState = {
           firstName,
           lastName,
           email: c.email || email,
@@ -923,7 +1023,31 @@ export default function CandidateApply() {
 
           workAuthorizedUs: typeof c.work_authorized_us === 'boolean' ? c.work_authorized_us : null,
           requiresSponsorship: typeof c.requires_sponsorship === 'boolean' ? c.requires_sponsorship : null,
-        });
+        };
+        setForm(dbForm);
+        // Snapshot the DB version as the dirty-detection baseline.
+        // Stripping the resume fields keeps baseline comparable with
+        // the same-shape stripped form passed to JSON.stringify below
+        // — resume re-upload state is never a "dirty" signal in edit
+        // mode anyway (the existing file is shown read-only).
+        setEditBaseline(stripFormForDraft(dbForm));
+
+        // ── Draft overlay (autosave restore) + initial step jump ──
+        // Draft is applied AFTER the clean DB prefill so the user
+        // sees their unsaved edits on top of a fully-hydrated form.
+        // If the draft has a stale shape we silently fall back to
+        // the clean prefill — never throw.
+        const draft = loadDraft(c.id);
+        if (draft && typeof draft === 'object') {
+          // Re-strip resume fields defensively even though saveDraft
+          // strips them, in case a draft from a future version
+          // leaks them in.
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { resumeFile, resumeBase64, resumeParsed, parseWarning, ...safe } = draft as any;
+          setForm(prev => ({ ...prev, ...safe }));
+          setDraftRestored(true);
+        }
+        setStep(resolveInitialStep());
         setEditLoading(false);
       } catch (err: any) {
         if (cancelled) return;
@@ -936,6 +1060,62 @@ export default function CandidateApply() {
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isEditMode]);
+
+  // ── Edit-mode dirty detection ────────────────────────────────────────────
+  // True when the current form differs from the prefilled DB baseline.
+  // A restored draft counts as dirty by definition (draft != DB). We
+  // compare via JSON.stringify on the stripped form — same shape as
+  // baseline, so resume re-upload state never registers as dirty.
+  const isDirty = useMemo(() => {
+    if (!isEditMode || !editBaseline) return false;
+    try {
+      return JSON.stringify(stripFormForDraft(form)) !== JSON.stringify(editBaseline);
+    } catch {
+      return false;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form, editBaseline, isEditMode]);
+
+  // Back/Cancel handler: open the confirm dialog when dirty, navigate
+  // straight through when clean. Bound to the header button below.
+  const handleEditCancel = () => {
+    if (isDirty) {
+      setCancelDialogOpen(true);
+    } else {
+      navigate('/candidate-dashboard');
+    }
+  };
+  // Confirmed-leave: clear the autosave draft (so it doesn't shadow
+  // the real DB state on next entry — no orphaned drafts), reset the
+  // restore banner, then navigate. After this branch, the only way a
+  // draft survives a leave is tab-close / refresh — Cancel always
+  // discards.
+  const handleConfirmLeave = () => {
+    if (editCandidateId) clearDraft(editCandidateId);
+    setDraftSavedAt(null);
+    setDraftRestored(false);
+    setCancelDialogOpen(false);
+    navigate('/candidate-dashboard');
+  };
+
+  // ── Edit-mode debounced autosave ─────────────────────────────────────────
+  // Persists in-progress edits to localStorage (keyed by candidate id)
+  // so a refresh/navigate doesn't lose them. Does NOT write to the
+  // live candidate row and does NOT fire admin-notify — both happen
+  // only on explicit Save Changes via handleEditSave.
+  //
+  // Gates: edit mode + a candidate id is known + initial prefill done
+  // + still inside the form (skip the success screen so the post-save
+  // clearDraft can't be immediately overwritten).
+  useEffect(() => {
+    if (!isEditMode || !editCandidateId || editLoading || screen !== 'form') return;
+    const handle = setTimeout(() => {
+      saveDraft(editCandidateId, form);
+      setDraftSavedAt(new Date().toISOString());
+    }, 800);
+    return () => clearTimeout(handle);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form, isEditMode, editCandidateId, editLoading, screen]);
 
   // ── Edit-mode save ────────────────────────────────────────────────────────
   // PATCHes only the whitelisted fields to /api/candidate-profile (the
@@ -1009,6 +1189,13 @@ export default function CandidateApply() {
         setSubmitError('Could not save changes — please try again.');
         return;
       }
+      // Clear the autosave draft now that the live row holds the
+      // canonical version. Leaving the draft in place would shadow
+      // the freshly-saved data on the next /apply?edit=1 visit and
+      // make stale local edits look authoritative.
+      if (editCandidateId) clearDraft(editCandidateId);
+      setDraftSavedAt(null);
+      setDraftRestored(false);
       setScreen('success');
     } catch (err: any) {
       console.error('[CandidateApply] edit save failed:', err);
@@ -1102,7 +1289,14 @@ export default function CandidateApply() {
   const canProceedStep2 =
     !!(form.primaryBackground && form.detailedExperience.length > 0 && form.experience);
 
-  const canProceedStep3 = form.resumeParsed !== null;
+  // In CREATE mode the candidate must upload + parse a resume on this
+  // step (resumeParsed is set by handleResumeUpload after the
+  // parse-resume call resolves). In EDIT mode the resume isn't
+  // re-uploaded — the single-resume model is preserved; the existing
+  // file is shown read-only. So an already-uploaded resume (signalled
+  // by editResumeFilename, derived from resume_full_url during the
+  // edit prefill) also satisfies this step's gate.
+  const canProceedStep3 = form.resumeParsed !== null || (isEditMode && !!editResumeFilename);
 
   // Tab 4: comp is now mandatory here (only place it's asked); work
   // preferences must be at least one selected (multi-select); job-status
@@ -1791,6 +1985,23 @@ export default function CandidateApply() {
     <div className="min-h-screen bg-white">
       <div className="border-b px-6 py-4 flex items-center justify-between gap-4">
         <div className="flex items-center gap-3 min-w-0">
+          {/* "Back to dashboard" on the LEFT in edit mode — visible
+              and labeled. When the form has unsaved edits relative to
+              the DB baseline (typed-now OR restored from a prior
+              session's draft), clicking opens a confirm dialog so an
+              accidental click doesn't silently lose work. When clean,
+              navigates straight through. Confirmed-leave clears the
+              localStorage draft so a stale Cancel-path draft can
+              never shadow the real saved data on next entry. */}
+          {isEditMode && (
+            <button
+              type="button"
+              onClick={handleEditCancel}
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 border border-gray-200 hover:border-gray-300 rounded-lg px-3 py-1.5"
+            >
+              <ChevronLeft className="w-4 h-4" /> Back to dashboard
+            </button>
+          )}
           <span className="font-bold text-lg text-gray-900 tracking-tight">SFC Talent</span>
           {isEditMode && (
             <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5">
@@ -1799,14 +2010,47 @@ export default function CandidateApply() {
           )}
         </div>
         <div className="flex items-center gap-4 shrink-0">
-          <span className="text-sm text-gray-400">Step {step} of {TOTAL_STEPS}</span>
-          {isEditMode && (
-            <Link to="/candidate-dashboard" className="text-sm text-gray-500 hover:text-gray-900">
-              Cancel
-            </Link>
+          {/* Autosave indicator — only shown in edit mode after the
+              first autosave fires. Low-emphasis: confirms work isn't
+              being lost without competing with the primary CTA. */}
+          {isEditMode && draftSavedAt && (
+            <span className="text-xs text-gray-400" title={`Autosaved at ${draftSavedAt}`}>
+              Draft saved
+            </span>
           )}
+          <span className="text-sm text-gray-400">Step {step} of {TOTAL_STEPS}</span>
         </div>
       </div>
+      {isEditMode && draftRestored && (
+        <div className="bg-amber-50 border-b border-amber-200 px-6 py-2.5 text-xs text-amber-900 flex items-center justify-between gap-3">
+          <span>
+            We restored your in-progress edits from this browser. Click <strong>Save Changes</strong> on the Review tab to apply them, or
+            {' '}
+            <button
+              type="button"
+              onClick={() => {
+                if (!editCandidateId) return;
+                clearDraft(editCandidateId);
+                // Re-run the prefill effect by reloading; simplest
+                // way to discard the overlay without re-implementing
+                // the whole DB→FormState mapping inline here.
+                window.location.reload();
+              }}
+              className="underline font-medium hover:text-amber-700"
+            >
+              discard them and reload your saved profile
+            </button>.
+          </span>
+          <button
+            type="button"
+            onClick={() => setDraftRestored(false)}
+            aria-label="Dismiss"
+            className="text-amber-700 hover:text-amber-900 shrink-0"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* Clickable step bar. Earlier steps always navigable; later
           steps unlocked once every previous validator passes.
@@ -2535,6 +2779,33 @@ export default function CandidateApply() {
           )}
         </div>
       </div>
+
+      {/* Edit-mode Cancel confirmation. Controlled — opens only when
+          handleEditCancel finds the form dirty. "Leave without saving"
+          clears the localStorage draft (so a Cancel-path draft never
+          shadows the real DB row on next entry) and navigates;
+          "Keep editing" dismisses. Hidden entirely in create mode. */}
+      {isEditMode && (
+        <AlertDialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Leave without saving?</AlertDialogTitle>
+              <AlertDialogDescription>
+                You have unsaved changes. If you leave now, your changes will be lost and nothing new will be saved.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Keep editing</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleConfirmLeave}
+                className="bg-red-600 hover:bg-red-700 focus:ring-red-500"
+              >
+                Leave without saving
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     </div>
   );
 }

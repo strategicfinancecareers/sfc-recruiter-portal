@@ -10,7 +10,16 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 );
 
-const TEST_CC_EMAIL = 'lillian.daya@gmail.com';
+// NOTE: This file previously hardcoded a personal Gmail address as a
+// permanent CC on every recruiter-facing intro response email
+// (approved + rejected). That meant a real human inbox was receiving
+// every candidate's name, email, phone, and a 7-day signed resume
+// download URL on every accept. Removed unconditionally — there is no
+// "non-prod" version of this address to gate behind an env var, it was
+// never appropriate to send PII to. If you ever want a test sink in a
+// preview environment, add it via process.env and gate on
+// process.env.VERCEL_ENV !== 'production'; do not reintroduce a
+// hardcoded address here.
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { introId, response } = req.query;
@@ -59,9 +68,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.log('[respond-to-intro] recruiterUser:', JSON.stringify(recruiterUser));
     console.log('[respond-to-intro] job:', JSON.stringify({ id: job?.id, title: job?.title, company: job?.company, user_id: job?.user_id }));
 
-    // Determine recruiter email: prefer user lookup, fallback to TEST_CC
-    const recruiterEmail: string = (recruiterUser as any)?.email || TEST_CC_EMAIL;
-    const toList = recruiterEmail === TEST_CC_EMAIL ? [TEST_CC_EMAIL] : [recruiterEmail, TEST_CC_EMAIL];
+    // Recipient: the recruiter who requested the intro. If we can't
+    // resolve their email (orphan intro / missing users row), we now
+    // SKIP the send and log — previously this fell back to the test CC
+    // alone, which meant the real recruiter never heard about the
+    // candidate's response and the PII landed in a personal inbox.
+    const recruiterEmail: string | undefined = (recruiterUser as any)?.email || undefined;
+    if (!recruiterEmail) {
+      console.warn('[respond-to-intro] no recruiter email on file — skipping notification send for intro', introId);
+    }
+    const toList: string[] = recruiterEmail ? [recruiterEmail] : [];
     console.log('[respond-to-intro] sending email to:', JSON.stringify(toList));
 
     console.log('[respond-to-intro] candidate fields:', JSON.stringify({ name: candidate?.name, display_name: candidate?.display_name, email: candidate?.email, phone: candidate?.phone, has_resume: !!candidate?.resume_full_url }));
@@ -112,15 +128,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         + '</div>';
 
       console.log('[respond-to-intro] sending YES email, signed URL included:', !!resumeDownloadUrl);
-      const { data: emailData, error: emailErr } = await resend.emails.send({
-        from: 'SFC Talent <noreply@strategicfinancecareers.com>',
-        to: toList,
-        subject: `✅ ${candidateName} is interested in your ${jobTitle} role`,
-        html: yesHtml,
-      });
-      console.log('[respond-to-intro] YES email result:', JSON.stringify({ emailData, emailErr }));
+      if (toList.length === 0) {
+        console.warn('[respond-to-intro] YES — no recipients resolved, skipping resend.emails.send');
+      } else {
+        const { data: emailData, error: emailErr } = await resend.emails.send({
+          from: 'SFC Talent <noreply@strategicfinancecareers.com>',
+          to: toList,
+          subject: `✅ ${candidateName} is interested in your ${jobTitle} role`,
+          html: yesHtml,
+        });
+        console.log('[respond-to-intro] YES email result:', JSON.stringify({ emailData, emailErr }));
+      }
     } else {
       console.log('[respond-to-intro] sending NO email');
+      if (toList.length === 0) {
+        console.warn('[respond-to-intro] NO — no recipients resolved, skipping resend.emails.send');
+      } else {
       const { data: noEmailData, error: noEmailErr } = await resend.emails.send({
         from: 'SFC Talent <noreply@strategicfinancecareers.com>',
         to: toList,
@@ -137,6 +160,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           + '</div>',
       });
       console.log('[respond-to-intro] NO email result:', JSON.stringify({ noEmailData, noEmailErr }));
+      }
     }
 
     // Return a clean HTML response page

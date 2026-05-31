@@ -1,4 +1,12 @@
 import { createClient } from '@supabase/supabase-js';
+import { Resend } from 'resend';
+
+// Admin notify destination + sender; reuses the pattern from
+// api/recruiter-signup.js so deliverability + reply behavior match.
+const ADMIN_NOTIFY_EMAIL = 'zu@strategicfinancecareers.com';
+const FROM_ADDR = 'SFC Talent <noreply@strategicfinancecareers.com>';
+const APP_URL = 'https://sfc-recruiter-portal.vercel.app';
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // /api/candidate-profile — candidate-self only
@@ -56,15 +64,26 @@ import { createClient } from '@supabase/supabase-js';
 // deliberately keep OUT of this GET (no UI consumer + no need to widen
 // the exposure surface): phone, work_authorized_us,
 // requires_sponsorship.
+// Extended for the wizard-edit flow so /apply?edit=1 can prefill every
+// editable FormState field. The four additions below (phone,
+// detailed_experience, work_authorized_us, requires_sponsorship) are
+// candidate-self only — the bearer ownership gate above ensures only
+// the candidate themselves can read these. They are deliberately not
+// rendered by any recruiter-facing UI; src/hooks/useCandidates.ts
+// currently does select('*') which transmits work_authorized_us /
+// requires_sponsorship to the recruiter browser but no card displays
+// them. Narrowing that hook is a tracked follow-up; out of scope here.
 const CANDIDATE_GET_COLUMNS = [
-  'id', 'name', 'display_name', 'email',
+  'id', 'name', 'display_name', 'email', 'phone',
   'label', 'location', 'experience',
   'education', 'highest_education_level',
-  'primary_background', 'secondary_backgrounds',
+  'primary_background', 'secondary_backgrounds', 'detailed_experience',
   'profile_description', 'open_to_opportunities',
   'work_preference', 'work_preferences',
-  'target_salary', 'preferred_cities', 'target_roles', 'industries',
-  'linkedin_url', 'resume_full_url',
+  'target_salary', 'preferred_cities', 'preferred_cities_other',
+  'target_roles', 'target_company_stages', 'industries', 'industries_other',
+  'new_areas', 'linkedin_url', 'resume_full_url',
+  'work_authorized_us', 'requires_sponsorship',
   'status',
 ].join(', ');
 
@@ -220,7 +239,33 @@ export default async function handler(req, res) {
       // `skills` is included so the dashboard's Edit form save round-trip
       // behaves the same as it did before this hardening (preserving
       // today's behavior, per spec).
+      // Wizard-edit additions: phone, primary_background,
+      // secondary_backgrounds, detailed_experience, experience, label,
+      // location, education, highest_education_level,
+      // work_authorized_us, requires_sponsorship.
+      //
+      // `skills` was REMOVED from the whitelist — candidates.skills is
+      // not a column. Skills live in candidate_skills (join table) and
+      // any .update({skills: ...}) on candidates errors from PostgREST,
+      // failing the entire PATCH. Until a dedicated
+      // /api/update-candidate-skills endpoint owns the join writes,
+      // skills are read-only in edit mode (the wizard surfaces a
+      // "coming soon" note). Tracked follow-up; not this build.
+      //
+      // Still EXCLUDED by design: id, email, name, display_name (auth/
+      // anonymity keys); status, approved_at, approved_by,
+      // rejection_reason (admin approval workflow); sfc_* (admin-
+      // curated). A candidate must never be able to write any of these.
       const ALLOWED_PATCH_COLUMNS = new Set([
+        'phone',
+        'primary_background',
+        'secondary_backgrounds',
+        'detailed_experience',
+        'experience',
+        'label',
+        'location',
+        'education',
+        'highest_education_level',
         'profile_description',
         'work_preference',
         'work_preferences',
@@ -234,13 +279,31 @@ export default async function handler(req, res) {
         'industries_other',
         'target_company_stages',
         'new_areas',
-        'skills',
+        'work_authorized_us',
+        'requires_sponsorship',
       ]);
       const safeUpdates = {};
       const droppedKeys = [];
       for (const k of Object.keys(updates)) {
-        if (ALLOWED_PATCH_COLUMNS.has(k)) safeUpdates[k] = updates[k];
-        else droppedKeys.push(k);
+        if (!ALLOWED_PATCH_COLUMNS.has(k)) {
+          droppedKeys.push(k);
+          continue;
+        }
+        // `experience` is an integer column. Coerce + validate
+        // server-side so a client sending "5" (string) or "5to10"
+        // (years bucket) doesn't break the update. Reject obvious
+        // garbage but don't fail the whole save — drop just this key.
+        if (k === 'experience') {
+          const n = Number(updates[k]);
+          if (Number.isFinite(n) && n >= 0 && n <= 60 && Number.isInteger(n)) {
+            safeUpdates[k] = n;
+          } else {
+            console.warn('[candidate-profile] PATCH: dropping non-integer experience value:', updates[k]);
+            droppedKeys.push(k);
+          }
+          continue;
+        }
+        safeUpdates[k] = updates[k];
       }
       if (droppedKeys.length > 0) {
         console.warn('[candidate-profile] PATCH dropped non-whitelisted keys:', droppedKeys);
@@ -261,7 +324,63 @@ export default async function handler(req, res) {
         }));
         return res.status(500).json({ error: patchError.message });
       }
-      return res.status(200).json({ success: true });
+
+      // ── Admin notify on successful edit (best-effort) ───────────────
+      // Server-side so a client can't skip it; logged but never blocks
+      // the save (mirrors the recruiter-signup pattern). Fires only on
+      // candidate-self EDITs via this PATCH endpoint — the create flow
+      // in /api/submit-candidate has its own "New Candidate Application"
+      // admin email and is not touched here, so this won't double-notify.
+      // No field-level diff in this pass (just identity + a Review CTA).
+      let notifyEmailSent = false;
+      let notifyEmailError = null;
+      if (!process.env.RESEND_API_KEY) {
+        notifyEmailError = 'RESEND_API_KEY missing';
+        console.warn('[candidate-profile] PATCH notify skipped:', notifyEmailError);
+      } else {
+        try {
+          // Pull display_name + id for the notification subject/body.
+          // Use the verified candidate row (target) we loaded for
+          // ownership, augmented with display_name; second fetch is
+          // cheap and keeps the notify branch self-contained.
+          const { data: notifyRow } = await supabase
+            .from('candidates')
+            .select('id, display_name, name, label')
+            .eq('id', id)
+            .maybeSingle();
+          const displayName = (notifyRow?.display_name || notifyRow?.label || notifyRow?.name || 'A candidate').trim();
+          const reviewUrl = `${APP_URL}/admin`;
+          const html = `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">
+            <h2 style="color:#0F6E56">Candidate profile updated</h2>
+            <p><strong>${displayName}</strong> updated their profile.</p>
+            <div style="margin:24px 0"><a href="${reviewUrl}" style="display:inline-block;background:#0F6E56;color:white;text-decoration:none;padding:12px 24px;border-radius:6px;font-weight:600">Review in admin panel →</a></div>
+            <hr style="border:none;border-top:1px solid #eee;margin:24px 0" />
+            <p style="color:#999;font-size:12px">SFC Talent · strategicfinancecareers.com</p>
+          </div>`;
+          const r = await resend.emails.send({
+            from: FROM_ADDR,
+            to: ADMIN_NOTIFY_EMAIL,
+            subject: `Candidate profile updated: ${displayName}`,
+            html,
+          });
+          if (r?.error) {
+            notifyEmailError = r.error.message || String(r.error);
+            console.error('[candidate-profile] PATCH notify Resend error:', notifyEmailError);
+          } else {
+            notifyEmailSent = true;
+          }
+        } catch (err) {
+          notifyEmailError = err?.message || String(err);
+          console.error('[candidate-profile] PATCH notify threw:', notifyEmailError);
+        }
+      }
+
+      return res.status(200).json({
+        success: true,
+        notifyEmailSent,
+        ...(notifyEmailError ? { notifyEmailError } : {}),
+        ...(droppedKeys.length ? { dropped: droppedKeys } : {}),
+      });
     }
 
     return res.status(405).json({ error: 'Method not allowed' });

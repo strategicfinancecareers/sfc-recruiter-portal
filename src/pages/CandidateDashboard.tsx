@@ -337,17 +337,11 @@ export default function CandidateDashboard() {
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
-const CITY_OPTIONS = [
-  'New York', 'San Francisco / Bay Area', 'Los Angeles', 'Chicago',
-  'Boston', 'Austin', 'Miami', 'Seattle', 'Denver', 'Washington D.C.',
-  'Open to relocation', 'No preference',
-];
-
-const ROLE_OPTIONS = [
-  'Strategic Finance', 'Corporate Development', 'FP&A', 'Strategy & Operations',
-  'Finance Manager / Director', 'VP Finance / CFO', 'Chief of Staff',
-];
-
+// CITY_OPTIONS and ROLE_OPTIONS lived here for the previous inline
+// edit form on the Profile tab. That form is gone — edits now happen
+// in the /apply?edit=1 wizard which owns its own option lists. Only
+// COMP_OPTIONS is still referenced, by the read-only target-comp label
+// in ProfileTab.
 const COMP_OPTIONS = [
   { value: 'under-70k', label: 'Under $70,000' },
   { value: '70k-100k',  label: '$70,000 – $100,000' },
@@ -447,14 +441,11 @@ function Dashboard({
   const pendingCount = intros?.filter(i => i.status === 'pending').length ?? 0;
   const canHaveIntros = candidate.status === 'active';
 
-  const updateCandidate = (next: CandidateRow) => {
-    setCandidate(next);
-    onUpdate(next);
-  };
-  const updateSkills = (next: string[]) => {
-    setSkills(next);
-    onUpdate({ ...candidate, skills: next });
-  };
+  // updateCandidate / updateSkills were used by the previous inline
+  // ProfileTab edit form to push saved changes back to the parent;
+  // edits now happen via the full wizard at /apply?edit=1 which
+  // navigates away and back, so a fresh GET picks up the new data on
+  // dashboard re-mount. No in-place mutation pipeline needed here.
 
   // ── Tabs ─────────────────────────────────────────────────────────────────
   const TABS: { key: TabKey; label: string; icon: typeof User; badge?: number }[] = [
@@ -597,12 +588,7 @@ function Dashboard({
           <StatusBanner status={candidate.status} />
 
           {tab === 'profile' && (
-            <ProfileTab
-              candidate={candidate}
-              skills={skills}
-              onUpdateCandidate={updateCandidate}
-              onUpdateSkills={updateSkills}
-            />
+            <ProfileTab candidate={candidate} skills={skills} />
           )}
           {tab === 'recruiter-view' && (
             <RecruiterViewTab candidate={candidate} skills={skills} />
@@ -665,421 +651,101 @@ function Card({
 function ProfileTab({
   candidate,
   skills,
-  onUpdateCandidate,
-  onUpdateSkills,
 }: {
   candidate: CandidateRow;
   skills: string[];
-  onUpdateCandidate: (c: CandidateRow) => void;
-  onUpdateSkills: (s: string[]) => void;
 }) {
-  const [showEdit, setShowEdit] = useState(false);
-
-  // Pre-fill the edit form from the canonical post-rework fields, falling
-  // back to the deprecated singular mirror when only that was written.
-  // Centralizing this here (and re-running it via the openEdit reset and
-  // the candidate-changed useEffect below) is the fix for bug #1.8 —
-  // previously the form initializers read candidate.work_preference
-  // (singular) which is null for candidates submitted via the new wizard,
-  // so the form started blank.
-  const seedWorkPref = () =>
-    (candidate.work_preferences && candidate.work_preferences[0])
-    || candidate.work_preference
-    || '';
-
-  const [editBio, setEditBio] = useState(candidate.profile_description || '');
-  const [editWorkPref, setEditWorkPref] = useState(seedWorkPref());
-  const [editTargetComp, setEditTargetComp] = useState(candidate.target_salary || '');
-  const [editAvail, setEditAvail] = useState<'active' | 'inactive'>(candidate.open_to_opportunities ? 'active' : 'inactive');
-  const [editCities, setEditCities] = useState<string[]>(candidate.preferred_cities ?? []);
-  const [editRoles, setEditRoles] = useState<string[]>(candidate.target_roles ?? []);
-  const [editLinkedin, setEditLinkedin] = useState(candidate.linkedin_url || '');
-  const [editSkills, setEditSkills] = useState<string[]>(skills);
-  const [skillInput, setSkillInput] = useState('');
-  const [editSaving, setEditSaving] = useState(false);
-  const [editSaved, setEditSaved] = useState(false);
-  const [editError, setEditError] = useState('');
-
-  // Resync when the candidate prop changes (e.g., after a save round-trip
-  // refreshes the parent state). Only resyncs when the form is NOT open,
-  // so we don't overwrite the user's in-progress edits.
-  useEffect(() => {
-    if (showEdit) return;
-    setEditBio(candidate.profile_description || '');
-    setEditWorkPref(seedWorkPref());
-    setEditTargetComp(candidate.target_salary || '');
-    setEditAvail(candidate.open_to_opportunities ? 'active' : 'inactive');
-    setEditCities(candidate.preferred_cities ?? []);
-    setEditRoles(candidate.target_roles ?? []);
-    setEditLinkedin(candidate.linkedin_url || '');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [candidate]);
-  useEffect(() => {
-    if (!showEdit) setEditSkills(skills);
-  }, [skills, showEdit]);
-
-  const openEdit = () => {
-    setEditBio(candidate.profile_description || '');
-    setEditWorkPref(seedWorkPref());
-    setEditTargetComp(candidate.target_salary || '');
-    setEditAvail(candidate.open_to_opportunities ? 'active' : 'inactive');
-    setEditCities(candidate.preferred_cities ?? []);
-    setEditRoles(candidate.target_roles ?? []);
-    setEditLinkedin(candidate.linkedin_url || '');
-    setEditSkills(skills);
-    setEditError('');
-    setShowEdit(true);
-  };
-
-  const toggleCity = (c: string) =>
-    setEditCities(prev => prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c]);
-  const toggleRole = (r: string) =>
-    setEditRoles(prev => prev.includes(r) ? prev.filter(x => x !== r) : [...prev, r]);
-
-  const addSkill = () => {
-    const t = skillInput.trim();
-    if (t && !editSkills.includes(t)) setEditSkills(prev => [...prev, t]);
-    setSkillInput('');
-  };
-  const removeSkill = (s: string) => setEditSkills(prev => prev.filter(x => x !== s));
-
-  const saveEdit = async () => {
-    setEditSaving(true);
-    setEditError('');
-    try {
-      const res = await authedFetch('/api/candidate-profile', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: candidate.id,
-          profile_description: editBio,
-          work_preference: editWorkPref,
-          target_salary: editTargetComp,
-          open_to_opportunities: editAvail === 'active',
-          preferred_cities: editCities,
-          target_roles: editRoles,
-          linkedin_url: editLinkedin,
-          skills: editSkills,
-        }),
-      });
-      if (!res.ok) {
-        setEditError('Could not save changes — please try again.');
-        return;
-      }
-      const updated: CandidateRow = {
-        ...candidate,
-        profile_description: editBio,
-        work_preference: editWorkPref,
-        target_salary: editTargetComp,
-        open_to_opportunities: editAvail === 'active',
-        preferred_cities: editCities,
-        target_roles: editRoles,
-        linkedin_url: editLinkedin,
-      };
-      onUpdateCandidate(updated);
-      onUpdateSkills(editSkills);
-      setEditSaved(true);
-      setTimeout(() => { setEditSaved(false); setShowEdit(false); }, 1500);
-    } finally {
-      setEditSaving(false);
-    }
-  };
-
+  // Edits launch the full 6-tab wizard in edit mode at /apply?edit=1
+  // instead of the previous cramped inline form. The wizard prefills
+  // from /api/candidate-profile (bearer-gated, candidate-self only),
+  // saves via the same endpoint's PATCH (column whitelist enforces
+  // status/approval immutability), then routes back here. This tab
+  // shows the read-only summary only.
   const bio = candidate.profile_description || '';
-  const displaySkills = showEdit ? editSkills : skills;
+  const displaySkills = skills;
   const workPrefDisplay = (candidate.work_preferences && candidate.work_preferences.join(', '))
     || candidate.work_preference;
-
-  // ─ Themed UI helpers ─
-  const inputCls = 'w-full border rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2';
-  const inputStyle = { borderColor: 'rgba(14,14,13,.15)', color: INK, ['--tw-ring-color' as any]: BRAND } as React.CSSProperties;
-  const labelStyle = { fontFamily: MONO, fontSize: 10.5, letterSpacing: '0.18em', textTransform: 'uppercase' as const, color: 'rgba(14,14,13,.55)' };
 
   return (
     <Card
       title="Your Profile"
       action={
-        !showEdit ? (
-          <button
-            onClick={openEdit}
-            className="text-sm font-semibold transition-colors"
-            style={{ color: BRAND }}
-            onMouseEnter={e => (e.currentTarget.style.color = BRAND_HOVER)}
-            onMouseLeave={e => (e.currentTarget.style.color = BRAND)}
-          >
-            Edit Profile
-          </button>
-        ) : (
-          <button
-            onClick={() => { setShowEdit(false); setEditError(''); }}
-            className="text-sm font-medium"
-            style={{ color: 'rgba(14,14,13,.55)' }}
-          >
-            Cancel
-          </button>
-        )
+        <Link
+          to="/apply?edit=1"
+          className="text-sm font-semibold transition-colors"
+          style={{ color: BRAND }}
+          onMouseEnter={e => (e.currentTarget.style.color = BRAND_HOVER)}
+          onMouseLeave={e => (e.currentTarget.style.color = BRAND)}
+        >
+          Edit Profile
+        </Link>
       }
     >
-      {/* ── Read-only view ── */}
-      {!showEdit && (
-        <div className="space-y-4">
-          <div>
-            <p
-              className="text-2xl"
-              style={{ fontFamily: SERIF, fontWeight: 500, letterSpacing: '-0.01em', color: INK }}
-            >
-              {candidate.label || 'Finance Professional'}
-            </p>
-            <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2">
-              {candidate.location && <span className="text-sm" style={{ color: 'rgba(14,14,13,.6)' }}>{candidate.location}</span>}
-              {candidate.experience != null && <span className="text-sm" style={{ color: 'rgba(14,14,13,.6)' }}>{candidate.experience} yrs exp</span>}
-              {workPrefDisplay && <span className="text-sm" style={{ color: 'rgba(14,14,13,.6)' }}>{workPrefDisplay}</span>}
-              {candidate.open_to_opportunities != null && (
-                <span
-                  className="text-xs font-semibold px-2 py-0.5 rounded-full"
-                  style={{
-                    background: candidate.open_to_opportunities ? 'rgba(0,128,55,.1)' : 'rgba(14,14,13,.06)',
-                    color: candidate.open_to_opportunities ? BRAND : 'rgba(14,14,13,.55)',
-                  }}
-                >
-                  {candidate.open_to_opportunities ? '🟢 Actively Looking' : '⏸ Not Active'}
-                </span>
-              )}
-            </div>
-          </div>
-          {bio && <p className="text-sm leading-relaxed" style={{ color: 'rgba(14,14,13,.75)' }}>{bio}</p>}
-          {displaySkills.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 pt-1">
-              {displaySkills.map(s => (
-                <span
-                  key={s}
-                  className="px-2.5 py-1 rounded-full text-xs font-medium border"
-                  style={{ background: 'rgba(0,128,55,.06)', color: BRAND, borderColor: 'rgba(0,128,55,.18)' }}
-                >
-                  {s}
-                </span>
-              ))}
-            </div>
-          )}
-          <div className="space-y-1 pt-2">
-            {candidate.target_salary && (
-              <p className="text-xs" style={{ color: 'rgba(14,14,13,.5)' }}>Target comp: {COMP_OPTIONS.find(o => o.value === candidate.target_salary)?.label ?? candidate.target_salary}</p>
-            )}
-            {candidate.preferred_cities && candidate.preferred_cities.length > 0 && (
-              <p className="text-xs" style={{ color: 'rgba(14,14,13,.5)' }}>Cities: {candidate.preferred_cities.join(', ')}</p>
-            )}
-            {candidate.target_roles && candidate.target_roles.length > 0 && (
-              <p className="text-xs" style={{ color: 'rgba(14,14,13,.5)' }}>Target roles: {candidate.target_roles.join(', ')}</p>
-            )}
-            {candidate.industries && candidate.industries.length > 0 && (
-              <p className="text-xs" style={{ color: 'rgba(14,14,13,.5)' }}>Industries: {candidate.industries.join(', ')}</p>
-            )}
-            {candidate.linkedin_url && (
-              <a
-                href={candidate.linkedin_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-xs font-medium hover:underline pt-1"
-                style={{ color: BRAND }}
+      <div className="space-y-4">
+        <div>
+          <p
+            className="text-2xl"
+            style={{ fontFamily: SERIF, fontWeight: 500, letterSpacing: '-0.01em', color: INK }}
+          >
+            {candidate.label || 'Finance Professional'}
+          </p>
+          <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2">
+            {candidate.location && <span className="text-sm" style={{ color: 'rgba(14,14,13,.6)' }}>{candidate.location}</span>}
+            {candidate.experience != null && <span className="text-sm" style={{ color: 'rgba(14,14,13,.6)' }}>{candidate.experience} yrs exp</span>}
+            {workPrefDisplay && <span className="text-sm" style={{ color: 'rgba(14,14,13,.6)' }}>{workPrefDisplay}</span>}
+            {candidate.open_to_opportunities != null && (
+              <span
+                className="text-xs font-semibold px-2 py-0.5 rounded-full"
+                style={{
+                  background: candidate.open_to_opportunities ? 'rgba(0,128,55,.1)' : 'rgba(14,14,13,.06)',
+                  color: candidate.open_to_opportunities ? BRAND : 'rgba(14,14,13,.55)',
+                }}
               >
-                LinkedIn <ExternalLink className="w-3 h-3" />
-              </a>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* ── Edit form ── */}
-      {showEdit && (
-        <div className="space-y-5">
-          <div>
-            <label className="block mb-1.5" style={labelStyle}>Professional Bio</label>
-            <textarea
-              value={editBio}
-              onChange={e => setEditBio(e.target.value)}
-              rows={4}
-              className={`${inputCls} resize-none leading-relaxed`}
-              style={inputStyle}
-              placeholder="Describe your background and what you're looking for…"
-            />
-          </div>
-
-          <div>
-            <label className="block mb-1.5" style={labelStyle}>Work Preference</label>
-            <select
-              value={editWorkPref}
-              onChange={e => setEditWorkPref(e.target.value)}
-              className={inputCls}
-              style={inputStyle}
-            >
-              <option value="">Select…</option>
-              {['Remote', 'Hybrid', 'In-Office'].map(o => <option key={o} value={o}>{o}</option>)}
-            </select>
-          </div>
-
-          <div>
-            <label className="block mb-1.5" style={labelStyle}>Target Total Compensation</label>
-            <select
-              value={editTargetComp}
-              onChange={e => setEditTargetComp(e.target.value)}
-              className={inputCls}
-              style={inputStyle}
-            >
-              <option value="">Select…</option>
-              {COMP_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
-          </div>
-
-          <div>
-            <label className="block mb-2" style={labelStyle}>Availability</label>
-            <div className="grid grid-cols-2 gap-3">
-              {([
-                { val: 'active',   emoji: '🟢', label: 'Actively Looking', desc: "Open to new opportunities" },
-                { val: 'inactive', emoji: '⏸️', label: 'Not Active',       desc: "Not looking right now" },
-              ] as const).map(opt => {
-                const sel = editAvail === opt.val;
-                return (
-                  <button
-                    key={opt.val}
-                    type="button"
-                    onClick={() => setEditAvail(opt.val)}
-                    className="p-3 border-2 rounded-xl text-left transition-all"
-                    style={{
-                      borderColor: sel ? BRAND : 'rgba(14,14,13,.12)',
-                      background: sel ? 'rgba(0,128,55,.06)' : '#fff',
-                    }}
-                  >
-                    <div className="text-lg mb-1">{opt.emoji}</div>
-                    <p className="text-xs font-semibold leading-tight" style={{ color: sel ? BRAND : INK }}>{opt.label}</p>
-                    <p className="text-xs mt-0.5" style={{ color: 'rgba(14,14,13,.5)' }}>{opt.desc}</p>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div>
-            <label className="block mb-2" style={labelStyle}>Preferred Cities</label>
-            <div className="flex flex-wrap gap-2">
-              {CITY_OPTIONS.map(c => {
-                const sel = editCities.includes(c);
-                return (
-                  <button
-                    key={c}
-                    type="button"
-                    onClick={() => toggleCity(c)}
-                    className="px-3 py-1.5 rounded-full text-xs border font-medium transition-all"
-                    style={{
-                      background: sel ? BRAND : '#fff',
-                      color: sel ? '#fff' : INK,
-                      borderColor: sel ? BRAND : 'rgba(14,14,13,.18)',
-                    }}
-                  >
-                    {c}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div>
-            <label className="block mb-2" style={labelStyle}>Target Roles</label>
-            <div className="flex flex-wrap gap-2">
-              {ROLE_OPTIONS.map(r => {
-                const sel = editRoles.includes(r);
-                return (
-                  <button
-                    key={r}
-                    type="button"
-                    onClick={() => toggleRole(r)}
-                    className="px-3 py-1.5 rounded-full text-xs border font-medium transition-all"
-                    style={{
-                      background: sel ? BRAND : '#fff',
-                      color: sel ? '#fff' : INK,
-                      borderColor: sel ? BRAND : 'rgba(14,14,13,.18)',
-                    }}
-                  >
-                    {r}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div>
-            <label className="block mb-1.5" style={labelStyle}>LinkedIn URL</label>
-            <input
-              type="url"
-              value={editLinkedin}
-              onChange={e => setEditLinkedin(e.target.value)}
-              placeholder="https://linkedin.com/in/yourname"
-              className={inputCls}
-              style={inputStyle}
-            />
-          </div>
-
-          <div>
-            <label className="block mb-1.5" style={labelStyle}>Skills</label>
-            <div className="flex gap-2 mb-2">
-              <input
-                type="text"
-                value={skillInput}
-                onChange={e => setSkillInput(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addSkill(); } }}
-                placeholder="e.g. Financial Modeling, SQL…"
-                className={`${inputCls} flex-1`}
-                style={inputStyle}
-              />
-              <button
-                type="button"
-                onClick={addSkill}
-                className="px-3 py-2 border rounded-lg text-sm font-medium hover:bg-gray-50"
-                style={{ borderColor: 'rgba(14,14,13,.15)', color: 'rgba(14,14,13,.7)' }}
-              >
-                Add
-              </button>
-            </div>
-            {editSkills.length > 0 && (
-              <div className="flex flex-wrap gap-1.5">
-                {editSkills.map(s => (
-                  <span
-                    key={s}
-                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border"
-                    style={{ background: 'rgba(0,128,55,.06)', color: BRAND, borderColor: 'rgba(0,128,55,.18)' }}
-                  >
-                    {s}
-                    <button type="button" onClick={() => removeSkill(s)} className="hover:text-red-500 transition-colors">
-                      <X className="w-3 h-3" />
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {editError && (
-            <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2.5">{editError}</p>
-          )}
-          <div className="flex items-center gap-3 pt-1">
-            {editSaved && (
-              <span className="flex items-center gap-1.5 text-sm font-medium" style={{ color: BRAND }}>
-                <CheckCircle2 className="w-4 h-4" /> Saved
+                {candidate.open_to_opportunities ? '🟢 Actively Looking' : '⏸ Not Active'}
               </span>
             )}
-            <button
-              onClick={saveEdit}
-              disabled={editSaving}
-              className="flex items-center gap-2 disabled:opacity-60 text-white rounded-lg px-5 py-2 text-sm font-semibold transition-colors"
-              style={{ background: BRAND }}
-              onMouseEnter={e => !editSaving && (e.currentTarget.style.background = BRAND_HOVER)}
-              onMouseLeave={e => !editSaving && (e.currentTarget.style.background = BRAND)}
-            >
-              {editSaving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-              Save Changes
-            </button>
           </div>
         </div>
-      )}
+        {bio && <p className="text-sm leading-relaxed" style={{ color: 'rgba(14,14,13,.75)' }}>{bio}</p>}
+        {displaySkills.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 pt-1">
+            {displaySkills.map(s => (
+              <span
+                key={s}
+                className="px-2.5 py-1 rounded-full text-xs font-medium border"
+                style={{ background: 'rgba(0,128,55,.06)', color: BRAND, borderColor: 'rgba(0,128,55,.18)' }}
+              >
+                {s}
+              </span>
+            ))}
+          </div>
+        )}
+        <div className="space-y-1 pt-2">
+          {candidate.target_salary && (
+            <p className="text-xs" style={{ color: 'rgba(14,14,13,.5)' }}>Target comp: {COMP_OPTIONS.find(o => o.value === candidate.target_salary)?.label ?? candidate.target_salary}</p>
+          )}
+          {candidate.preferred_cities && candidate.preferred_cities.length > 0 && (
+            <p className="text-xs" style={{ color: 'rgba(14,14,13,.5)' }}>Cities: {candidate.preferred_cities.join(', ')}</p>
+          )}
+          {candidate.target_roles && candidate.target_roles.length > 0 && (
+            <p className="text-xs" style={{ color: 'rgba(14,14,13,.5)' }}>Target roles: {candidate.target_roles.join(', ')}</p>
+          )}
+          {candidate.industries && candidate.industries.length > 0 && (
+            <p className="text-xs" style={{ color: 'rgba(14,14,13,.5)' }}>Industries: {candidate.industries.join(', ')}</p>
+          )}
+          {candidate.linkedin_url && (
+            <a
+              href={candidate.linkedin_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-xs font-medium hover:underline pt-1"
+              style={{ color: BRAND }}
+            >
+              LinkedIn <ExternalLink className="w-3 h-3" />
+            </a>
+          )}
+        </div>
+      </div>
     </Card>
   );
 }

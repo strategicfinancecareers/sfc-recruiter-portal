@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
+import { useSearchParams, Link } from 'react-router-dom';
 import {
   CheckCircle2, Upload, Loader2, ChevronRight, ChevronLeft,
-  X, Plus, RefreshCw, Mail,
+  X, Plus, RefreshCw, Mail, FileText,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -753,7 +754,23 @@ export default function CandidateApply() {
   // the embedded LandingSection. The LandingSection component is still in
   // this file for the unlikely case anyone navigates back to 'landing'
   // via setScreen, but the initial state skips it.
-  const [screen, setScreen] = useState<Screen>('auth');
+  // ── Edit mode ──────────────────────────────────────────────────────────────
+  // /apply?edit=1 puts the wizard into "edit existing candidate" mode.
+  // In this mode we skip every create-only branch (signup, email
+  // verification, candidate INSERT) and instead prefill the wizard from
+  // the candidate-profile GET, save via PATCH to the same endpoint, and
+  // route back to the dashboard on success. Status stays whatever it
+  // was (active candidates stay active — edits go live immediately;
+  // the PATCH whitelist server-side enforces that status/approval
+  // fields can't be written). Create flow for NEW candidates is the
+  // default — this mode is a strictly additive branch.
+  const [searchParams] = useSearchParams();
+  const isEditMode = searchParams.get('edit') === '1';
+
+  // Initial screen: edit mode jumps straight to the form (prefill
+  // effect below will populate FormState); create mode goes through
+  // 'auth' as before.
+  const [screen, setScreen] = useState<Screen>(isEditMode ? 'form' : 'auth');
   const [step, setStep] = useState(1);
   const [form, setForm] = useState<FormState>(INITIAL_FORM);
   const [parsing, setParsing] = useState(false);
@@ -761,6 +778,14 @@ export default function CandidateApply() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Edit-mode-only state: the loaded candidate id (target of PATCH),
+  // the existing resume filename for the read-only resume tab display,
+  // and a loading flag while the prefill is in flight.
+  const [editCandidateId, setEditCandidateId] = useState<string | null>(null);
+  const [editResumeFilename, setEditResumeFilename] = useState<string>('');
+  const [editLoading, setEditLoading] = useState(isEditMode);
+  const [editPrefillError, setEditPrefillError] = useState('');
 
   // Auth state
   // Initial tab honors ?mode=signin in the URL so the landing's
@@ -781,6 +806,217 @@ export default function CandidateApply() {
 
   const set = (field: keyof FormState, value: any) =>
     setForm(prev => ({ ...prev, [field]: value }));
+
+  // ── Edit-mode prefill ─────────────────────────────────────────────────────
+  // Runs once on mount when ?edit=1 is present. Verifies there's a live
+  // session, then loads /api/candidate-profile (bearer-gated to
+  // candidate-self) and maps each DB column back to its FormState
+  // field. If anything fails (no session, 401/403/404, network),
+  // surface the error inline and let the user retry — do not silently
+  // route them through the create flow.
+  useEffect(() => {
+    if (!isEditMode) return;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        await supabase.auth.refreshSession();
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.user?.email) {
+          // Not signed in — kick to dashboard which will route to the
+          // landing/sign-in surface. Edit mode requires a session.
+          window.location.href = '/candidate-dashboard';
+          return;
+        }
+        const email = session.user.email.toLowerCase();
+        const res = await authedFetch(`/api/candidate-profile?email=${encodeURIComponent(email)}`);
+        if (!res.ok) {
+          if (cancelled) return;
+          setEditPrefillError(
+            res.status === 404
+              ? "We couldn't find your profile. Please contact support."
+              : 'Could not load your profile to edit. Please try again in a moment.'
+          );
+          setEditLoading(false);
+          return;
+        }
+        const { candidate: c } = await res.json();
+        if (cancelled) return;
+
+        // ── DB → FormState mapping (inverse of handleSubmit payload) ─
+        // name comes back as a single column; split on the first space
+        // for the wizard's two-field display. If the name has no space
+        // the whole thing becomes firstName.
+        const fullName: string = c.name || '';
+        const splitIdx = fullName.indexOf(' ');
+        const firstName = splitIdx === -1 ? fullName : fullName.slice(0, splitIdx);
+        const lastName = splitIdx === -1 ? '' : fullName.slice(splitIdx + 1);
+
+        // profile_description on insert is `[bio, availabilityNote].filter(Boolean).join('\n\n')`.
+        // Strip the appended availability paragraph the same way the
+        // AnonymousCandidateCard does to reconstruct just the bio.
+        const bio = (c.profile_description || '').split('\n\n')[0].trim();
+
+        // years bucket — the wizard stores experience as a years-bucket
+        // string ('under2' / '2to5' / '5to10' / '10plus'). The DB column
+        // is an int. Translate back to the bucket the UI shows.
+        const yrs = typeof c.experience === 'number' ? c.experience : Number(c.experience) || 0;
+        const yearsBucket =
+          yrs < 2 ? 'under2'
+          : yrs < 5 ? '2to5'
+          : yrs < 10 ? '5to10'
+          : '10plus';
+
+        // jobSearchStatus is stored as open_to_opportunities (bool) —
+        // map back to the wizard's string values.
+        const jobSearchStatus = c.open_to_opportunities === true
+          ? 'Actively Looking'
+          : c.open_to_opportunities === false
+            ? 'Not Active'
+            : '';
+
+        setEditCandidateId(c.id);
+        // Filename from the resume storage path; the file itself isn't
+        // re-uploaded in edit mode (single-resume model preserved).
+        setEditResumeFilename(c.resume_full_url ? String(c.resume_full_url).split('/').pop() || '' : '');
+
+        setForm({
+          firstName,
+          lastName,
+          email: c.email || email,
+          phone: c.phone || '',
+          linkedin: c.linkedin_url || '',
+          committed: true, // already accepted on initial submit; not re-collected
+
+          primaryBackground: c.primary_background || '',
+          secondaryBackgrounds: Array.isArray(c.secondary_backgrounds) ? c.secondary_backgrounds : [],
+          detailedExperience: Array.isArray(c.detailed_experience) ? c.detailed_experience : [],
+          experience: yearsBucket,
+          industries: Array.isArray(c.industries) ? c.industries : [],
+          industriesOther: c.industries_other || '',
+          companyStages: Array.isArray(c.target_company_stages) ? c.target_company_stages : [],
+          newAreas: Array.isArray(c.new_areas) ? c.new_areas : [],
+
+          // Resume file slots stay empty in edit mode — the existing
+          // resume is shown read-only via editResumeFilename.
+          resumeFile: null,
+          resumeBase64: '',
+          resumeParsed: null,
+          parseWarning: false,
+
+          currentRole: c.label || '',
+          location: c.location || '',
+          yearsExperience: String(yrs),
+          education: c.education || '',
+          educationLevel: c.highest_education_level || '',
+          skills: Array.isArray(c.skills) ? c.skills : [],
+          bio,
+
+          jobSearchStatus,
+          targetComp: c.target_salary || '',
+          workPreferences: Array.isArray(c.work_preferences)
+            ? c.work_preferences
+            : (c.work_preference ? [c.work_preference] : []),
+          preferredCities: Array.isArray(c.preferred_cities) ? c.preferred_cities : [],
+          preferredCitiesOther: c.preferred_cities_other || '',
+          targetRoles: Array.isArray(c.target_roles) ? c.target_roles : [],
+
+          workAuthorizedUs: typeof c.work_authorized_us === 'boolean' ? c.work_authorized_us : null,
+          requiresSponsorship: typeof c.requires_sponsorship === 'boolean' ? c.requires_sponsorship : null,
+        });
+        setEditLoading(false);
+      } catch (err: any) {
+        if (cancelled) return;
+        console.error('[CandidateApply] edit prefill failed:', err);
+        setEditPrefillError('Could not load your profile to edit. Please try again in a moment.');
+        setEditLoading(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEditMode]);
+
+  // ── Edit-mode save ────────────────────────────────────────────────────────
+  // PATCHes only the whitelisted fields to /api/candidate-profile (the
+  // server enforces the whitelist regardless, but sending the minimum
+  // set keeps logs clean). On 200, route back to /candidate-dashboard
+  // via the 'success' screen which renders edit-flavored copy.
+  const handleEditSave = async () => {
+    if (!editCandidateId) {
+      setSubmitError('No candidate loaded to save. Please reload.');
+      return;
+    }
+    setSubmitting(true);
+    setSubmitError('');
+    try {
+      // bio is the bio paragraph the candidate edited; we re-append the
+      // availability note the same way submit-candidate.ts does so the
+      // profile_description string keeps its shape.
+      const availabilityNote = form.jobSearchStatus
+        ? `Availability: ${form.jobSearchStatus}.`
+        : '';
+      const profileDescription = [form.bio, availabilityNote].filter(Boolean).join('\n\n');
+
+      // yearsBucket → integer column. The PATCH endpoint also validates
+      // server-side, but we coerce here so the client log is honest.
+      const yrsBucketToInt: Record<string, number> = { under2: 1, '2to5': 3, '5to10': 7, '10plus': 12 };
+      const experienceInt = yrsBucketToInt[form.experience] ?? Number(form.yearsExperience) ?? 0;
+
+      const payload: Record<string, unknown> = {
+        id: editCandidateId,
+        // Tab 1 (only linkedin + phone editable; firstName/lastName/email read-only in UI)
+        phone: form.phone || null,
+        linkedin_url: form.linkedin || null,
+        // Tab 2
+        primary_background: form.primaryBackground || null,
+        secondary_backgrounds: form.secondaryBackgrounds,
+        detailed_experience: form.detailedExperience,
+        experience: experienceInt,
+        industries: form.industries,
+        industries_other: form.industriesOther || null,
+        target_company_stages: form.companyStages,
+        new_areas: form.newAreas,
+        // Tab 3 (resume itself read-only; parsed-resume side effects editable)
+        label: form.currentRole || null,
+        location: form.location || null,
+        education: form.education || null,
+        highest_education_level: form.educationLevel || null,
+        // skills are NOT sent — candidates.skills isn't a column (writes
+        // would error). Read-only in edit mode; tracked follow-up endpoint
+        // will own the candidate_skills join writes.
+        profile_description: profileDescription || null,
+        // Tab 4
+        target_salary: form.targetComp || null,
+        open_to_opportunities: form.jobSearchStatus === 'Actively Looking',
+        work_preferences: form.workPreferences,
+        // Deprecated singular mirror — keep populated like submit-candidate does.
+        work_preference: form.workPreferences[0] || null,
+        preferred_cities: form.preferredCities,
+        preferred_cities_other: form.preferredCitiesOther || null,
+        target_roles: form.targetRoles,
+        // Tab 5
+        work_authorized_us: form.workAuthorizedUs,
+        requires_sponsorship: form.requiresSponsorship,
+      };
+
+      const res = await authedFetch('/api/candidate-profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        setSubmitError('Could not save changes — please try again.');
+        return;
+      }
+      setScreen('success');
+    } catch (err: any) {
+      console.error('[CandidateApply] edit save failed:', err);
+      setSubmitError('Could not save changes — please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   // ── Route a confirmed session: check profile, go to dashboard or form ─────────
   const routeConfirmedSession = async (email: string) => {
@@ -898,7 +1134,11 @@ export default function CandidateApply() {
     // Disqualifier check moved to Tab 2 (where the years-experience radio
     // now lives). Comp no longer triggers any disqualifier — under-70k
     // was removed from the option list.
-    if (step === 2 && isDisqualified(form)) {
+    // In edit mode an already-approved candidate must not be soft-blocked
+    // back to the disqualified screen — they're editing an existing
+    // active profile. Admins can deactivate if needed via the admin
+    // tools; the disqualifier is a CREATE-flow gate only.
+    if (!isEditMode && step === 2 && isDisqualified(form)) {
       setScreen('disqualified');
       return;
     }
@@ -1064,13 +1304,46 @@ export default function CandidateApply() {
   // "Already have a profile?" → sign in tab
   const handleSignIn = () => { setAuthTab('signin'); setAuthError(''); setScreen('auth'); };
 
-  if (screen === 'landing') {
+  // ── Edit-mode loading / error gate ───────────────────────────────────────
+  // While the prefill is in flight, hide the wizard chrome entirely.
+  // If it fails, surface a single error screen rather than letting the
+  // user edit an empty form and accidentally PATCH defaults over their
+  // real data.
+  if (isEditMode && editLoading) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <Loader2 className="w-6 h-6 animate-spin text-gray-300" />
+      </div>
+    );
+  }
+  if (isEditMode && editPrefillError) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center px-6">
+        <div className="max-w-md text-center">
+          <h1 className="text-xl font-semibold text-gray-900 mb-2">Couldn't load your profile</h1>
+          <p className="text-sm text-gray-500 mb-6">{editPrefillError}</p>
+          <Link
+            to="/candidate-dashboard"
+            className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-5 py-2.5 text-sm font-semibold transition-colors"
+          >
+            Back to dashboard
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  // Create-only screens — defensively skipped in edit mode (the
+  // initial-screen state already routes edit mode straight to 'form',
+  // and the prefill effect won't call setScreen back to any of these,
+  // so this guard is belt-and-suspenders).
+  if (!isEditMode && screen === 'landing') {
     return <LandingSection onStart={handleStart} onSignIn={handleSignIn} />;
   }
 
   // ── Verify Email ─────────────────────────────────────────────────────────────
 
-  if (screen === 'verify-email') {
+  if (!isEditMode && screen === 'verify-email') {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center px-6 py-12">
         <div className="w-full max-w-md text-center">
@@ -1125,7 +1398,7 @@ export default function CandidateApply() {
 
   // ── Auth (Create Account / Sign In) ─────────────────────────────────────────
 
-  if (screen === 'auth') {
+  if (!isEditMode && screen === 'auth') {
     return (
       // Split-screen shell mirrors src/pages/SignUp.tsx so the /apply
       // (professional) and /signup (recruiter) pages read as a matched
@@ -1470,6 +1743,25 @@ export default function CandidateApply() {
   // ── Success ──────────────────────────────────────────────────────────────────
 
   if (screen === 'success') {
+    if (isEditMode) {
+      return (
+        <div className="min-h-screen bg-white flex items-center justify-center px-6">
+          <div className="max-w-md text-center">
+            <CheckCircle2 className="w-12 h-12 text-emerald-600 mx-auto mb-4" />
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">Changes saved</h1>
+            <p className="text-sm text-gray-500 mb-8 leading-relaxed">
+              Your profile is updated. Recruiters will see the new details next time they view your card.
+            </p>
+            <Link
+              to="/candidate-dashboard"
+              className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-5 py-2.5 text-sm font-semibold transition-colors"
+            >
+              Back to dashboard <ChevronRight className="w-4 h-4" />
+            </Link>
+          </div>
+        </div>
+      );
+    }
     return <SuccessScreen firstName={form.firstName} />;
   }
 
@@ -1497,9 +1789,23 @@ export default function CandidateApply() {
 
   return (
     <div className="min-h-screen bg-white">
-      <div className="border-b px-6 py-4 flex items-center justify-between">
-        <span className="font-bold text-lg text-gray-900 tracking-tight">SFC Talent</span>
-        <span className="text-sm text-gray-400">Step {step} of {TOTAL_STEPS}</span>
+      <div className="border-b px-6 py-4 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3 min-w-0">
+          <span className="font-bold text-lg text-gray-900 tracking-tight">SFC Talent</span>
+          {isEditMode && (
+            <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5">
+              Editing your profile
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-4 shrink-0">
+          <span className="text-sm text-gray-400">Step {step} of {TOTAL_STEPS}</span>
+          {isEditMode && (
+            <Link to="/candidate-dashboard" className="text-sm text-gray-500 hover:text-gray-900">
+              Cancel
+            </Link>
+          )}
+        </div>
       </div>
 
       {/* Clickable step bar. Earlier steps always navigable; later
@@ -1576,23 +1882,36 @@ export default function CandidateApply() {
             <p className="text-gray-500 mb-8 text-sm">Kept private — only shared with your explicit consent.</p>
 
             <div className="space-y-5">
+              {/* In edit mode firstName/lastName/email are read-only —
+                  changing them post-signup has identity and anonymity
+                  implications (display_name was derived from currentRole
+                  at submit time and recruiters may reference live intros
+                  by name/email). A short note points to support. */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label>First name <span className="text-red-500">*</span></Label>
+                  <Label>First name {!isEditMode && <span className="text-red-500">*</span>}</Label>
                   <Input value={form.firstName} onChange={e => set('firstName', e.target.value)}
-                    placeholder="Jane" className="mt-2" />
+                    placeholder="Jane" className="mt-2"
+                    readOnly={isEditMode} disabled={isEditMode} />
                 </div>
                 <div>
-                  <Label>Last name <span className="text-red-500">*</span></Label>
+                  <Label>Last name {!isEditMode && <span className="text-red-500">*</span>}</Label>
                   <Input value={form.lastName} onChange={e => set('lastName', e.target.value)}
-                    placeholder="Smith" className="mt-2" />
+                    placeholder="Smith" className="mt-2"
+                    readOnly={isEditMode} disabled={isEditMode} />
                 </div>
               </div>
 
               <div>
-                <Label>Email address <span className="text-red-500">*</span></Label>
+                <Label>Email address {!isEditMode && <span className="text-red-500">*</span>}</Label>
                 <Input type="email" value={form.email} onChange={e => set('email', e.target.value)}
-                  placeholder="you@example.com" className="mt-2" />
+                  placeholder="you@example.com" className="mt-2"
+                  readOnly={isEditMode} disabled={isEditMode} />
+                {isEditMode && (
+                  <p className="text-xs text-gray-500 mt-1.5">
+                    Name and email are locked. Contact <a href="mailto:talent@strategicfinancecareers.com" className="text-emerald-700 underline">talent@strategicfinancecareers.com</a> to change them.
+                  </p>
+                )}
               </div>
 
               <div>
@@ -1761,7 +2080,32 @@ export default function CandidateApply() {
         )}
 
         {/* ── Tab 3: Resume Upload (resume only) ──────────────────────── */}
-        {step === 3 && (
+        {step === 3 && isEditMode && (
+          <div className="max-w-xl mx-auto">
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Your Resume</h2>
+            <p className="text-gray-500 mb-8 text-sm">
+              We're staying on a single-resume model for now. Replace coming soon.
+            </p>
+            {editResumeFilename ? (
+              <div className="flex items-start gap-3 p-4 rounded-xl border bg-emerald-50/40 border-emerald-200">
+                <FileText className="w-5 h-5 text-emerald-700 shrink-0 mt-0.5" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-emerald-900 truncate" title={editResumeFilename}>{editResumeFilename}</p>
+                  <p className="text-xs text-emerald-700 mt-0.5">On file with SFC Talent</p>
+                </div>
+              </div>
+            ) : (
+              <div className="p-4 rounded-xl border border-gray-200 bg-gray-50 text-sm text-gray-600">
+                No resume on file yet. Self-serve upload is coming soon — for now, email it to{' '}
+                <a href="mailto:talent@strategicfinancecareers.com" className="text-emerald-700 underline font-medium">talent@strategicfinancecareers.com</a>.
+              </div>
+            )}
+            <p className="text-xs text-gray-500 mt-4 leading-relaxed">
+              To replace your resume, email <a href="mailto:talent@strategicfinancecareers.com" className="text-emerald-700 underline">talent@strategicfinancecareers.com</a>.
+            </p>
+          </div>
+        )}
+        {step === 3 && !isEditMode && (
           <div className="max-w-xl mx-auto">
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Upload Your Resume</h2>
             <p className="text-gray-500 mb-8 text-sm">
@@ -2093,8 +2437,33 @@ export default function CandidateApply() {
 
               <div>
                 <Label>Skills</Label>
-                <p className="text-xs text-gray-400 mt-0.5">Press Enter to add each skill</p>
-                <SkillsInput skills={form.skills} onChange={v => set('skills', v)} />
+                {isEditMode ? (
+                  // Read-only in edit mode: candidates.skills isn't a
+                  // direct column on the candidates table — skills live
+                  // in a candidate_skills join table that the create-
+                  // flow's submit-candidate.ts writes via a separate
+                  // insert loop. Until a dedicated update endpoint
+                  // owns those join writes, edit mode shows the
+                  // current skills as static chips.
+                  <>
+                    <p className="text-xs text-gray-400 mt-0.5">Editing skills coming soon — current skills shown below.</p>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {form.skills.length === 0 && (
+                        <p className="text-xs text-gray-400">No skills on file.</p>
+                      )}
+                      {form.skills.map(s => (
+                        <span key={s} className="px-2.5 py-1 bg-gray-100 text-gray-700 border border-gray-200 rounded-full text-xs font-medium">
+                          {s}
+                        </span>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-xs text-gray-400 mt-0.5">Press Enter to add each skill</p>
+                    <SkillsInput skills={form.skills} onChange={v => set('skills', v)} />
+                  </>
+                )}
               </div>
               </div>
               {/* End editor block */}
@@ -2154,11 +2523,13 @@ export default function CandidateApply() {
               Continue <ChevronRight className="w-4 h-4 ml-1" />
             </Button>
           ) : (
-            <Button onClick={handleSubmit} disabled={submitting}
+            <Button onClick={isEditMode ? handleEditSave : handleSubmit} disabled={submitting}
               className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white">
               {submitting
-                ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Submitting…</>
-                : <>Submit <ChevronRight className="w-4 h-4 ml-1" /></>
+                ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> {isEditMode ? 'Saving…' : 'Submitting…'}</>
+                : isEditMode
+                  ? <>Save Changes <CheckCircle2 className="w-4 h-4 ml-1" /></>
+                  : <>Submit <ChevronRight className="w-4 h-4 ml-1" /></>
               }
             </Button>
           )}

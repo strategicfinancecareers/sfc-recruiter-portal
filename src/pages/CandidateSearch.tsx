@@ -52,7 +52,13 @@ function getLabelColor(label: string): string {
 export default function CandidateSearch() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const { candidates, loading, toggleFavorite } = useCandidates();
+  // Admins/owners need the real `name` for the admin-only subtitle
+  // under each candidate card. Recruiters do NOT receive `name` in the
+  // hook payload — the SFC Take is server-side name-scrubbed at
+  // generation + publish so no client-side scrub needs it.
+  const { candidates, loading, toggleFavorite } = useCandidates({
+    includeName: user?.role === 'admin' || user?.role === 'owner',
+  });
   const [searchParams, setSearchParams] = useSearchParams();
   const [filteredCandidates, setFilteredCandidates] = useState<Candidate[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -636,23 +642,18 @@ export default function CandidateSearch() {
                     </div>
 
                     {/* SFC Take preview — Batch 2. Only renders when admin has
-                        explicitly published. Anonymity preserved: any
-                        occurrence of the candidate's real name or first
-                        name in the AI-generated text is swapped for the
-                        anonymous display_name before render. */}
+                        explicitly published. Anonymity is preserved
+                        SERVER-SIDE: api/generate-sfc-take and
+                        api/publish-sfc-take run the real-name scrub
+                        before writing, so the stored take never
+                        contains the candidate's real name. The
+                        previous client-side scrub required shipping
+                        `name` to recruiter browsers — that exposure
+                        is now closed; useCandidates only includes
+                        `name` for admin/owner callers, and recruiters
+                        render the take as-is. */}
                     {candidate.sfc_take_published_at && candidate.sfc_take && (() => {
-                      const real = candidate.name || '';
-                      const anon = candidate.display_name || 'this candidate';
-                      let safe = candidate.sfc_take;
-                      if (real && real !== anon) {
-                        // Full name first (longest match), then first name as a word boundary.
-                        safe = safe.split(real).join(anon);
-                        const first = real.split(/\s+/)[0];
-                        if (first && first !== anon) {
-                          const esc = first.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                          safe = safe.replace(new RegExp(`\\b${esc}\\b`, 'g'), anon);
-                        }
-                      }
+                      const safe = candidate.sfc_take;
                       const isExpanded = expandedTakes.has(candidate.id);
                       const TRUNCATE = 80;
                       const isLong = safe.length > TRUNCATE;

@@ -1,5 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
+// @ts-ignore — ESM JS helper, no .d.ts file
+import { scrubSfcTakeFields } from './_shared/scrubName.js';
 
 // POST /api/generate-sfc-take
 // body: { candidateId, adminUserId? }
@@ -92,8 +94,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Claude won't fetch it; v1 limitation flagged in the response.
   const { data: candidate, error: candErr } = await supabase
     .from('candidates')
+    // display_name needed so the post-generation scrub can substitute
+    // real-name occurrences in the model output with the anonymized
+    // handle before persisting (recruiters must never see the real
+    // name in the rendered take; the recruiter SELECT also no longer
+    // ships `name` to the browser, so the scrub MUST happen at write
+    // time).
     .select(`
-      id, name, label, location, experience, education, highest_education_level,
+      id, name, display_name, label, location, experience, education, highest_education_level,
       profile_description, work_preference, target_salary, target_roles,
       preferred_cities, primary_background, secondary_backgrounds,
       detailed_experience, resume_full_url
@@ -146,8 +154,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const userMessage = [
     'Draft an SFC Take for this candidate following the framework above.',
     '',
+    // ANONYMITY: the Take is rendered to recruiters who have NOT been
+    // approved for an intro yet, so it must not contain the real name.
+    // We tell the model to use the anonymized handle (and post-process
+    // with a name-scrub regardless, as a safety net).
+    'ANONYMITY: This take will be shown to recruiters BEFORE they request',
+    'an introduction. Do NOT use the candidate\'s real name anywhere in',
+    `your output. Refer to them as "${c.display_name || 'the candidate'}" or with neutral language`,
+    '("this candidate", "they", etc.). Their real name is provided below only as',
+    'context — never echo it back.',
+    '',
     'CANDIDATE CONTEXT:',
-    `Name: ${c.name}`,
+    `Name (DO NOT USE IN OUTPUT): ${c.name}`,
+    `Anonymized handle (use this if you need a label): ${c.display_name || '—'}`,
     `Current role / label: ${c.label || '—'}`,
     `Years experience: ${c.experience ?? '—'}`,
     `Location: ${c.location || '—'}`,
@@ -243,16 +262,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   }
 
-  const sfc_role_fit = parseBullets(roleFitBlock);
-  const sfc_strengths = parseBullets(strengthsBlock);
-  const sfc_considerations = parseBullets(considBlock);
+  const sfc_role_fit_raw = parseBullets(roleFitBlock);
+  const sfc_strengths_raw = parseBullets(strengthsBlock);
+  const sfc_considerations_raw = parseBullets(considBlock);
+
+  // ── Real-name scrub (safety net) ──────────────────────────────────────────
+  // The prompt instructs the model NOT to use the real name; this is
+  // the belt-and-suspenders pass that guarantees the persisted take +
+  // bullet arrays never contain it. After this point the DB row is
+  // safe to ship to recruiters without the client having to know the
+  // real name (and the recruiter SELECT no longer includes `name`).
+  const scrubbed = scrubSfcTakeFields(
+    {
+      sfc_take: takeText,
+      sfc_role_fit: sfc_role_fit_raw,
+      sfc_strengths: sfc_strengths_raw,
+      sfc_considerations: sfc_considerations_raw,
+    },
+    c.name,
+    c.display_name
+  );
+  const scrubbedTake = scrubbed.sfc_take;
+  const sfc_role_fit = scrubbed.sfc_role_fit;
+  const sfc_strengths = scrubbed.sfc_strengths;
+  const sfc_considerations = scrubbed.sfc_considerations;
 
   // ── Persist (do NOT touch sfc_take_published_at) ──────────────────────────
   const nowIso = new Date().toISOString();
   const { error: updateErr } = await supabase
     .from('candidates')
     .update({
-      sfc_take: takeText,
+      sfc_take: scrubbedTake,
       sfc_role_fit,
       sfc_strengths,
       sfc_considerations,
@@ -269,7 +309,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   return res.status(200).json({
     success: true,
     candidateId,
-    sfc_take: takeText,
+    sfc_take: scrubbedTake,
     sfc_role_fit,
     sfc_strengths,
     sfc_considerations,

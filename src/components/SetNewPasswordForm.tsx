@@ -74,29 +74,79 @@ export default function SetNewPasswordForm({ audience }: Props) {
   const [showPassword, setShowPassword] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // On mount: check if Supabase already established a recovery session
-  // from the URL hash. If not, the link is stale/invalid/already used.
+  // On mount: confirm Supabase established a recovery session from the
+  // URL hash. detectSessionInUrl is true by default (verified — the
+  // project's client.ts does not override it), so the hash is parsed
+  // automatically.
+  //
+  // Timing race: detectSessionInUrl runs synchronously enough that
+  // getSession() usually returns the recovery session by the time this
+  // effect runs, but it's not guaranteed. If getSession() returns null
+  // we DON'T immediately flip to 'no-session' — instead we also subscribe
+  // to onAuthStateChange and wait for either PASSWORD_RECOVERY,
+  // SIGNED_IN, or TOKEN_REFRESHED to fire. If nothing fires within a
+  // short grace window, *then* we conclude the link is invalid.
+  //
+  // This eliminates the "shows expired then never recovers even though
+  // the session lands a tick later" failure mode.
   useEffect(() => {
-    let cancelled = false;
+    let resolved = false;        // set once we transition out of 'checking-session'
+    let graceTimer: number | undefined;
+
+    const markReady = () => {
+      if (resolved) return;
+      resolved = true;
+      if (graceTimer !== undefined) window.clearTimeout(graceTimer);
+      setPhase('ready');
+    };
+
+    const markNoSession = () => {
+      if (resolved) return;
+      resolved = true;
+      if (graceTimer !== undefined) window.clearTimeout(graceTimer);
+      setPhase('no-session');
+    };
+
+    // Subscribe BEFORE the initial getSession() so we don't miss a
+    // PASSWORD_RECOVERY / SIGNED_IN event that fires between mount and
+    // the getSession() callback resolving.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        if (session) markReady();
+      } else if (event === 'SIGNED_OUT') {
+        // If the user explicitly signed out (unlikely here), the form is
+        // unusable — surface the expired panel.
+        markNoSession();
+      }
+    });
+
+    // Initial probe.
     (async () => {
       try {
-        // Give the Supabase client a tick to process the URL hash if it
-        // hasn't already. The auto-detection is synchronous in v2 but the
-        // localStorage write isn't; getSession() handles either case.
         const { data, error } = await supabase.auth.getSession();
-        if (cancelled) return;
-        if (error || !data?.session) {
-          setPhase('no-session');
+        if (resolved) return;
+        if (!error && data?.session) {
+          markReady();
           return;
         }
-        setPhase('ready');
+        // No session yet — give the auto-detector a 1.5s grace window
+        // for the URL-hash exchange to complete and fire the listener
+        // above. Empirically this is well over the typical timing; the
+        // long ceiling is for slow devices / cold cache.
+        graceTimer = window.setTimeout(markNoSession, 1500);
       } catch (err) {
-        if (cancelled) return;
+        if (resolved) return;
         console.error('[SetNewPasswordForm] session check failed:', err);
-        setPhase('no-session');
+        graceTimer = window.setTimeout(markNoSession, 1500);
       }
     })();
-    return () => { cancelled = true; };
+
+    return () => {
+      // Clean up both the listener and the pending timer so unmount
+      // can't leak either.
+      subscription.unsubscribe();
+      if (graceTimer !== undefined) window.clearTimeout(graceTimer);
+    };
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {

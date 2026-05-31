@@ -47,9 +47,20 @@ import { createClient } from '@supabase/supabase-js';
 // (and to the UI) if the dashboard grows to use them. Minimum-fields
 // principle: every column in this list is a column we're willing to
 // expose to a verified-self candidate.
+// education, highest_education_level, primary_background,
+// secondary_backgrounds are returned so the dashboard's Recruiter View
+// tab can render AnonymousCandidateCard with the same fidelity
+// recruiters see on /browse — these columns are ALREADY part of the
+// recruiter-facing anonymized card, so returning them to the candidate
+// about themselves is not a new PII surface. Sensitive columns we
+// deliberately keep OUT of this GET (no UI consumer + no need to widen
+// the exposure surface): phone, work_authorized_us,
+// requires_sponsorship.
 const CANDIDATE_GET_COLUMNS = [
   'id', 'name', 'display_name', 'email',
   'label', 'location', 'experience',
+  'education', 'highest_education_level',
+  'primary_background', 'secondary_backgrounds',
   'profile_description', 'open_to_opportunities',
   'work_preference', 'work_preferences',
   'target_salary', 'preferred_cities', 'target_roles', 'industries',

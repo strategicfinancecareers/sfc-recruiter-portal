@@ -50,6 +50,10 @@ interface CandidateRow {
   label?: string;
   location?: string;
   experience?: number;
+  education?: string;
+  highest_education_level?: string | null;
+  primary_background?: string | null;
+  secondary_backgrounds?: string[] | null;
   profile_description?: string;
   open_to_opportunities?: boolean;
   // Legacy singular (deprecated mirror)
@@ -65,8 +69,6 @@ interface CandidateRow {
   industries?: string[];
   industries_other?: string;
   new_areas?: string[];
-  primary_background?: string;
-  secondary_backgrounds?: string[];
   skills?: string[];
   resume_full_url?: string;
   work_authorized_us?: boolean;
@@ -585,7 +587,13 @@ function Dashboard({
 
       {/* ── Main content ─────────────────────────────────────────────── */}
       <main className="flex-1 min-w-0 pt-[57px] min-[860px]:pt-0">
-        <div className="max-w-3xl mx-auto px-4 sm:px-8 py-8 space-y-6">
+        {/* Recruiter View needs the full dossier width so
+            AnonymousCandidateCard's lg:flex-row layout (main column +
+            Candidate Snapshot rail) renders side-by-side at a
+            comfortable width — matches the /apply review-step
+            treatment of the same component. Other tabs keep the
+            narrower reading-width container. */}
+        <div className={`${tab === 'recruiter-view' ? 'max-w-5xl' : 'max-w-3xl'} mx-auto px-4 sm:px-8 py-8 space-y-6`}>
           <StatusBanner status={candidate.status} />
 
           {tab === 'profile' && (
@@ -1362,13 +1370,12 @@ function SettingsTab({
 //   - It hides the Request Introduction CTA, which would be nonsensical
 //     for the candidate themselves.
 //
-// Data shape: feed from current candidate state. Some fields the card
-// uses (education, primary_background, secondary_backgrounds,
-// highest_education_level) aren't returned by the narrowed candidate-
-// profile GET — this build deliberately doesn't widen the API. They
-// degrade to neutral defaults; the card handles missing optionals
-// gracefully and renders the required `education` slot as 'Not
-// specified' until the GET is widened in a separate pass.
+// Data shape: feed from current candidate state. The fields the card
+// needs to render a faithful preview (education,
+// highest_education_level, primary_background, secondary_backgrounds)
+// are returned by the candidate-profile GET. Sensitive fields the
+// preview never needs (phone, work_authorized_us, requires_sponsorship)
+// stay deliberately OUT of the GET.
 
 function RecruiterViewTab({
   candidate,
@@ -1377,45 +1384,41 @@ function RecruiterViewTab({
   candidate: CandidateRow;
   skills: string[];
 }) {
+  // No separate intro line above the card — AnonymousCandidateCard
+  // already renders its own "This is what recruiters will see — your
+  // real name and contact details stay hidden until you accept an
+  // introduction." banner at the top in preview mode. Keeping both
+  // looked duplicated, so this tab now defers entirely to the card's
+  // built-in banner.
   return (
-    <div className="space-y-4">
-      <div
-        className="rounded-2xl border px-5 py-4"
-        style={{ borderColor: 'rgba(0,128,55,.2)', background: 'rgba(0,128,55,.04)' }}
-      >
-        <p className="text-sm leading-relaxed" style={{ color: 'rgba(14,14,13,.78)' }}>
-          This is exactly how recruiters see you — your name and contact details
-          stay hidden until you approve an introduction.
-        </p>
-      </div>
-
-      <div
-        className="border rounded-2xl overflow-hidden bg-white"
-        style={{ borderColor: 'rgba(14,14,13,.08)' }}
-      >
-        <AnonymousCandidateCard
-          mode="preview"
-          candidate={{
-            id: candidate.id,
-            label: candidate.label || 'Finance Professional',
-            display_name: candidate.display_name || candidate.label || 'Finance Professional',
-            location: candidate.location || 'United States',
-            experience: typeof candidate.experience === 'number' ? candidate.experience : 0,
-            // education / primary_background / secondary_backgrounds /
-            // highest_education_level aren't in the narrowed GET today.
-            // Pass safe defaults; widening the GET is tracked separately.
-            education: 'Not specified',
-            highest_education_level: null,
-            profile_description: candidate.profile_description || null,
-            primary_background: null,
-            secondary_backgrounds: null,
-            open_to_opportunities: candidate.open_to_opportunities ?? null,
-            // The card expects { id, skill } objects; the dashboard
-            // keeps skills as flat strings. Index works fine as a key.
-            skills: skills.map((s, i) => ({ id: i, skill: s })),
-          }}
-        />
-      </div>
+    <div
+      className="border rounded-2xl overflow-hidden bg-white"
+      style={{ borderColor: 'rgba(14,14,13,.08)' }}
+    >
+      <AnonymousCandidateCard
+        mode="preview"
+        candidate={{
+          id: candidate.id,
+          label: candidate.label || 'Finance Professional',
+          display_name: candidate.display_name || candidate.label || 'Finance Professional',
+          location: candidate.location || 'United States',
+          experience: typeof candidate.experience === 'number' ? candidate.experience : 0,
+          // Now sourced from the candidate-profile GET (added back to
+          // the SELECT in this same change). These columns are already
+          // surfaced in the recruiter-facing anonymized card so
+          // returning them to the candidate about themselves is the
+          // same exposure surface — no new PII channel.
+          education: candidate.education || 'Not specified',
+          highest_education_level: candidate.highest_education_level || null,
+          profile_description: candidate.profile_description || null,
+          primary_background: candidate.primary_background || null,
+          secondary_backgrounds: candidate.secondary_backgrounds || null,
+          open_to_opportunities: candidate.open_to_opportunities ?? null,
+          // The card expects { id, skill } objects; the dashboard
+          // keeps skills as flat strings. Index works fine as a key.
+          skills: skills.map((s, i) => ({ id: i, skill: s })),
+        }}
+      />
     </div>
   );
 }

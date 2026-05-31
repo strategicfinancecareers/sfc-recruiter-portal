@@ -20,14 +20,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       firstName, lastName, email, phone, linkedin,
       // Parsed profile
       currentRole, location, yearsExperience, education, educationLevel,
-      bio, skills, sectors,
+      bio, skills,
+      // Industries (replaces the old `sectors` payload key — now stored
+      // in candidates.industries instead of being dropped on the floor).
+      // Backwards-compat: accept old `sectors` key from any unmigrated client.
+      industries, industriesOther, sectors: legacySectors,
       // Background segmentation
       primaryBackground, secondaryBackgrounds, detailedExperience,
-      // Availability
-      jobSearchStatus, targetComp, workPreference, preferredCities, targetRoles,
+      // NEW form-rework fields
+      companyStages, newAreas,
+      // Availability / preferences (work_preferences is now a multi-select
+      // array; legacy clients may still send work_preference as a string)
+      jobSearchStatus, targetComp,
+      workPreferences, workPreference: legacyWorkPreference,
+      preferredCities, preferredCitiesOther, targetRoles,
+      // Work authorization (NEW, two-question pair, store-only)
+      workAuthorizedUs, requiresSponsorship,
       // Resume
       resumeBase64, resumeFileName,
     } = req.body;
+
+    // Normalize legacy → new shape so this endpoint serves both new and old
+    // clients during the rollout window.
+    const industriesArr: string[] =
+      Array.isArray(industries) ? industries
+      : Array.isArray(legacySectors) ? legacySectors
+      : [];
+    const workPrefsArr: string[] =
+      Array.isArray(workPreferences) ? workPreferences
+      : (typeof legacyWorkPreference === 'string' && legacyWorkPreference ? [legacyWorkPreference] : []);
+    const companyStagesArr: string[] = Array.isArray(companyStages) ? companyStages : [];
+    const newAreasArr: string[] = Array.isArray(newAreas) ? newAreas : [];
 
     if (!email || !firstName || !lastName) {
       return res.status(400).json({ error: 'Missing required fields' });
@@ -92,24 +115,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const expNum = Number(yearsExperience) || 0;
     const expLabel = expNum >= 10 ? '10+' : expNum >= 5 ? '5+' : expNum >= 2 ? '2+' : '1+';
     const safeRole = (currentRole || primaryBackground || 'Finance Professional').trim();
-    const safeSector = Array.isArray(sectors) && sectors.length > 0 ? sectors[0] : 'Finance';
+    // Use the normalized industriesArr (was reading from raw `sectors`).
+    const safeSector = industriesArr.length > 0 ? industriesArr[0] : 'Finance';
     const displayName = `${safeRole} — ${safeSector}`;
 
     const availabilityNote = [
       jobSearchStatus ? `Job search status: ${jobSearchStatus}.` : '',
       targetComp ? `Target comp: ${targetComp}.` : '',
-      workPreference ? `Work preference: ${workPreference}.` : '',
+      workPrefsArr.length > 0 ? `Work preference: ${workPrefsArr.join(', ')}.` : '',
       Array.isArray(preferredCities) && preferredCities.length > 0 ? `Preferred cities: ${preferredCities.join(', ')}.` : '',
     ].filter(Boolean).join(' ');
 
     const profileDescription = [bio, availabilityNote].filter(Boolean).join('\n\n');
 
     // ── Core insert payload (columns that definitely exist) ──────────────────
+    // Two pre-existing bugs fixed here:
+    //   1. linkedin_url was collected on /apply but never written. Now it is.
+    //   2. industries (formerly `sectors`) was sent in the body and dropped
+    //      on the floor. Now stored in candidates.industries[] (extended
+    //      payload below) + the per-row override in industries_other.
     const corePayload = {
       name: `${firstName} ${lastName}`.trim() || 'Anonymous',
       display_name: displayName,
       email,
       phone: phone || null,
+      linkedin_url: (typeof linkedin === 'string' && linkedin.trim()) ? linkedin.trim() : null,
       location: (location || 'United States').trim(),
       experience: expNum,
       education: (education || 'Not specified').trim(),
@@ -128,12 +158,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // 'deleted' row, bypassing the column default) are also routed back into
     // the admin review queue. For fresh INSERTs this matches the DB default
     // set by the candidate-approval migration.
+    //
+    // Form-rework additions:
+    //   - industries[] + industries_other  (was unstored as `sectors`)
+    //   - target_company_stages[]          (NEW)
+    //   - new_areas[]                       (NEW)
+    //   - target_salary                     (now lives on Future Job Preferences)
+    //   - work_preferences[]                (NEW — multi-select)
+    //   - work_preference                   (mirror of work_preferences[0], DEPRECATED)
+    //   - preferred_cities + preferred_cities_other
+    //   - work_authorized_us, requires_sponsorship (NEW — two-question pair)
     const extendedPayload = {
       ...corePayload,
       status: 'pending',
       primary_background: primaryBackground || null,
       secondary_backgrounds: Array.isArray(secondaryBackgrounds) ? secondaryBackgrounds : [],
       detailed_experience: Array.isArray(detailedExperience) ? detailedExperience : [],
+      industries: industriesArr,
+      industries_other: (typeof industriesOther === 'string' && industriesOther.trim()) ? industriesOther.trim() : null,
+      target_company_stages: companyStagesArr,
+      new_areas: newAreasArr,
+      target_salary: (typeof targetComp === 'string' && targetComp.trim()) ? targetComp.trim() : null,
+      work_preferences: workPrefsArr,
+      // Deprecated mirror — keep populated for one release so admin code
+      // that still reads `work_preference` (string) doesn't break.
+      work_preference: workPrefsArr[0] || null,
+      preferred_cities: Array.isArray(preferredCities) ? preferredCities : [],
+      preferred_cities_other: (typeof preferredCitiesOther === 'string' && preferredCitiesOther.trim()) ? preferredCitiesOther.trim() : null,
+      target_roles: Array.isArray(targetRoles) ? targetRoles : [],
+      work_authorized_us: typeof workAuthorizedUs === 'boolean' ? workAuthorizedUs : null,
+      requires_sponsorship: typeof requiresSponsorship === 'boolean' ? requiresSponsorship : null,
     };
 
     // ── Save candidate: update (re-application) or insert (new) ─────────────
@@ -256,11 +310,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
-    const sectorList = Array.isArray(sectors) && sectors.length > 0 ? sectors.join(', ') : 'Not specified';
+    // Use normalized industriesArr / workPrefsArr (legacy keys folded above).
+    const sectorList = industriesArr.length > 0
+      ? (industriesArr.join(', ') + (industriesOther ? ` (Other: ${industriesOther})` : ''))
+      : 'Not specified';
     const detailedList = Array.isArray(detailedExperience) && detailedExperience.length > 0 ? detailedExperience.join(', ') : 'Not specified';
     const secondaryList = Array.isArray(secondaryBackgrounds) && secondaryBackgrounds.length > 0 ? secondaryBackgrounds.join(', ') : '—';
     const roleList = Array.isArray(targetRoles) && targetRoles.length > 0 ? targetRoles.join(', ') : 'Not specified';
-    const citiesList = Array.isArray(preferredCities) && preferredCities.length > 0 ? preferredCities.join(', ') : '—';
+    const citiesList = Array.isArray(preferredCities) && preferredCities.length > 0
+      ? (preferredCities.join(', ') + (preferredCitiesOther ? ` (Other: ${preferredCitiesOther})` : ''))
+      : '—';
+    const workPrefList = workPrefsArr.length > 0 ? workPrefsArr.join(', ') : '—';
+    const companyStageList = companyStagesArr.length > 0 ? companyStagesArr.join(', ') : '—';
+    const newAreasList = newAreasArr.length > 0 ? newAreasArr.join(', ') : '—';
+    const fmtBool = (v: unknown) => v === true ? 'Yes' : v === false ? 'No' : '—';
 
     const emailHtml = '<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">'
       + '<h2 style="color:#0F6E56;margin-bottom:4px">New Candidate Application</h2>'
@@ -279,10 +342,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       + '<tr><td style="padding:8px 0;border-bottom:1px solid #eee;color:#888">Specialisms</td><td style="padding:8px 0;border-bottom:1px solid #eee">' + detailedList + '</td></tr>'
       + '<tr><td style="padding:8px 0;border-bottom:1px solid #eee;color:#888">Job Status</td><td style="padding:8px 0;border-bottom:1px solid #eee">' + (jobSearchStatus || '—') + '</td></tr>'
       + '<tr><td style="padding:8px 0;border-bottom:1px solid #eee;color:#888">Target Comp</td><td style="padding:8px 0;border-bottom:1px solid #eee">' + (targetComp || '—') + '</td></tr>'
-      + '<tr><td style="padding:8px 0;border-bottom:1px solid #eee;color:#888">Work Preference</td><td style="padding:8px 0;border-bottom:1px solid #eee">' + (workPreference || '—') + '</td></tr>'
+      + '<tr><td style="padding:8px 0;border-bottom:1px solid #eee;color:#888">Work Preference</td><td style="padding:8px 0;border-bottom:1px solid #eee">' + workPrefList + '</td></tr>'
       + '<tr><td style="padding:8px 0;border-bottom:1px solid #eee;color:#888">Preferred Cities</td><td style="padding:8px 0;border-bottom:1px solid #eee">' + citiesList + '</td></tr>'
-      + '<tr><td style="padding:8px 0;border-bottom:1px solid #eee;color:#888">Sectors</td><td style="padding:8px 0;border-bottom:1px solid #eee">' + sectorList + '</td></tr>'
-      + '<tr><td style="padding:8px 0;color:#888">Target Roles</td><td style="padding:8px 0">' + roleList + '</td></tr>'
+      + '<tr><td style="padding:8px 0;border-bottom:1px solid #eee;color:#888">Industries</td><td style="padding:8px 0;border-bottom:1px solid #eee">' + sectorList + '</td></tr>'
+      + '<tr><td style="padding:8px 0;border-bottom:1px solid #eee;color:#888">Company Stage</td><td style="padding:8px 0;border-bottom:1px solid #eee">' + companyStageList + '</td></tr>'
+      + '<tr><td style="padding:8px 0;border-bottom:1px solid #eee;color:#888">New Areas</td><td style="padding:8px 0;border-bottom:1px solid #eee">' + newAreasList + '</td></tr>'
+      + '<tr><td style="padding:8px 0;border-bottom:1px solid #eee;color:#888">Target Roles</td><td style="padding:8px 0;border-bottom:1px solid #eee">' + roleList + '</td></tr>'
+      + '<tr><td style="padding:8px 0;border-bottom:1px solid #eee;color:#888">US Work Authorized</td><td style="padding:8px 0;border-bottom:1px solid #eee">' + fmtBool(workAuthorizedUs) + '</td></tr>'
+      + '<tr><td style="padding:8px 0;color:#888">Requires Sponsorship</td><td style="padding:8px 0">' + fmtBool(requiresSponsorship) + '</td></tr>'
       + '</table>'
       + (bio ? '<div style="margin:16px 0;padding:16px;background:#f9f9f9;border-radius:8px"><p style="color:#666;font-size:12px;margin:0 0 8px">Bio</p><p style="margin:0;color:#333">' + bio + '</p></div>' : '')
       + (adminResumeUrl

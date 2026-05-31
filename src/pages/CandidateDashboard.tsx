@@ -42,12 +42,18 @@ interface IntroRequest {
   } | null;
 }
 
-type DashView = 'landing' | 'signin' | 'dashboard';
+// 'loading' is the initial state — it shows a centered spinner while
+// the mount-time session check resolves. This eliminates the flash of
+// the 'landing' two-card view that previously rendered for ~500ms
+// while supabase.auth.refreshSession() + getSession() + the candidate-
+// profile fetch were in flight (the bug a user submitting at /apply
+// hit immediately after clicking "Go to Dashboard" on the SuccessScreen).
+type DashView = 'loading' | 'landing' | 'signin' | 'dashboard';
 
 // ─── Main export ──────────────────────────────────────────────────────────────
 
 export default function CandidateDashboard() {
-  const [view, setView] = useState<DashView>('landing');
+  const [view, setView] = useState<DashView>('loading');
   const [emailInput, setEmailInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
   const [signinLoading, setSigninLoading] = useState(false);
@@ -68,7 +74,14 @@ export default function CandidateDashboard() {
         console.warn('[CandidateDashboard] refreshSession error:', refreshErr.message);
       }
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user?.email) return;
+      if (!session?.user?.email) {
+        // No session → fall to the landing-cards view (this is the
+        // legitimate entry point for someone visiting /candidate-dashboard
+        // unauthenticated). 'loading' → 'landing' is a single state
+        // transition; user never sees both renders consecutively.
+        setView('landing');
+        return;
+      }
       const email = session.user.email;
       setEmailInput(email);
       setSigninLoading(true);
@@ -81,14 +94,27 @@ export default function CandidateDashboard() {
           setSkills(extracted);
           setView('dashboard');
         } else if (res.status === 404) {
-          // Authenticated but no profile yet — send to intake form
+          // Authenticated but no profile yet — send to intake form.
+          // No need to setView here; the navigation unmounts the
+          // component before the next render.
           window.location.href = '/apply';
+        } else {
+          // 500 or other unexpected error — drop to landing rather
+          // than leaving the spinner stuck. Avoids the previous
+          // "stay-on-landing-and-pretend-nothing-loaded" failure mode.
+          console.error('[CandidateDashboard] profile fetch returned', res.status);
+          setView('landing');
         }
-        // On 500 or other errors, stay on landing (don't show confusing errors on mount)
+      } catch (err) {
+        console.error('[CandidateDashboard] profile fetch threw:', err);
+        setView('landing');
       } finally {
         setSigninLoading(false);
       }
-    })().catch(err => console.error('[CandidateDashboard] session check error:', err));
+    })().catch(err => {
+      console.error('[CandidateDashboard] session check error:', err);
+      setView('landing');
+    });
   }, []);
 
   // ── Sign-in handler ──────────────────────────────────────────────────────────
@@ -137,6 +163,19 @@ export default function CandidateDashboard() {
     setSigninError('');
     setView('landing');
   };
+
+  // ── LOADING ──────────────────────────────────────────────────────────────────
+  // Initial render while the session check is in flight. Gates BOTH the
+  // landing two-card view AND the dashboard view behind this, so users
+  // arriving from /apply's "Go to Dashboard" CTA never see the legacy
+  // landing flash before their dashboard loads.
+  if (view === 'loading') {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center">
+        <Loader2 className="w-6 h-6 animate-spin text-gray-300" />
+      </div>
+    );
+  }
 
   // ── LANDING ──────────────────────────────────────────────────────────────────
   if (view === 'landing') {

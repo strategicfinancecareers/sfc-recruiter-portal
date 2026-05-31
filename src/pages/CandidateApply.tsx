@@ -1458,13 +1458,23 @@ export default function CandidateApply() {
   // ── Multi-step Form ──────────────────────────────────────────────────────────
 
   // Step labels for the clickable tab bar. Order matches the validators.
-  const STEP_LABELS = [
+  // Long form for >=md screens, short form below — never truncates to
+  // single letters at narrow widths.
+  const STEP_LABELS_LONG = [
     'Contact Information',
     'Professional Experience',
     'Resume Upload',
     'Future Job Preferences',
     'Work Authorization',
     'Review your profile',
+  ];
+  const STEP_LABELS_SHORT = [
+    'Contact',
+    'Experience',
+    'Resume',
+    'Preferences',
+    'Work Auth',
+    'Review',
   ];
 
   return (
@@ -1477,9 +1487,10 @@ export default function CandidateApply() {
       {/* Clickable step bar. Earlier steps always navigable; later steps
           unlocked once every previous validator passes. */}
       <div className="border-b border-gray-100 bg-gray-50/50">
-        <div className="max-w-3xl mx-auto px-4 overflow-x-auto">
+        <div className="max-w-5xl mx-auto px-6 md:px-8 overflow-x-auto">
           <div className="flex items-stretch gap-1 py-2 min-w-max">
-            {STEP_LABELS.map((label, idx) => {
+            {STEP_LABELS_LONG.map((longLabel, idx) => {
+              const shortLabel = STEP_LABELS_SHORT[idx];
               const n = idx + 1;
               const active = n === step;
               const visitable = canVisitStep(n);
@@ -1499,6 +1510,7 @@ export default function CandidateApply() {
                         : 'text-gray-300 cursor-not-allowed',
                   ].join(' ')}
                   aria-current={active ? 'step' : undefined}
+                  title={longLabel}
                 >
                   <span className={[
                     'inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-semibold',
@@ -1508,7 +1520,12 @@ export default function CandidateApply() {
                   ].join(' ')}>
                     {completed ? '✓' : n}
                   </span>
-                  <span>{label}</span>
+                  {/* Long label on md+ (where ~1024px container has room
+                      for all 6); short label below md (still readable,
+                      never single-letter). overflow-x-auto handles any
+                      remaining overflow without clipping. */}
+                  <span className="hidden md:inline">{longLabel}</span>
+                  <span className="md:hidden">{shortLabel}</span>
                 </button>
               );
             })}
@@ -1520,11 +1537,16 @@ export default function CandidateApply() {
         </div>
       </div>
 
-      <div className="max-w-lg mx-auto px-6 py-10">
+      {/* Outer container — widened to max-w-5xl (~1024px) per spec so
+          long step-bar labels render without truncation and the Review
+          step has room for its two-column layout. Single-column steps
+          (1-5) cap their content at max-w-xl inside this container so
+          forms don't feel too sparse. */}
+      <div className="max-w-5xl mx-auto px-6 md:px-8 py-10">
 
         {/* ── Tab 1: Contact Information ───────────────────────────────── */}
         {step === 1 && (
-          <div>
+          <div className="max-w-xl mx-auto">
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Contact Information</h2>
             <p className="text-gray-500 mb-8 text-sm">Kept private — only shared with your explicit consent.</p>
 
@@ -1586,7 +1608,7 @@ export default function CandidateApply() {
 
         {/* ── Tab 2: Professional Experience ───────────────────────────── */}
         {step === 2 && (
-          <div>
+          <div className="max-w-xl mx-auto">
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Professional Experience</h2>
             <p className="text-gray-500 mb-8 text-sm leading-relaxed">
               Tell us about your background and what you've worked on.
@@ -1715,7 +1737,7 @@ export default function CandidateApply() {
 
         {/* ── Tab 3: Resume Upload (resume only) ──────────────────────── */}
         {step === 3 && (
-          <div>
+          <div className="max-w-xl mx-auto">
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Upload Your Resume</h2>
             <p className="text-gray-500 mb-8 text-sm">
               We'll use AI to extract your profile automatically. PDF format required.
@@ -1783,7 +1805,7 @@ export default function CandidateApply() {
 
         {/* ── Tab 4: Future Job Preferences ───────────────────────────── */}
         {step === 4 && (
-          <div>
+          <div className="max-w-xl mx-auto">
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Future Job Preferences</h2>
             <p className="text-gray-500 mb-8 text-sm">Help us match you with the right opportunities.</p>
 
@@ -1874,7 +1896,7 @@ export default function CandidateApply() {
 
         {/* ── Tab 5: Work Authorization ──────────────────────────────── */}
         {step === 5 && (
-          <div>
+          <div className="max-w-xl mx-auto">
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Work Authorization</h2>
             <p className="text-gray-500 mb-8 text-sm leading-relaxed">
               Two standard questions — we collect these as-is and never filter introductions on your answer.
@@ -1950,10 +1972,15 @@ export default function CandidateApply() {
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Review your profile</h2>
             <p className="text-gray-500 mb-6 text-sm">
               This is exactly what recruiters will see (your real name, contact info, and resume stay hidden until you accept an introduction).
-              Edit any parsed details below if anything looks wrong.
+              Edit any parsed details on the left if anything looks wrong.
             </p>
 
-            <div className="space-y-5 border border-gray-200 rounded-xl p-5 bg-gray-50 mb-6">
+            {/* Two-column at lg+: left = editable details, right = live
+                recruiter-view preview. Stacks vertically on smaller screens
+                (md and below) — editor first, preview second. */}
+            <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] gap-6 items-start">
+
+              <div className="space-y-5 border border-gray-200 rounded-xl p-5 bg-gray-50">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
                 Profile details (edit if needed)
               </p>
@@ -2025,30 +2052,37 @@ export default function CandidateApply() {
                 <p className="text-xs text-gray-400 mt-0.5">Press Enter to add each skill</p>
                 <SkillsInput skills={form.skills} onChange={v => set('skills', v)} />
               </div>
-            </div>
+              </div>
+              {/* End left column (editor) */}
 
-            {/* Live preview — exact recruiter card via the shared component */}
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
-              Recruiter view
-            </p>
-            <div className="border border-gray-200 rounded-2xl overflow-hidden bg-white shadow-sm">
-              <AnonymousCandidateCard
-                mode="preview"
-                candidate={{
-                  label: (form.currentRole || form.primaryBackground || 'Finance Professional'),
-                  display_name: (form.currentRole || form.primaryBackground || 'Finance Professional'),
-                  location: form.location || 'United States',
-                  experience: Number(form.yearsExperience) || 0,
-                  education: form.education || 'Not specified',
-                  highest_education_level: form.educationLevel || null,
-                  profile_description: form.bio || null,
-                  primary_background: form.primaryBackground || null,
-                  secondary_backgrounds: form.secondaryBackgrounds,
-                  open_to_opportunities: form.jobSearchStatus === 'Actively Looking',
-                  skills: form.skills.map((s, i) => ({ id: i, skill: s })),
-                }}
-              />
+              {/* Right column — live recruiter-view preview. Sticky on lg+
+                  so the card stays visible while the user scrolls the
+                  editor on the left. */}
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+                  Recruiter view
+                </p>
+                <div className="border border-gray-200 rounded-2xl overflow-hidden bg-white shadow-sm lg:sticky lg:top-4">
+                  <AnonymousCandidateCard
+                    mode="preview"
+                    candidate={{
+                      label: (form.currentRole || form.primaryBackground || 'Finance Professional'),
+                      display_name: (form.currentRole || form.primaryBackground || 'Finance Professional'),
+                      location: form.location || 'United States',
+                      experience: Number(form.yearsExperience) || 0,
+                      education: form.education || 'Not specified',
+                      highest_education_level: form.educationLevel || null,
+                      profile_description: form.bio || null,
+                      primary_background: form.primaryBackground || null,
+                      secondary_backgrounds: form.secondaryBackgrounds,
+                      open_to_opportunities: form.jobSearchStatus === 'Actively Looking',
+                      skills: form.skills.map((s, i) => ({ id: i, skill: s })),
+                    }}
+                  />
+                </div>
+              </div>
             </div>
+            {/* End two-column grid */}
 
             <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800 mt-6">
               <strong>Note:</strong> Your profile will be reviewed by our team before going live.

@@ -3,10 +3,11 @@ import { Link } from 'react-router-dom';
 import {
   UserPlus, LogIn, Loader2, CheckCircle2, X, ChevronLeft,
   User, Mail, FileText, Settings as SettingsIcon, Menu,
-  LogOut, KeyRound, ExternalLink,
+  LogOut, KeyRound, ExternalLink, Eye,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { authedFetch } from '@/integrations/supabase/authedFetch';
+import AnonymousCandidateCard from '@/components/AnonymousCandidateCard';
 import '@fontsource-variable/newsreader';
 import '@fontsource-variable/manrope';
 import '@fontsource-variable/geist-mono';
@@ -91,7 +92,7 @@ interface IntroRequest {
 }
 
 type DashView = 'loading' | 'landing' | 'signin' | 'dashboard';
-type TabKey = 'profile' | 'introductions' | 'resume' | 'settings';
+type TabKey = 'profile' | 'recruiter-view' | 'introductions' | 'resume' | 'settings';
 
 // ─── Main export ─────────────────────────────────────────────────────────────
 
@@ -455,10 +456,11 @@ function Dashboard({
 
   // ── Tabs ─────────────────────────────────────────────────────────────────
   const TABS: { key: TabKey; label: string; icon: typeof User; badge?: number }[] = [
-    { key: 'profile',       label: 'Profile',       icon: User },
-    { key: 'introductions', label: 'Introductions', icon: Mail,        badge: pendingCount },
-    { key: 'resume',        label: 'Resume',        icon: FileText },
-    { key: 'settings',      label: 'Settings',      icon: SettingsIcon },
+    { key: 'profile',        label: 'Profile',        icon: User },
+    { key: 'recruiter-view', label: 'Recruiter View', icon: Eye },
+    { key: 'introductions',  label: 'Introductions',  icon: Mail,        badge: pendingCount },
+    { key: 'resume',         label: 'Resume',         icon: FileText },
+    { key: 'settings',       label: 'Settings',       icon: SettingsIcon },
   ];
 
   const NavItem = ({ t }: { t: typeof TABS[number] }) => {
@@ -499,8 +501,22 @@ function Dashboard({
       >
         <div className="px-6 py-6 border-b" style={{ borderColor: 'rgba(14,14,13,.06)' }}>
           <span className="font-bold text-lg tracking-tight">SFC Talent</span>
+          {/* Real name shown here in the sidebar corner — this is the
+              candidate's OWN authenticated dashboard, so showing the
+              real identity is correct (the anonymized display_name
+              lives in the Profile tab header and the Recruiter View
+              tab). */}
+          {candidate.name && (
+            <p
+              className="mt-2 truncate text-sm font-semibold"
+              style={{ color: INK }}
+              title={candidate.name}
+            >
+              {candidate.name}
+            </p>
+          )}
           <p
-            className="mt-2 truncate"
+            className="mt-1 truncate"
             style={{ fontFamily: MONO, fontSize: 10.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(14,14,13,.55)' }}
             title={candidate.display_name || candidate.label || candidate.name}
           >
@@ -531,7 +547,17 @@ function Dashboard({
         >
           <Menu className="w-5 h-5" />
         </button>
-        <span className="font-bold text-base tracking-tight">SFC Talent</span>
+        {/* Center cluster: brand + real name underneath. Real name in
+            the corner of the mobile top bar mirrors the sidebar
+            treatment on desktop. */}
+        <div className="flex flex-col items-center min-w-0">
+          <span className="font-bold text-base tracking-tight">SFC Talent</span>
+          {candidate.name && (
+            <span className="text-[11px] font-semibold truncate max-w-[180px]" style={{ color: 'rgba(14,14,13,.7)' }} title={candidate.name}>
+              {candidate.name}
+            </span>
+          )}
+        </div>
         <button
           onClick={onSignOut}
           className="text-xs font-medium"
@@ -569,6 +595,9 @@ function Dashboard({
               onUpdateCandidate={updateCandidate}
               onUpdateSkills={updateSkills}
             />
+          )}
+          {tab === 'recruiter-view' && (
+            <RecruiterViewTab candidate={candidate} skills={skills} />
           )}
           {tab === 'introductions' && (
             canHaveIntros ? (
@@ -1314,6 +1343,79 @@ function SettingsTab({
           </div>
         </div>
       </Card>
+    </div>
+  );
+}
+
+// ─── Recruiter View tab ─────────────────────────────────────────────────────
+// Renders the candidate's anonymized profile EXACTLY as recruiters see
+// it on /browse, by reusing the same AnonymousCandidateCard component
+// in mode='preview'. The intake wizard's review step uses the same
+// component the same way — so what the candidate sees here, the
+// recruiter sees there, by construction. No lookalike, no drift.
+//
+// preview mode is the right choice (vs recruiter mode) because:
+//   - It suppresses the "Why This Candidate Stands Out" AI insight
+//     section entirely (no fetch, no skeleton).
+//   - It never shows the SFC Take (admin-curated content the candidate
+//     shouldn't see anyway).
+//   - It hides the Request Introduction CTA, which would be nonsensical
+//     for the candidate themselves.
+//
+// Data shape: feed from current candidate state. Some fields the card
+// uses (education, primary_background, secondary_backgrounds,
+// highest_education_level) aren't returned by the narrowed candidate-
+// profile GET — this build deliberately doesn't widen the API. They
+// degrade to neutral defaults; the card handles missing optionals
+// gracefully and renders the required `education` slot as 'Not
+// specified' until the GET is widened in a separate pass.
+
+function RecruiterViewTab({
+  candidate,
+  skills,
+}: {
+  candidate: CandidateRow;
+  skills: string[];
+}) {
+  return (
+    <div className="space-y-4">
+      <div
+        className="rounded-2xl border px-5 py-4"
+        style={{ borderColor: 'rgba(0,128,55,.2)', background: 'rgba(0,128,55,.04)' }}
+      >
+        <p className="text-sm leading-relaxed" style={{ color: 'rgba(14,14,13,.78)' }}>
+          This is exactly how recruiters see you — your name and contact details
+          stay hidden until you approve an introduction.
+        </p>
+      </div>
+
+      <div
+        className="border rounded-2xl overflow-hidden bg-white"
+        style={{ borderColor: 'rgba(14,14,13,.08)' }}
+      >
+        <AnonymousCandidateCard
+          mode="preview"
+          candidate={{
+            id: candidate.id,
+            label: candidate.label || 'Finance Professional',
+            display_name: candidate.display_name || candidate.label || 'Finance Professional',
+            location: candidate.location || 'United States',
+            experience: typeof candidate.experience === 'number' ? candidate.experience : 0,
+            // education / primary_background / secondary_backgrounds /
+            // highest_education_level aren't in the narrowed GET today.
+            // Pass safe defaults; widening the GET is tracked separately.
+            education: 'Not specified',
+            highest_education_level: null,
+            profile_description: candidate.profile_description || null,
+            primary_background: null,
+            secondary_backgrounds: null,
+            open_to_opportunities: candidate.open_to_opportunities ?? null,
+            // The card expects { id, skill } objects; the dashboard
+            // keeps skills as flat strings. Index works fine as a key.
+            skills: skills.map((s, i) => ({ id: i, skill: s })),
+          }}
+        />
+      </div>
     </div>
   );
 }

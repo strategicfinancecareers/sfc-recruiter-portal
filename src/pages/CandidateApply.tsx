@@ -1484,11 +1484,23 @@ export default function CandidateApply() {
         <span className="text-sm text-gray-400">Step {step} of {TOTAL_STEPS}</span>
       </div>
 
-      {/* Clickable step bar. Earlier steps always navigable; later steps
-          unlocked once every previous validator passes. */}
+      {/* Clickable step bar. Earlier steps always navigable; later
+          steps unlocked once every previous validator passes.
+
+          Layout:
+          - Constrained to the same max-w-5xl container as the form
+            body so the bar can't bleed past the edge.
+          - SHORT labels only (Contact / Experience / Resume /
+            Preferences / Work Auth / Review) — the long label still
+            ships as the title= tooltip on hover.
+          - At sm+ the 6 steps split evenly via flex-1; no horizontal
+            scroll; every label always fully visible.
+          - Below sm the row wraps to a second line (flex-wrap) rather
+            than clipping. Each button is min-w-0 + truncate as a
+            belt-and-suspenders guarantee — no character ever cut. */}
       <div className="border-b border-gray-100 bg-gray-50/50">
-        <div className="max-w-5xl mx-auto px-6 md:px-8 overflow-x-auto">
-          <div className="flex items-stretch gap-1 py-2 min-w-max">
+        <div className="max-w-5xl mx-auto px-6 md:px-8">
+          <div className="flex flex-wrap sm:flex-nowrap items-stretch gap-1 py-2">
             {STEP_LABELS_LONG.map((longLabel, idx) => {
               const shortLabel = STEP_LABELS_SHORT[idx];
               const n = idx + 1;
@@ -1502,7 +1514,7 @@ export default function CandidateApply() {
                   onClick={() => handleStepClick(n)}
                   disabled={!visitable}
                   className={[
-                    'flex items-center gap-2 px-3 py-2 rounded-md text-xs font-medium whitespace-nowrap transition-colors',
+                    'flex-1 min-w-0 flex items-center justify-center sm:justify-start gap-2 px-2 sm:px-3 py-2 rounded-md text-xs font-medium transition-colors',
                     active
                       ? 'bg-emerald-600 text-white'
                       : visitable
@@ -1513,19 +1525,14 @@ export default function CandidateApply() {
                   title={longLabel}
                 >
                   <span className={[
-                    'inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-semibold',
+                    'inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-semibold shrink-0',
                     active ? 'bg-white text-emerald-700' :
                     completed ? 'bg-emerald-100 text-emerald-700' :
                     'bg-gray-200 text-gray-600',
                   ].join(' ')}>
                     {completed ? '✓' : n}
                   </span>
-                  {/* Long label on md+ (where ~1024px container has room
-                      for all 6); short label below md (still readable,
-                      never single-letter). overflow-x-auto handles any
-                      remaining overflow without clipping. */}
-                  <span className="hidden md:inline">{longLabel}</span>
-                  <span className="md:hidden">{shortLabel}</span>
+                  <span className="truncate">{shortLabel}</span>
                 </button>
               );
             })}
@@ -1972,13 +1979,17 @@ export default function CandidateApply() {
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Review your profile</h2>
             <p className="text-gray-500 mb-6 text-sm">
               This is exactly what recruiters will see (your real name, contact info, and resume stay hidden until you accept an introduction).
-              Edit any parsed details on the left if anything looks wrong.
+              Edit any parsed details below if anything looks wrong.
             </p>
 
-            {/* Two-column at lg+: left = editable details, right = live
-                recruiter-view preview. Stacks vertically on smaller screens
-                (md and below) — editor first, preview second. */}
-            <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] gap-6 items-start">
+            {/* Stacked layout: editor on top (full width within the
+                form's max-w-5xl container; its inner inputs use their
+                own 2-col grid where sensible), recruiter-view card
+                below at full width so it has room for its proper
+                multi-column dossier layout (left summary/expertise +
+                right Candidate Snapshot rail) instead of being
+                squashed into a narrow column. */}
+            <div className="space-y-6">
 
               <div className="space-y-5 border border-gray-200 rounded-xl p-5 bg-gray-50">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
@@ -2053,16 +2064,20 @@ export default function CandidateApply() {
                 <SkillsInput skills={form.skills} onChange={v => set('skills', v)} />
               </div>
               </div>
-              {/* End left column (editor) */}
+              {/* End editor block */}
 
-              {/* Right column — live recruiter-view preview. Sticky on lg+
-                  so the card stays visible while the user scrolls the
-                  editor on the left. */}
+              {/* Recruiter-view preview — full-width below the editor.
+                  AnonymousCandidateCard renders its own lg:flex-row
+                  dossier layout internally (left summary/skills column
+                  + right Candidate Snapshot rail at lg+), and that
+                  layout gets the breathing room of the full max-w-5xl
+                  container here. Stacks single-column on smaller
+                  viewports via the card's own responsive break. */}
               <div>
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
                   Recruiter view
                 </p>
-                <div className="border border-gray-200 rounded-2xl overflow-hidden bg-white shadow-sm lg:sticky lg:top-4">
+                <div className="border border-gray-200 rounded-2xl overflow-hidden bg-white shadow-sm">
                   <AnonymousCandidateCard
                     mode="preview"
                     candidate={{
@@ -2082,7 +2097,7 @@ export default function CandidateApply() {
                 </div>
               </div>
             </div>
-            {/* End two-column grid */}
+            {/* End stacked layout */}
 
             <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800 mt-6">
               <strong>Note:</strong> Your profile will be reviewed by our team before going live.

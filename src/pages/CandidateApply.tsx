@@ -16,6 +16,8 @@ import { supabase } from '@/integrations/supabase/client';
 // packages are already imported elsewhere in the app, e.g. Home.tsx.)
 import '@fontsource-variable/newsreader';
 
+import AnonymousCandidateCard from '@/components/AnonymousCandidateCard';
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const COMPANY_LOGOS = [
@@ -65,7 +67,11 @@ const SECTORS = [
   'Fintech', 'Consumer/CPG', 'SaaS/Technology', 'Healthcare',
   'Real Estate', 'Private Equity', 'Investment Banking', 'Consulting',
   'Energy', 'Media', 'Marketplace', 'Financial Services',
+  'Other',
 ];
+// Sentinel for the industries "Other" picker — selecting this reveals
+// the free-text input that lands in candidates.industries_other.
+const SECTOR_OTHER = 'Other';
 
 const TARGET_ROLES = [
   'Strategic Finance',
@@ -77,14 +83,48 @@ const TARGET_ROLES = [
   'VP Finance / CFO',
 ];
 
+// New areas of interest (finance specializations the candidate wants to
+// move INTO). Multi-select → candidates.new_areas[].
+const NEW_AREAS = [
+  'Strategic Finance',
+  'Corporate Development / M&A',
+  'FP&A leadership',
+  'Investor Relations',
+  'Treasury / Capital Markets',
+  'Business Operations / Chief of Staff',
+  'Revenue Operations',
+  'Data & Analytics (finance)',
+  'Startup CFO / first finance hire',
+  'Fund finance / portfolio finance',
+];
+
+// Company-stage experience (which company stages the candidate has
+// worked at). Multi-select → candidates.target_company_stages[].
+const COMPANY_STAGES = [
+  'Pre-seed / Seed',
+  'Series A',
+  'Series B',
+  'Series C+',
+  'Pre-IPO / Late-stage private',
+  'Public company (small-mid cap)',
+  'Public company (large cap / Fortune 500)',
+  'PE-backed',
+  'Bootstrapped / Founder-owned',
+  'Government / Non-profit',
+];
+
 const PREFERRED_CITIES = [
   'New York', 'San Francisco / Bay Area', 'Los Angeles', 'Chicago',
   'Boston', 'Austin', 'Miami', 'Seattle', 'Denver', 'Washington D.C.',
   'Open to relocation', 'No preference',
+  'Other',
 ];
+// Sentinel for the cities "Other" picker — selecting reveals free-text.
+const CITY_OTHER = 'Other';
 
+// Under-$70k removed per spec (the comp question now lives only on the
+// Future Job Preferences tab; the global disqualifier on it is gone).
 const COMP_OPTIONS = [
-  { value: 'under-70k', label: 'Under $70k' },
   { value: '70k-100k', label: '$70k – $100k' },
   { value: '100k-150k', label: '$100k – $150k' },
   { value: '150k-200k', label: '$150k – $200k' },
@@ -117,26 +157,36 @@ const WORK_PREFERENCES = [
 
 type Screen = 'landing' | 'auth' | 'verify-email' | 'form' | 'disqualified' | 'success';
 
+// Form-rework field grouping (matches the new 6-tab wizard).
+// One comp field total (targetComp on the Future Job Preferences tab).
+// workPreferences is an array (was string). Industries collected on the
+// Professional Experience tab. Work-auth two-question pair at the end.
 interface FormState {
-  // Step 1 – Qualification
-  email: string;
-  primaryBackground: string;
-  secondaryBackgrounds: string[];
-  detailedExperience: string[];
-  experience: string;
-  targetComp: string;
-  // Step 2 – Contact
+  // Tab 1 — Contact Information
   firstName: string;
   lastName: string;
+  email: string;
   phone: string;
   linkedin: string;
   committed: boolean;
-  // Step 3 – Resume
+
+  // Tab 2 — Professional Experience
+  primaryBackground: string;
+  secondaryBackgrounds: string[];
+  detailedExperience: string[];
+  experience: string;              // years bucket: under2 / 2to5 / 5to10 / 10plus
+  industries: string[];            // moved from old Step 4; → candidates.industries[]
+  industriesOther: string;         // free text when 'Other' is in industries[]
+  companyStages: string[];         // NEW → candidates.target_company_stages[]
+  newAreas: string[];              // NEW → candidates.new_areas[]
+
+  // Tab 3 — Resume Upload (resume only)
   resumeFile: File | null;
   resumeBase64: string;
   resumeParsed: any | null;
   parseWarning: boolean;
-  // Step 4 – Review & Edit
+  // Parsed-resume fallout (still surfaced + editable on the review tab,
+  // but we keep the fields here so /api/parse-resume can populate them).
   currentRole: string;
   location: string;
   yearsExperience: string;
@@ -144,29 +194,46 @@ interface FormState {
   educationLevel: string;
   skills: string[];
   bio: string;
-  sectors: string[];
-  // Step 5 – Availability
+
+  // Tab 4 — Future Job Preferences
   jobSearchStatus: string;
-  targetCompStep5: string;
-  workPreference: string;
+  targetComp: string;              // ONLY comp field; lives here
+  workPreferences: string[];       // multi-select
   preferredCities: string[];
+  preferredCitiesOther: string;    // free text when 'Other' is in preferredCities[]
   targetRoles: string[];
+
+  // Tab 5 — Work Authorization
+  // null = unanswered; the validator requires both to be non-null before
+  // the user can move forward. Two-question pair, no filtering on values.
+  workAuthorizedUs: boolean | null;
+  requiresSponsorship: boolean | null;
 }
 
 const INITIAL_FORM: FormState = {
-  email: '', primaryBackground: '', secondaryBackgrounds: [], detailedExperience: [],
-  experience: '', targetComp: '',
-  firstName: '', lastName: '', phone: '', linkedin: '', committed: false,
+  // Tab 1
+  firstName: '', lastName: '', email: '', phone: '', linkedin: '', committed: false,
+  // Tab 2
+  primaryBackground: '', secondaryBackgrounds: [], detailedExperience: [], experience: '',
+  industries: [], industriesOther: '',
+  companyStages: [], newAreas: [],
+  // Tab 3
   resumeFile: null, resumeBase64: '', resumeParsed: null, parseWarning: false,
   currentRole: '', location: '', yearsExperience: '', education: '',
-  educationLevel: '', skills: [], bio: '', sectors: [],
-  jobSearchStatus: '', targetCompStep5: '', workPreference: '', preferredCities: [], targetRoles: [],
+  educationLevel: '', skills: [], bio: '',
+  // Tab 4
+  jobSearchStatus: '', targetComp: '',
+  workPreferences: [], preferredCities: [], preferredCitiesOther: '', targetRoles: [],
+  // Tab 5
+  workAuthorizedUs: null, requiresSponsorship: null,
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+// Only the "<2 years experience" gate remains — the comp lower bound is
+// gone (under-70k removed from the option list entirely).
 function isDisqualified(form: FormState): boolean {
-  return form.experience === 'under2' || form.targetComp === 'under-70k';
+  return form.experience === 'under2';
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -781,32 +848,58 @@ export default function CandidateApply() {
   // Secondary backgrounds = all categories except primary
   const secondaryOptions = PRIMARY_BACKGROUNDS.filter(b => b.value !== form.primaryBackground);
 
-  // ── Validation ──────────────────────────────────────────────────────────────
+  // ── Validation (per the new 6-tab order) ──────────────────────────────────
+  //   1) Contact Information
+  //   2) Professional Experience
+  //   3) Resume Upload
+  //   4) Future Job Preferences
+  //   5) Work Authorization
+  //   6) Review
+  // Forward navigation is gated by these. Back is always free, and tabs
+  // are clickable for any step the user has at least one of the gates
+  // satisfied for (see canVisitStep below).
 
   const canProceedStep1 =
-    form.email &&
-    form.primaryBackground &&
-    form.detailedExperience.length > 0 &&
-    form.experience &&
-    form.targetComp;
+    !!(form.firstName && form.lastName && form.email && form.phone.trim().length >= 7 && form.linkedin.trim() && form.committed);
 
   const canProceedStep2 =
-    form.firstName && form.lastName && form.phone.trim().length >= 7 && form.linkedin.trim() && form.committed;
+    !!(form.primaryBackground && form.detailedExperience.length > 0 && form.experience);
 
   const canProceedStep3 = form.resumeParsed !== null;
 
-  const canProceedStep4 = form.currentRole && form.location && form.yearsExperience;
+  // Tab 4: comp is now mandatory here (only place it's asked); work
+  // preferences must be at least one selected (multi-select); job-status
+  // (Active/Not Active) remains required.
+  const canProceedStep4 =
+    !!(form.jobSearchStatus && form.targetComp && form.workPreferences.length > 0);
 
-  const canProceedStep5 = form.jobSearchStatus && form.workPreference;
+  // Tab 5: both work-auth questions must be answered (yes/no on each).
+  const canProceedStep5 =
+    form.workAuthorizedUs !== null && form.requiresSponsorship !== null;
 
   const canProceed = [null, canProceedStep1, canProceedStep2, canProceedStep3, canProceedStep4, canProceedStep5, true][step];
+
+  // Tab bar click-to-navigate: a user can always visit an earlier step,
+  // and can visit a later step only if every step before it is valid.
+  // Step 6 (Review) requires every prior validator to be true.
+  const stepValidators = [null, canProceedStep1, canProceedStep2, canProceedStep3, canProceedStep4, canProceedStep5] as const;
+  const canVisitStep = (target: number): boolean => {
+    if (target <= step) return true;          // backward / current always ok
+    for (let i = 1; i < target; i++) {
+      if (!stepValidators[i]) return false;
+    }
+    return true;
+  };
 
   // ── Navigation ──────────────────────────────────────────────────────────────
 
   const handleNext = () => {
-    if (step === 1) {
-      if (isDisqualified(form)) { setScreen('disqualified'); return; }
-      if (!form.targetCompStep5) set('targetCompStep5', form.targetComp);
+    // Disqualifier check moved to Tab 2 (where the years-experience radio
+    // now lives). Comp no longer triggers any disqualifier — under-70k
+    // was removed from the option list.
+    if (step === 2 && isDisqualified(form)) {
+      setScreen('disqualified');
+      return;
     }
     if (step < TOTAL_STEPS) setStep(s => s + 1);
   };
@@ -816,6 +909,10 @@ export default function CandidateApply() {
     // /apply no longer owns the landing surface — back from step 1 goes
     // to the canonical front door at "/".
     else window.location.href = '/';
+  };
+
+  const handleStepClick = (target: number) => {
+    if (canVisitStep(target)) setStep(target);
   };
 
   // ── Resume Upload & Parse ───────────────────────────────────────────────────
@@ -907,11 +1004,13 @@ export default function CandidateApply() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          // Identity / contact
           firstName: form.firstName,
           lastName: form.lastName,
           email: form.email,
           phone: form.phone,
           linkedin: form.linkedin || null,
+          // Parsed-resume / review fields
           currentRole: form.currentRole,
           location: form.location,
           yearsExperience: Number(form.yearsExperience) || 0,
@@ -919,15 +1018,25 @@ export default function CandidateApply() {
           educationLevel: form.educationLevel,
           bio: form.bio,
           skills: form.skills,
-          sectors: form.sectors,
+          // Professional experience (industries moved here; new fields added)
+          industries: form.industries,
+          industriesOther: form.industriesOther || null,
+          companyStages: form.companyStages,
+          newAreas: form.newAreas,
           primaryBackground: form.primaryBackground,
           secondaryBackgrounds: form.secondaryBackgrounds,
           detailedExperience: form.detailedExperience,
+          // Future Job Preferences (single comp source of truth)
           jobSearchStatus: form.jobSearchStatus,
-          targetComp: form.targetCompStep5,
-          workPreference: form.workPreference,
+          targetComp: form.targetComp,
+          workPreferences: form.workPreferences,
           preferredCities: form.preferredCities,
+          preferredCitiesOther: form.preferredCitiesOther || null,
           targetRoles: form.targetRoles,
+          // Work authorization (two questions, store-only)
+          workAuthorizedUs: form.workAuthorizedUs,
+          requiresSponsorship: form.requiresSponsorship,
+          // Resume
           resumeBase64: form.resumeBase64 || null,
           resumeFileName: form.resumeFile?.name || null,
         }),
@@ -1348,38 +1457,142 @@ export default function CandidateApply() {
 
   // ── Multi-step Form ──────────────────────────────────────────────────────────
 
+  // Step labels for the clickable tab bar. Order matches the validators.
+  const STEP_LABELS = [
+    'Contact Information',
+    'Professional Experience',
+    'Resume Upload',
+    'Future Job Preferences',
+    'Work Authorization',
+    'Review your profile',
+  ];
+
   return (
     <div className="min-h-screen bg-white">
       <div className="border-b px-6 py-4 flex items-center justify-between">
         <span className="font-bold text-lg text-gray-900 tracking-tight">SFC Talent</span>
         <span className="text-sm text-gray-400">Step {step} of {TOTAL_STEPS}</span>
       </div>
-      <div className="h-1 bg-gray-100">
-        <div className="h-1 bg-emerald-500 transition-all duration-500"
-          style={{ width: `${(step / TOTAL_STEPS) * 100}%` }} />
+
+      {/* Clickable step bar. Earlier steps always navigable; later steps
+          unlocked once every previous validator passes. */}
+      <div className="border-b border-gray-100 bg-gray-50/50">
+        <div className="max-w-3xl mx-auto px-4 overflow-x-auto">
+          <div className="flex items-stretch gap-1 py-2 min-w-max">
+            {STEP_LABELS.map((label, idx) => {
+              const n = idx + 1;
+              const active = n === step;
+              const visitable = canVisitStep(n);
+              const completed = stepValidators[n] === true && n < step;
+              return (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => handleStepClick(n)}
+                  disabled={!visitable}
+                  className={[
+                    'flex items-center gap-2 px-3 py-2 rounded-md text-xs font-medium whitespace-nowrap transition-colors',
+                    active
+                      ? 'bg-emerald-600 text-white'
+                      : visitable
+                        ? 'text-gray-700 hover:bg-gray-100'
+                        : 'text-gray-300 cursor-not-allowed',
+                  ].join(' ')}
+                  aria-current={active ? 'step' : undefined}
+                >
+                  <span className={[
+                    'inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-semibold',
+                    active ? 'bg-white text-emerald-700' :
+                    completed ? 'bg-emerald-100 text-emerald-700' :
+                    'bg-gray-200 text-gray-600',
+                  ].join(' ')}>
+                    {completed ? '✓' : n}
+                  </span>
+                  <span>{label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <div className="h-1 bg-gray-100">
+          <div className="h-1 bg-emerald-500 transition-all duration-500"
+            style={{ width: `${(step / TOTAL_STEPS) * 100}%` }} />
+        </div>
       </div>
 
       <div className="max-w-lg mx-auto px-6 py-10">
 
-        {/* ── Step 1: Qualification ── */}
+        {/* ── Tab 1: Contact Information ───────────────────────────────── */}
         {step === 1 && (
           <div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Quick Fit Check</h2>
-            <p className="text-gray-500 mb-8 text-sm leading-relaxed">
-              SFC Talent connects curated professionals with top companies. We're currently focused
-              on finance roles — here's a quick check to make sure we're a good match.
-            </p>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Contact Information</h2>
+            <p className="text-gray-500 mb-8 text-sm">Kept private — only shared with your explicit consent.</p>
 
-            <div className="space-y-7">
+            <div className="space-y-5">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>First name <span className="text-red-500">*</span></Label>
+                  <Input value={form.firstName} onChange={e => set('firstName', e.target.value)}
+                    placeholder="Jane" className="mt-2" />
+                </div>
+                <div>
+                  <Label>Last name <span className="text-red-500">*</span></Label>
+                  <Input value={form.lastName} onChange={e => set('lastName', e.target.value)}
+                    placeholder="Smith" className="mt-2" />
+                </div>
+              </div>
 
-              {/* Email */}
               <div>
                 <Label>Email address <span className="text-red-500">*</span></Label>
                 <Input type="email" value={form.email} onChange={e => set('email', e.target.value)}
                   placeholder="you@example.com" className="mt-2" />
               </div>
 
-              {/* Part A: Primary background — large single-select cards */}
+              <div>
+                <Label>Phone number <span className="text-red-500">*</span></Label>
+                <Input type="tel" value={form.phone} onChange={e => set('phone', e.target.value)}
+                  placeholder="+1 (555) 000-0000" className="mt-2" />
+                <p className="text-xs text-gray-500 mt-1.5">
+                  Required — you must be reachable for introduction requests within 48 hours.
+                </p>
+              </div>
+
+              <div>
+                <Label>LinkedIn profile URL <span className="text-red-500">*</span></Label>
+                <Input value={form.linkedin} onChange={e => set('linkedin', e.target.value)}
+                  placeholder="https://linkedin.com/in/janesmith" className="mt-2" />
+                <p className="text-xs text-gray-500 mt-1.5 flex items-center gap-1">
+                  🔒 Never shown to recruiters — used for internal vetting only.
+                </p>
+              </div>
+
+              <div className="p-4 border border-gray-200 rounded-xl bg-gray-50">
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input type="checkbox" checked={form.committed}
+                    onChange={e => set('committed', e.target.checked)} className="mt-0.5 h-4 w-4 rounded border-gray-300 text-emerald-600" />
+                  <div>
+                    <p className="text-sm text-gray-700 font-medium leading-snug">
+                      I commit to responding to all introduction requests within 48 hours via email or text.
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1.5 leading-relaxed">
+                      Non-responses will result in your profile being deprioritized. Repeated non-responses may result in removal from the platform.
+                    </p>
+                  </div>
+                </label>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Tab 2: Professional Experience ───────────────────────────── */}
+        {step === 2 && (
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Professional Experience</h2>
+            <p className="text-gray-500 mb-8 text-sm leading-relaxed">
+              Tell us about your background and what you've worked on.
+            </p>
+
+            <div className="space-y-7">
               <div>
                 <Label className="text-sm font-semibold text-gray-800">
                   What best describes your primary background? <span className="text-red-500">*</span>
@@ -1413,7 +1626,6 @@ export default function CandidateApply() {
                 </div>
               </div>
 
-              {/* Part B: Secondary backgrounds (optional, shows other categories) */}
               {form.primaryBackground && (
                 <div>
                   <Label className="text-sm font-semibold text-gray-800">
@@ -1444,7 +1656,6 @@ export default function CandidateApply() {
                 </div>
               )}
 
-              {/* Part C: Detailed experience chips from primary */}
               {form.primaryBackground && detailOptions.length > 0 && (
                 <div>
                   <Label className="text-sm font-semibold text-gray-800">
@@ -1458,7 +1669,6 @@ export default function CandidateApply() {
                 </div>
               )}
 
-              {/* Experience */}
               <div>
                 <Label>Years of full-time professional experience? <span className="text-red-500">*</span></Label>
                 <RadioGroup name="experience" value={form.experience} onChange={v => set('experience', v)}
@@ -1470,80 +1680,40 @@ export default function CandidateApply() {
                   ]} />
               </div>
 
-              {/* Comp target */}
               <div>
-                <Label>What is your total cash compensation target? <span className="text-red-500">*</span></Label>
-                <RadioGroup name="targetComp" value={form.targetComp} onChange={v => set('targetComp', v)}
-                  options={COMP_OPTIONS} />
-              </div>
-
-            </div>
-          </div>
-        )}
-
-        {/* ── Step 2: Contact Info ── */}
-        {step === 2 && (
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Contact Information</h2>
-            <p className="text-gray-500 mb-8 text-sm">Kept private — only shared with your explicit consent.</p>
-
-            <div className="space-y-5">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>First name <span className="text-red-500">*</span></Label>
-                  <Input value={form.firstName} onChange={e => set('firstName', e.target.value)}
-                    placeholder="Jane" className="mt-2" />
-                </div>
-                <div>
-                  <Label>Last name <span className="text-red-500">*</span></Label>
-                  <Input value={form.lastName} onChange={e => set('lastName', e.target.value)}
-                    placeholder="Smith" className="mt-2" />
-                </div>
+                <Label className="text-sm font-semibold text-gray-800">
+                  Company-stage experience
+                  <span className="ml-2 text-xs font-normal text-gray-400">Select all you've worked at</span>
+                </Label>
+                <ChipGrid options={COMPANY_STAGES} selected={form.companyStages} onChange={v => set('companyStages', v)} />
               </div>
 
               <div>
-                <Label>Phone number <span className="text-red-500">*</span></Label>
-                <Input type="tel" value={form.phone} onChange={e => set('phone', e.target.value)}
-                  placeholder="+1 (555) 000-0000" className="mt-2" />
-                <p className="text-xs text-gray-500 mt-1.5">
-                  Required — you must be reachable for introduction requests within 48 hours.
-                </p>
+                <Label className="text-sm font-semibold text-gray-800">Industries / sectors</Label>
+                <p className="text-xs text-gray-400 mt-0.5">Select all that apply</p>
+                <CheckboxGrid options={SECTORS} selected={form.industries} onChange={v => set('industries', v)} />
+                {form.industries.includes(SECTOR_OTHER) && (
+                  <Input
+                    value={form.industriesOther}
+                    onChange={e => set('industriesOther', e.target.value)}
+                    placeholder="Tell us which industry"
+                    className="mt-3"
+                  />
+                )}
               </div>
 
               <div>
-                <Label>LinkedIn profile URL <span className="text-red-500">*</span></Label>
-                <Input value={form.linkedin} onChange={e => set('linkedin', e.target.value)}
-                  placeholder="https://linkedin.com/in/janesmith" className="mt-2" />
-                <p className="text-xs text-gray-500 mt-1.5 flex items-center gap-1">
-                  🔒 Your LinkedIn will never be shown to recruiters — it's used for internal vetting only.
-                </p>
-              </div>
-
-              <div>
-                <Label>Email address</Label>
-                <Input type="email" value={form.email} onChange={e => set('email', e.target.value)}
-                  className="mt-2 bg-gray-50" />
-              </div>
-
-              <div className="p-4 border border-gray-200 rounded-xl bg-gray-50">
-                <label className="flex items-start gap-3 cursor-pointer">
-                  <input type="checkbox" checked={form.committed}
-                    onChange={e => set('committed', e.target.checked)} className="mt-0.5 h-4 w-4 rounded border-gray-300 text-emerald-600" />
-                  <div>
-                    <p className="text-sm text-gray-700 font-medium leading-snug">
-                      I commit to responding to all introduction requests within 48 hours via email or text.
-                    </p>
-                    <p className="text-xs text-gray-400 mt-1.5 leading-relaxed">
-                      Non-responses will result in your profile being deprioritized. Repeated non-responses may result in removal from the platform.
-                    </p>
-                  </div>
-                </label>
+                <Label className="text-sm font-semibold text-gray-800">
+                  New areas you'd like to move into
+                  <span className="ml-2 text-xs font-normal text-gray-400">Optional — multi-select</span>
+                </Label>
+                <ChipGrid options={NEW_AREAS} selected={form.newAreas} onChange={v => set('newAreas', v)} />
               </div>
             </div>
           </div>
         )}
 
-        {/* ── Step 3: Resume Upload ── */}
+        {/* ── Tab 3: Resume Upload (resume only) ──────────────────────── */}
         {step === 3 && (
           <div>
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Upload Your Resume</h2>
@@ -1551,18 +1721,15 @@ export default function CandidateApply() {
               We'll use AI to extract your profile automatically. PDF format required.
             </p>
 
-            {/* Parse warning banner */}
             {form.parseWarning && form.resumeParsed && (
               <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl mb-4">
                 <span className="text-amber-500 text-base shrink-0 mt-0.5">⚠️</span>
                 <p className="text-sm text-amber-800">
-                  We couldn't automatically parse your resume — no worries! Please fill in your
-                  details on the next step.
+                  We couldn't automatically parse your resume — no worries. You can fix any details on the final Review tab.
                 </p>
               </div>
             )}
 
-            {/* Upload area */}
             {!form.resumeParsed && (
               <div onClick={() => fileInputRef.current?.click()}
                 className="border-2 border-dashed border-gray-300 rounded-xl p-10 text-center cursor-pointer hover:border-emerald-400 hover:bg-emerald-50/30 transition-all">
@@ -1585,171 +1752,42 @@ export default function CandidateApply() {
               </div>
             )}
 
-            {/* Uploaded state */}
             {form.resumeParsed && (
-              <div className="space-y-4">
-                <div className={`flex items-center gap-3 p-4 border rounded-lg ${
-                  form.parseWarning ? 'bg-amber-50 border-amber-200' : 'bg-emerald-50 border-emerald-200'
-                }`}>
-                  {form.parseWarning
-                    ? <span className="text-amber-500 shrink-0">⚠️</span>
-                    : <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-                  }
-                  <div>
-                    <p className={`text-sm font-semibold ${form.parseWarning ? 'text-amber-800' : 'text-emerald-800'}`}>
-                      {form.parseWarning ? 'Resume uploaded — fill details manually' : 'Resume parsed successfully!'}
-                    </p>
-                    <p className={`text-xs ${form.parseWarning ? 'text-amber-600' : 'text-emerald-600'}`}>
-                      {form.resumeFile?.name}
-                    </p>
-                  </div>
-                  <button className="ml-auto text-xs text-gray-400 hover:text-gray-600 underline"
-                    onClick={() => {
-                      set('resumeParsed', null); set('resumeFile', null);
-                      set('resumeBase64', ''); set('parseWarning', false);
-                      if (fileInputRef.current) fileInputRef.current.value = '';
-                    }}>
-                    Change
-                  </button>
+              <div className={`flex items-center gap-3 p-4 border rounded-lg ${
+                form.parseWarning ? 'bg-amber-50 border-amber-200' : 'bg-emerald-50 border-emerald-200'
+              }`}>
+                {form.parseWarning
+                  ? <span className="text-amber-500 shrink-0">⚠️</span>
+                  : <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                }
+                <div>
+                  <p className={`text-sm font-semibold ${form.parseWarning ? 'text-amber-800' : 'text-emerald-800'}`}>
+                    {form.parseWarning ? 'Resume uploaded — fill details on the Review tab' : 'Resume parsed successfully!'}
+                  </p>
+                  <p className={`text-xs ${form.parseWarning ? 'text-amber-600' : 'text-emerald-600'}`}>
+                    {form.resumeFile?.name}
+                  </p>
                 </div>
-
-                {/* Parsed preview */}
-                {!form.parseWarning && (
-                  <div className="p-4 border border-gray-200 rounded-xl space-y-2">
-                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Extracted Profile</p>
-                    {[
-                      ['Role', form.resumeParsed.currentRole],
-                      ['Location', form.resumeParsed.location],
-                      ['Experience', form.resumeParsed.yearsExperience ? `${form.resumeParsed.yearsExperience} years` : ''],
-                      ['Education', form.resumeParsed.education],
-                    ].filter(([, v]) => v).map(([label, value]) => (
-                      <div key={label} className="flex gap-2 text-sm">
-                        <span className="text-gray-400 w-24 shrink-0">{label}</span>
-                        <span className="text-gray-700 font-medium">{value}</span>
-                      </div>
-                    ))}
-                    {Array.isArray(form.resumeParsed.skills) && form.resumeParsed.skills.length > 0 && (
-                      <div className="flex gap-2 text-sm pt-1">
-                        <span className="text-gray-400 w-24 shrink-0">Skills</span>
-                        <div className="flex flex-wrap gap-1">
-                          {form.resumeParsed.skills.slice(0, 6).map((s: string) => (
-                            <span key={s} className="px-2 py-0.5 bg-gray-100 text-gray-700 rounded-full text-xs">{s}</span>
-                          ))}
-                          {form.resumeParsed.skills.length > 6 && (
-                            <span className="text-xs text-gray-400">+{form.resumeParsed.skills.length - 6} more</span>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
+                <button className="ml-auto text-xs text-gray-400 hover:text-gray-600 underline"
+                  onClick={() => {
+                    set('resumeParsed', null); set('resumeFile', null);
+                    set('resumeBase64', ''); set('parseWarning', false);
+                    if (fileInputRef.current) fileInputRef.current.value = '';
+                  }}>
+                  Change
+                </button>
               </div>
             )}
           </div>
         )}
 
-        {/* ── Step 4: Review & Edit ── */}
+        {/* ── Tab 4: Future Job Preferences ───────────────────────────── */}
         {step === 4 && (
           <div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Review Your Profile</h2>
-            <p className="text-gray-500 mb-2 text-sm">
-              Edit anything that doesn't look right. This is what recruiters will see (anonymously).
-            </p>
-            {form.parseWarning && (
-              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg mb-6 text-sm text-amber-800">
-                Your resume couldn't be auto-parsed — please fill in your details below.
-              </div>
-            )}
-
-            <div className="space-y-5 mt-6">
-
-              <div>
-                <Label>Current / most recent role <span className="text-red-500">*</span></Label>
-                <Input value={form.currentRole} onChange={e => set('currentRole', e.target.value)}
-                  placeholder="e.g. Senior Finance Manager" className="mt-2" />
-              </div>
-
-              <div>
-                <Label>Location (city, state) <span className="text-red-500">*</span></Label>
-                <Input value={form.location} onChange={e => set('location', e.target.value)}
-                  placeholder="e.g. New York, NY" className="mt-2" />
-              </div>
-
-              <div>
-                <Label>Years of experience <span className="text-red-500">*</span></Label>
-                <Input type="number" min={0} max={50} value={form.yearsExperience}
-                  onChange={e => set('yearsExperience', e.target.value)}
-                  placeholder="e.g. 5" className="mt-2" />
-              </div>
-
-              <div>
-                <Label>Education (degree + field, no school name)</Label>
-                <Input value={form.education} onChange={e => set('education', e.target.value)}
-                  placeholder="e.g. MBA, Finance" className="mt-2" />
-              </div>
-
-              <div>
-                <Label>Education level</Label>
-                <RadioGroup name="educationLevel" value={form.educationLevel}
-                  onChange={v => set('educationLevel', v)}
-                  options={[
-                    { value: 'Bachelors', label: "Bachelor's" },
-                    { value: 'Masters', label: "Master's" },
-                    { value: 'MBA', label: 'MBA' },
-                    { value: 'PhD', label: 'PhD' },
-                  ]} />
-              </div>
-
-              {/* Bio — AI-generated, editable */}
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <Label>Your anonymous bio <span className="text-xs font-normal text-gray-400">(AI-generated, editable)</span></Label>
-                  {form.resumeBase64 && (
-                    <button
-                      type="button"
-                      onClick={handleRegenerateBio}
-                      disabled={regenerating}
-                      className="flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-700 font-medium disabled:opacity-50"
-                    >
-                      {regenerating
-                        ? <><Loader2 className="w-3 h-3 animate-spin" /> Regenerating…</>
-                        : <><RefreshCw className="w-3 h-3" /> Regenerate</>
-                      }
-                    </button>
-                  )}
-                </div>
-                <textarea
-                  value={form.bio}
-                  onChange={e => set('bio', e.target.value)}
-                  rows={5}
-                  placeholder="Your anonymous bio will be generated from your resume. You can edit it here."
-                  className="mt-2 w-full border border-gray-200 rounded-lg px-3 py-3 text-sm text-gray-700 leading-relaxed bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent resize-none"
-                />
-              </div>
-
-              <div>
-                <Label>Skills</Label>
-                <p className="text-xs text-gray-400 mt-0.5">Press Enter to add each skill</p>
-                <SkillsInput skills={form.skills} onChange={v => set('skills', v)} />
-              </div>
-
-              <div>
-                <Label>Industries / sectors (select all that apply)</Label>
-                <CheckboxGrid options={SECTORS} selected={form.sectors} onChange={v => set('sectors', v)} />
-              </div>
-
-            </div>
-          </div>
-        )}
-
-        {/* ── Step 5: Preferences ── */}
-        {step === 5 && (
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Your Preferences</h2>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Future Job Preferences</h2>
             <p className="text-gray-500 mb-8 text-sm">Help us match you with the right opportunities.</p>
 
             <div className="space-y-6">
-
               <div>
                 <Label>What's your current availability? <span className="text-red-500">*</span></Label>
                 <div className="grid grid-cols-2 gap-3 mt-3">
@@ -1772,41 +1810,57 @@ export default function CandidateApply() {
                     </button>
                   ))}
                 </div>
-                <div className="mt-3 p-3 bg-blue-50 border border-blue-100 rounded-lg">
-                  <p className="text-xs text-blue-700 leading-relaxed">
-                    We want to provide a great experience to both sides. Clear availability signals help recruiters move fast and respect your time.
-                  </p>
-                </div>
               </div>
 
-              {/* Work preference — single select cards */}
               <div>
-                <Label>Work preference <span className="text-red-500">*</span></Label>
+                <Label>What is your total cash compensation target? <span className="text-red-500">*</span></Label>
+                <RadioGroup name="targetComp" value={form.targetComp} onChange={v => set('targetComp', v)}
+                  options={COMP_OPTIONS} />
+              </div>
+
+              <div>
+                <Label>Work preference <span className="text-red-500">*</span><span className="ml-2 text-xs font-normal text-gray-400">Select all that apply</span></Label>
                 <div className="grid grid-cols-3 gap-3 mt-2">
-                  {WORK_PREFERENCES.map(wp => (
-                    <button key={wp.value} type="button" onClick={() => set('workPreference', wp.value)}
-                      className={`flex flex-col items-center gap-1 p-4 border-2 rounded-xl transition-all text-center ${
-                        form.workPreference === wp.value
-                          ? 'border-emerald-500 bg-emerald-50'
-                          : 'border-gray-200 hover:border-gray-300 bg-white'
-                      }`}>
-                      <span className="text-xl">{wp.label.split(' ')[0]}</span>
-                      <span className={`text-xs font-semibold ${form.workPreference === wp.value ? 'text-emerald-800' : 'text-gray-700'}`}>
-                        {wp.label.split(' ').slice(1).join(' ')}
-                      </span>
-                      <span className="text-xs text-gray-400 leading-tight">{wp.desc}</span>
-                    </button>
-                  ))}
+                  {WORK_PREFERENCES.map(wp => {
+                    const selected = form.workPreferences.includes(wp.value);
+                    return (
+                      <button key={wp.value} type="button"
+                        onClick={() => {
+                          const next = selected
+                            ? form.workPreferences.filter(v => v !== wp.value)
+                            : [...form.workPreferences, wp.value];
+                          set('workPreferences', next);
+                        }}
+                        className={`flex flex-col items-center gap-1 p-4 border-2 rounded-xl transition-all text-center ${
+                          selected
+                            ? 'border-emerald-500 bg-emerald-50'
+                            : 'border-gray-200 hover:border-gray-300 bg-white'
+                        }`}>
+                        <span className="text-xl">{wp.label.split(' ')[0]}</span>
+                        <span className={`text-xs font-semibold ${selected ? 'text-emerald-800' : 'text-gray-700'}`}>
+                          {wp.label.split(' ').slice(1).join(' ')}
+                        </span>
+                        <span className="text-xs text-gray-400 leading-tight">{wp.desc}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
-              {/* Preferred cities — chips */}
               <div>
                 <Label>Which cities would you consider?
                   <span className="ml-2 text-xs font-normal text-gray-400">Select all that apply</span>
                 </Label>
                 <ChipGrid options={PREFERRED_CITIES} selected={form.preferredCities}
                   onChange={v => set('preferredCities', v)} />
+                {form.preferredCities.includes(CITY_OTHER) && (
+                  <Input
+                    value={form.preferredCitiesOther}
+                    onChange={e => set('preferredCitiesOther', e.target.value)}
+                    placeholder="Tell us which city or region"
+                    className="mt-3"
+                  />
+                )}
               </div>
 
               <div>
@@ -1814,57 +1868,194 @@ export default function CandidateApply() {
                 <ChipGrid options={TARGET_ROLES} selected={form.targetRoles}
                   onChange={v => set('targetRoles', v)} />
               </div>
-
             </div>
           </div>
         )}
 
-        {/* ── Step 6: Preview ── */}
-        {step === 6 && (
+        {/* ── Tab 5: Work Authorization ──────────────────────────────── */}
+        {step === 5 && (
           <div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Your Anonymous Profile</h2>
-            <p className="text-gray-500 mb-8 text-sm">
-              This is exactly what recruiters will see. Your identity is fully protected.
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Work Authorization</h2>
+            <p className="text-gray-500 mb-8 text-sm leading-relaxed">
+              Two standard questions — we collect these as-is and never filter introductions on your answer.
             </p>
 
-            <div className="border border-gray-200 rounded-2xl p-6 bg-white shadow-sm mb-6">
-              <div className="flex items-start gap-4 mb-4">
-                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center text-white font-bold text-lg shrink-0">
-                  {(form.currentRole || 'F')[0].toUpperCase()}
-                </div>
-                <div>
-                  <p className="font-semibold text-gray-900 text-base">{form.currentRole || 'Finance Professional'}</p>
-                  <p className="text-sm text-gray-500">{form.location || 'Location not set'} · {form.yearsExperience || '?'} yrs experience</p>
-                  <p className="text-xs text-gray-400 mt-0.5">{form.educationLevel ? `${form.educationLevel} · ` : ''}{form.education}</p>
+            <div className="space-y-6">
+              <div>
+                <Label className="text-sm font-semibold text-gray-800">
+                  Are you legally authorized to work in the United States? <span className="text-red-500">*</span>
+                </Label>
+                <div className="space-y-2 mt-3">
+                  {[
+                    { value: true,  label: 'Yes' },
+                    { value: false, label: 'No' },
+                  ].map(opt => (
+                    <label key={String(opt.value)} className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-all ${
+                      form.workAuthorizedUs === opt.value ? 'border-emerald-500 bg-emerald-50 text-emerald-800' : 'border-gray-200 hover:border-gray-300'
+                    }`}>
+                      <input
+                        type="radio"
+                        name="workAuthorizedUs"
+                        checked={form.workAuthorizedUs === opt.value}
+                        onChange={() => set('workAuthorizedUs', opt.value)}
+                        className="sr-only"
+                      />
+                      <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                        form.workAuthorizedUs === opt.value ? 'border-emerald-500' : 'border-gray-300'
+                      }`}>
+                        {form.workAuthorizedUs === opt.value && <div className="w-2 h-2 rounded-full bg-emerald-500" />}
+                      </div>
+                      <span className="text-sm font-medium">{opt.label}</span>
+                    </label>
+                  ))}
                 </div>
               </div>
-              {form.bio
-                ? <p className="text-sm text-gray-600 leading-relaxed mb-4">{form.bio}</p>
-                : <p className="text-sm text-gray-400 italic mb-4">No bio generated</p>
-              }
-              {form.skills.length > 0 && (
-                <div className="flex flex-wrap gap-2 mb-4">
-                  {form.skills.map(s => (
-                    <span key={s} className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-xs">{s}</span>
+
+              <div>
+                <Label className="text-sm font-semibold text-gray-800">
+                  Will you now or in the future require sponsorship for employment visa status (e.g. H-1B)? <span className="text-red-500">*</span>
+                </Label>
+                <div className="space-y-2 mt-3">
+                  {[
+                    { value: true,  label: 'Yes' },
+                    { value: false, label: 'No' },
+                  ].map(opt => (
+                    <label key={String(opt.value)} className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-all ${
+                      form.requiresSponsorship === opt.value ? 'border-emerald-500 bg-emerald-50 text-emerald-800' : 'border-gray-200 hover:border-gray-300'
+                    }`}>
+                      <input
+                        type="radio"
+                        name="requiresSponsorship"
+                        checked={form.requiresSponsorship === opt.value}
+                        onChange={() => set('requiresSponsorship', opt.value)}
+                        className="sr-only"
+                      />
+                      <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                        form.requiresSponsorship === opt.value ? 'border-emerald-500' : 'border-gray-300'
+                      }`}>
+                        {form.requiresSponsorship === opt.value && <div className="w-2 h-2 rounded-full bg-emerald-500" />}
+                      </div>
+                      <span className="text-sm font-medium">{opt.label}</span>
+                    </label>
                   ))}
                 </div>
-              )}
-              {form.sectors.length > 0 && (
-                <div className="flex flex-wrap gap-1.5">
-                  {form.sectors.map(s => (
-                    <span key={s} className="px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded text-xs">{s}</span>
-                  ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Tab 6: Review your profile ─────────────────────────────── */}
+        {step === 6 && (
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Review your profile</h2>
+            <p className="text-gray-500 mb-6 text-sm">
+              This is exactly what recruiters will see (your real name, contact info, and resume stay hidden until you accept an introduction).
+              Edit any parsed details below if anything looks wrong.
+            </p>
+
+            <div className="space-y-5 border border-gray-200 rounded-xl p-5 bg-gray-50 mb-6">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                Profile details (edit if needed)
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <Label>Current / most recent role</Label>
+                  <Input value={form.currentRole} onChange={e => set('currentRole', e.target.value)}
+                    placeholder="e.g. Senior Finance Manager" className="mt-2" />
                 </div>
-              )}
+                <div>
+                  <Label>Location</Label>
+                  <Input value={form.location} onChange={e => set('location', e.target.value)}
+                    placeholder="e.g. New York, NY" className="mt-2" />
+                </div>
+                <div>
+                  <Label>Years of experience</Label>
+                  <Input type="number" min={0} max={50} value={form.yearsExperience}
+                    onChange={e => set('yearsExperience', e.target.value)}
+                    placeholder="e.g. 5" className="mt-2" />
+                </div>
+                <div>
+                  <Label>Education level</Label>
+                  <RadioGroup name="educationLevel" value={form.educationLevel}
+                    onChange={v => set('educationLevel', v)}
+                    options={[
+                      { value: 'Bachelors', label: "Bachelor's" },
+                      { value: 'Masters', label: "Master's" },
+                      { value: 'MBA', label: 'MBA' },
+                      { value: 'PhD', label: 'PhD' },
+                    ]} />
+                </div>
+              </div>
+
+              <div>
+                <Label>Education (degree + field)</Label>
+                <Input value={form.education} onChange={e => set('education', e.target.value)}
+                  placeholder="e.g. MBA, Finance" className="mt-2" />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <Label>Your anonymous bio <span className="text-xs font-normal text-gray-400">(AI-generated, editable)</span></Label>
+                  {form.resumeBase64 && (
+                    <button
+                      type="button"
+                      onClick={handleRegenerateBio}
+                      disabled={regenerating}
+                      className="flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-700 font-medium disabled:opacity-50"
+                    >
+                      {regenerating
+                        ? <><Loader2 className="w-3 h-3 animate-spin" /> Regenerating…</>
+                        : <><RefreshCw className="w-3 h-3" /> Regenerate</>
+                      }
+                    </button>
+                  )}
+                </div>
+                <textarea
+                  value={form.bio}
+                  onChange={e => set('bio', e.target.value)}
+                  rows={5}
+                  placeholder="Your anonymous bio. You can edit it here."
+                  className="mt-2 w-full border border-gray-200 rounded-lg px-3 py-3 text-sm text-gray-700 leading-relaxed bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent resize-none"
+                />
+              </div>
+
+              <div>
+                <Label>Skills</Label>
+                <p className="text-xs text-gray-400 mt-0.5">Press Enter to add each skill</p>
+                <SkillsInput skills={form.skills} onChange={v => set('skills', v)} />
+              </div>
             </div>
 
-            <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800 mb-6">
+            {/* Live preview — exact recruiter card via the shared component */}
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+              Recruiter view
+            </p>
+            <div className="border border-gray-200 rounded-2xl overflow-hidden bg-white shadow-sm">
+              <AnonymousCandidateCard
+                mode="preview"
+                candidate={{
+                  label: (form.currentRole || form.primaryBackground || 'Finance Professional'),
+                  display_name: (form.currentRole || form.primaryBackground || 'Finance Professional'),
+                  location: form.location || 'United States',
+                  experience: Number(form.yearsExperience) || 0,
+                  education: form.education || 'Not specified',
+                  highest_education_level: form.educationLevel || null,
+                  profile_description: form.bio || null,
+                  primary_background: form.primaryBackground || null,
+                  secondary_backgrounds: form.secondaryBackgrounds,
+                  open_to_opportunities: form.jobSearchStatus === 'Actively Looking',
+                  skills: form.skills.map((s, i) => ({ id: i, skill: s })),
+                }}
+              />
+            </div>
+
+            <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800 mt-6">
               <strong>Note:</strong> Your profile will be reviewed by our team before going live.
               We'll email you at <strong>{form.email}</strong> once it's approved.
             </div>
-
             {submitError && (
-              <p className="text-sm text-red-600 p-3 bg-red-50 rounded-lg mb-4">{submitError}</p>
+              <p className="text-sm text-red-600 p-3 bg-red-50 rounded-lg mt-4">{submitError}</p>
             )}
           </div>
         )}

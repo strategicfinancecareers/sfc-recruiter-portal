@@ -1,7 +1,7 @@
 
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
-import { Briefcase, Users, Heart, Settings, LogOut, Gauge, Menu, Handshake, Sparkles, CreditCard, ShieldCheck } from "lucide-react";
+import { Briefcase, Users, Heart, Settings, LogOut, Gauge, Menu, Handshake, Sparkles, ShieldCheck } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { useState } from 'react';
 
@@ -18,7 +18,6 @@ const Layout = () => {
     { name: 'Favorites', href: '/favorites', icon: Heart },
     { name: 'Introduction Requests', href: '/introductions', icon: Handshake },
     { name: 'Dashboard', href: '/dashboard', icon: Gauge },
-    { name: 'Expenses', href: '/expenses', icon: CreditCard },
   ];
 
   if (user?.role === 'admin' || user?.role === 'owner') {

@@ -18,6 +18,7 @@ import PricingModal from "../components/PricingModal";
 import { useCandidates, type Candidate } from "../hooks/useCandidates";
 import { supabase } from "@/integrations/supabase/client";
 import { JobForm } from "@/components/JobForm";
+import AnonymousCandidateCard from "@/components/AnonymousCandidateCard";
 
 interface Job {
   id: string;
@@ -866,226 +867,25 @@ export default function CandidateSearch() {
         </div>
       </div>
 
-      {/* Profile Dialog — Executive Dossier */}
+      {/* Profile Dialog — now rendered via shared AnonymousCandidateCard. */}
       <Dialog open={!!selectedCandidate} onOpenChange={() => setSelectedCandidate(null)}>
         <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden p-0">
           {selectedCandidate && (() => {
             const c = selectedCandidate;
-            // Bio = first paragraph of profile_description (strip appended metadata)
-            const bio = (c.profile_description || '').split('\n\n')[0].trim();
-            const BIO_LIMIT = 320;
-            const bioTruncated = bio.length > BIO_LIMIT && !showFullBio;
-
-            // Skills grouping
-            const CORE_FINANCE = new Set([
-              'strategic finance','fp&a','fpa','m&a','corporate development','capital raising',
-              'private equity','investment banking','equity research','financial modeling','financial modelling',
-              'valuation','dcf','lbo','budgeting','forecasting','budgeting & forecasting','treasury',
-              'corporate finance','portfolio management','credit analysis','risk management',
-              'investor relations','mergers & acquisitions','due diligence','capital markets',
-              'leveraged buyout','discounted cash flow','financial analysis','corporate strategy',
-              'business development','restructuring',
-            ]);
-            const allSkills = c.skills.map(s => s.skill);
-            const coreSkills = allSkills.filter(s => CORE_FINANCE.has(s.toLowerCase()));
-            const techSkills = allSkills.filter(s => !CORE_FINANCE.has(s.toLowerCase()));
-
-            // Executive chips
-            const chips: string[] = [];
-            chips.push(`${c.experience}+ Yrs Experience`);
-            if (c.highest_education_level && ['MBA','Masters','PhD'].includes(c.highest_education_level)) {
-              chips.push(c.highest_education_level);
-            }
-            if ((c as any).primary_background) chips.push((c as any).primary_background);
-            if (c.open_to_opportunities) chips.push('Open to Opportunities');
-
+            const pending = pendingIntroductions.includes(c.id);
+            const complete = completedIntroductions.includes(c.id);
             return (
-              <div className="flex flex-col lg:flex-row h-full max-h-[90vh]">
-                {/* ── Left column (scrollable) ── */}
-                <div className="flex-[3] overflow-y-auto p-6 space-y-6">
-
-                  {/* Header */}
-                  <div>
-                    <div className="flex items-start gap-3 mb-2">
-                      <div>
-                        <h2 className="text-2xl font-bold text-gray-900 leading-tight">{c.label}</h2>
-                        {user?.role === 'admin' && (
-                          <p className="text-xs text-gray-400 mt-0.5">{c.name}</p>
-                        )}
-                      </div>
-                      <Badge className="mt-1 bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
-                        {c.label}
-                      </Badge>
-                    </div>
-                    <div className="flex items-center gap-1.5 text-sm text-gray-500 flex-wrap">
-                      <MapPin className="h-3.5 w-3.5" />
-                      <span>{c.location}</span>
-                      <span className="text-gray-300">·</span>
-                      <span>{c.experience} yrs experience</span>
-                      <span className="text-gray-300">·</span>
-                      <span>{c.highest_education_level || c.education}</span>
-                    </div>
-                  </div>
-
-                  {/* Executive summary chips */}
-                  <div className="flex flex-wrap gap-2">
-                    {chips.map(chip => (
-                      <span key={chip} className="px-3 py-1 bg-gray-100 border border-gray-200 text-gray-700 rounded-full text-xs font-medium">
-                        {chip}
-                      </span>
-                    ))}
-                  </div>
-
-                  {/* Professional Summary */}
-                  {bio && (
-                    <div>
-                      <h3 className="text-sm font-semibold text-gray-900 mb-2">Professional Summary</h3>
-                      <p className="text-sm text-gray-600 leading-relaxed">
-                        {bioTruncated ? bio.slice(0, BIO_LIMIT) + '…' : bio}
-                      </p>
-                      {bio.length > BIO_LIMIT && (
-                        <button
-                          onClick={() => setShowFullBio(v => !v)}
-                          className="mt-1.5 flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-700 font-medium"
-                        >
-                          {showFullBio ? <><ChevronUp className="w-3 h-3" /> Show less</> : <><ChevronDown className="w-3 h-3" /> Show more</>}
-                        </button>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Skills */}
-                  {allSkills.length > 0 && (
-                    <div className="space-y-3">
-                      {coreSkills.length > 0 && (
-                        <div>
-                          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Core Expertise</h3>
-                          <div className="flex flex-wrap gap-1.5">
-                            {coreSkills.map(s => (
-                              <span key={s} className="px-2.5 py-1 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-full text-xs font-medium">{s}</span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                      {techSkills.length > 0 && (
-                        <div>
-                          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Technical Skills</h3>
-                          <div className="flex flex-wrap gap-1.5">
-                            {techSkills.map(s => (
-                              <span key={s} className="px-2.5 py-1 bg-gray-100 border border-gray-200 text-gray-700 rounded-full text-xs font-medium">{s}</span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                      {coreSkills.length === 0 && (
-                        <div>
-                          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Skills</h3>
-                          <div className="flex flex-wrap gap-1.5">
-                            {allSkills.map(s => (
-                              <span key={s} className="px-2.5 py-1 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-full text-xs font-medium">{s}</span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Why This Candidate Stands Out */}
-                  <div>
-                    <h3 className="text-sm font-semibold text-gray-900 mb-3">Why This Candidate Stands Out ✦</h3>
-                    {insightLoading ? (
-                      <div className="space-y-2">
-                        {[80, 65, 90].map(w => (
-                          <div key={w} className="flex items-center gap-2">
-                            <div className="w-1.5 h-1.5 rounded-full bg-gray-200 shrink-0" />
-                            <div className="h-3.5 bg-gray-100 rounded animate-pulse" style={{ width: `${w}%` }} />
-                          </div>
-                        ))}
-                      </div>
-                    ) : insightBullets.length > 0 ? (
-                      <ul className="space-y-2">
-                        {insightBullets.map((b, i) => (
-                          <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
-                            <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
-                            {b}
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="text-sm text-gray-400 italic">Upload complete profile to generate insights.</p>
-                    )}
-                  </div>
-
-                  {/* Anonymity note */}
-                  <div className="flex items-start gap-3 p-4 bg-gray-50 rounded-xl border border-gray-100">
-                    <Shield className="w-5 h-5 text-gray-400 shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-sm font-semibold text-gray-700 mb-0.5">Candidate Identity Protected</p>
-                      <p className="text-xs text-gray-500 leading-relaxed">
-                        Full name, detailed company history, resume, and contact information are revealed only after
-                        the candidate accepts your introduction request.
-                      </p>
-                    </div>
-                  </div>
-
-                </div>
-
-                {/* ── Right column (sticky snapshot + CTA) ── */}
-                <div className="lg:w-72 shrink-0 border-t lg:border-t-0 lg:border-l border-gray-100 bg-gray-50/50">
-                  <div className="sticky top-0 p-5 space-y-5">
-
-                    {/* Snapshot */}
-                    <div>
-                      <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Candidate Snapshot</h3>
-                      <div className="space-y-3">
-                        {[
-                          { icon: '📍', label: 'Location', value: c.location },
-                          { icon: '💼', label: 'Experience', value: `${c.experience} years` },
-                          { icon: '🎓', label: 'Education', value: c.highest_education_level || c.education },
-                          { icon: '📊', label: 'Primary Background', value: (c as any).primary_background || null },
-                          {
-                            icon: '📋', label: 'Secondary Background',
-                            value: Array.isArray((c as any).secondary_backgrounds) && (c as any).secondary_backgrounds.length > 0
-                              ? (c as any).secondary_backgrounds.join(' · ')
-                              : null,
-                          },
-                          { icon: '✅', label: 'Availability', value: c.open_to_opportunities ? 'Open to opportunities' : null },
-                        ].filter(row => row.value).map(row => (
-                          <div key={row.label} className="flex items-start gap-2 text-sm pb-3 border-b border-gray-100 last:border-0 last:pb-0">
-                            <span className="text-base shrink-0 leading-none mt-0.5">{row.icon}</span>
-                            <div className="min-w-0">
-                              <p className="text-xs text-gray-400 leading-none mb-0.5">{row.label}</p>
-                              <p className="text-gray-800 font-medium leading-snug text-xs">{row.value}</p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* CTA */}
-                    <div className="space-y-2 pt-1">
-                      <Button
-                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
-                        disabled={pendingIntroductions.includes(c.id) || completedIntroductions.includes(c.id)}
-                        onClick={() => { setSelectedCandidate(null); handleIntroduceMe(c); }}
-                      >
-                        <Handshake className="mr-2 h-4 w-4" />
-                        {pendingIntroductions.includes(c.id)
-                          ? 'Intro Requested'
-                          : completedIntroductions.includes(c.id)
-                            ? 'Intro Complete'
-                            : 'Request Introduction'}
-                      </Button>
-                      {!isSubscribed && user?.role !== 'admin' && (
-                        <p className="text-xs text-gray-400 text-center">
-                          Subscribing unlocks unlimited introductions
-                        </p>
-                      )}
-                    </div>
-
-                  </div>
-                </div>
-              </div>
+              <AnonymousCandidateCard
+                candidate={c}
+                mode="recruiter"
+                insightBullets={insightBullets}
+                insightLoading={insightLoading}
+                isAdmin={user?.role === 'admin'}
+                introCtaDisabled={pending || complete}
+                introCtaLabel={pending ? 'Intro Requested' : complete ? 'Intro Complete' : 'Request Introduction'}
+                showSubscribeHint={!isSubscribed && user?.role !== 'admin'}
+                onRequestIntro={() => { setSelectedCandidate(null); handleIntroduceMe(c); }}
+              />
             );
           })()}
         </DialogContent>

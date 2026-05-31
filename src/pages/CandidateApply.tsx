@@ -1325,6 +1325,17 @@ export default function CandidateApply() {
                 {authLoading && <Loader2 className="w-4 h-4 animate-spin" />}
                 Sign In
               </button>
+              {/* Audience=professional so the recovery email link points
+                  at /reset-password (cream/Newsreader), not the recruiter
+                  variant. */}
+              <p className="text-xs text-center text-gray-500 mt-2">
+                <a
+                  href="/forgot-password?audience=professional"
+                  className="hover:underline"
+                >
+                  Forgot password?
+                </a>
+              </p>
             </form>
           )}
 

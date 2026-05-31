@@ -1,15 +1,30 @@
-
 import { useState } from 'react';
+import { useSearchParams, Link } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Briefcase, ArrowLeft } from "lucide-react";
-import { Link } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
+// /forgot-password?audience=professional|recruiter
+// The audience query param decides where the recovery email's link points:
+//   professional → ${origin}/reset-password           (cream / Newsreader)
+//   recruiter    → ${origin}/recruiter/reset-password (recruiter shell)
+// Default (no param, or any other value) = recruiter (matches the existing
+// SignUp.tsx "Forgot password?" link's prior implicit context).
+//
+// Each Sign In tab links here with the right ?audience so the email lands
+// on the audience-correct reset page. The shared SetNewPasswordForm on
+// each reset page handles the actual recovery-token / updateUser flow.
+
+type Audience = 'professional' | 'recruiter';
+
 const ForgotPassword = () => {
+  const [searchParams] = useSearchParams();
+  const audience: Audience = searchParams.get('audience') === 'professional' ? 'professional' : 'recruiter';
+
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
@@ -18,23 +33,20 @@ const ForgotPassword = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    
+
     try {
-      // /login is gone — redirect the reset-password email back to
-       // the consolidated recruiter front door so it doesn't 404.
-       // Note: no page in the app currently handles type=recovery
-       // (no supabase.auth.updateUser, no recovery UI). Building real
-       // password-recovery support is a separate tracked item; this
-       // change just keeps the email link addressable.
-      const redirectUrl = `${window.location.origin}/signup?mode=signin`;
-      
+      // Per-audience redirect — Supabase puts the recovery token in the
+      // hash of this URL when emailing the user. The corresponding
+      // /reset-password or /recruiter/reset-password page handles the
+      // session check and updateUser call via SetNewPasswordForm.
+      const redirectPath = audience === 'professional' ? '/reset-password' : '/recruiter/reset-password';
+      const redirectUrl = `${window.location.origin}${redirectPath}`;
+
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: redirectUrl,
       });
 
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
 
       setEmailSent(true);
       toast({
@@ -53,6 +65,8 @@ const ForgotPassword = () => {
     }
   };
 
+  const backHref = audience === 'professional' ? '/apply?mode=signin' : '/signup?mode=signin';
+
   return (
     <div className="min-h-screen bg-gradient-primary flex items-center justify-center p-4">
       <Card className="w-full max-w-md">
@@ -62,8 +76,8 @@ const ForgotPassword = () => {
           </div>
           <CardTitle className="text-2xl">Reset Password</CardTitle>
           <CardDescription>
-            {emailSent 
-              ? "We've sent you a reset link" 
+            {emailSent
+              ? "We've sent you a reset link"
               : "Enter your email to receive reset instructions"
             }
           </CardDescription>
@@ -94,8 +108,8 @@ const ForgotPassword = () => {
               <p className="text-xs text-gray-500">
                 Didn't receive the email? Check your spam folder or try again.
               </p>
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 onClick={() => setEmailSent(false)}
                 className="w-full"
               >
@@ -105,7 +119,7 @@ const ForgotPassword = () => {
           )}
         </CardContent>
         <CardFooter>
-          <Link to="/signup?mode=signin" className="flex items-center text-sm text-primary hover:underline mx-auto">
+          <Link to={backHref} className="flex items-center text-sm text-primary hover:underline mx-auto">
             <ArrowLeft className="mr-1 h-4 w-4" />
             Back to Sign In
           </Link>

@@ -10,6 +10,8 @@ import SignUp from "./pages/SignUp";
 import SignUpPending from "./pages/SignUpPending";
 import SignUpRejected from "./pages/SignUpRejected";
 import ForgotPassword from "./pages/ForgotPassword";
+import ResetPasswordProfessional from "./pages/ResetPasswordProfessional";
+import ResetPasswordRecruiter from "./pages/ResetPasswordRecruiter";
 import Dashboard from "./pages/Dashboard";
 import CandidateSearch from "./pages/CandidateSearch";
 import Account from "./pages/Account";
@@ -39,6 +41,8 @@ const App = () => (
             <Route path="/signup/pending" element={<SignUpPending />} />
             <Route path="/signup/rejected" element={<SignUpRejected />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPasswordProfessional />} />
+            <Route path="/recruiter/reset-password" element={<ResetPasswordRecruiter />} />
             <Route path="/apply" element={<CandidateApply />} />
             <Route path="/candidate-dashboard" element={<CandidateDashboard />} />
             <Route path="/" element={

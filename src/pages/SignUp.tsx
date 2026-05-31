@@ -242,7 +242,7 @@ const SignUp = () => {
               </button>
 
               <div className="flex items-center justify-between mt-2 text-xs">
-                <Link to="/forgot-password" className="text-gray-400 hover:text-gray-600 hover:underline">
+                <Link to="/forgot-password?audience=recruiter" className="text-gray-400 hover:text-gray-600 hover:underline">
                   Forgot password?
                 </Link>
               </div>

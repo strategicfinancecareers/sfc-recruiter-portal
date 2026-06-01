@@ -91,7 +91,7 @@ const StartHere = () => {
       action: !isSubscribed ? (
         <button
           onClick={() => openPricingModal('monthly')}
-          className="text-xs font-semibold text-emerald-700 underline underline-offset-2 hover:text-emerald-800 whitespace-nowrap"
+          className="text-xs font-semibold text-[#006a2d] underline underline-offset-2 hover:text-[#005a26] whitespace-nowrap"
         >
           Subscribe Now →
         </button>
@@ -102,7 +102,7 @@ const StartHere = () => {
       done: hasJobs === true,
       loading: hasJobs === null,
       action: hasJobs === false ? (
-        <Link to="/jobs" className="text-xs font-semibold text-emerald-700 underline underline-offset-2 hover:text-emerald-800 whitespace-nowrap">
+        <Link to="/jobs" className="text-xs font-semibold text-[#006a2d] underline underline-offset-2 hover:text-[#005a26] whitespace-nowrap">
           Post a Job →
         </Link>
       ) : null,
@@ -112,7 +112,7 @@ const StartHere = () => {
       done: hasIntros === true,
       loading: hasIntros === null,
       action: hasIntros === false ? (
-        <Link to="/browse" className="text-xs font-semibold text-emerald-700 underline underline-offset-2 hover:text-emerald-800 whitespace-nowrap">
+        <Link to="/browse" className="text-xs font-semibold text-[#006a2d] underline underline-offset-2 hover:text-[#005a26] whitespace-nowrap">
           Browse Candidates →
         </Link>
       ) : null,
@@ -127,7 +127,7 @@ const StartHere = () => {
 
         {/* Hero */}
         <div className="text-center mb-14">
-          <span className="inline-block mb-4 px-3 py-1 text-xs font-semibold tracking-wide text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full uppercase">
+          <span className="inline-block mb-4 px-3 py-1 text-xs font-semibold tracking-wide text-[#006a2d] bg-[#008037]/5 border border-[#008037]/25 rounded-full uppercase">
             Welcome to SFC Talent
           </span>
           <h1 className="text-4xl font-bold text-gray-900 mb-4 tracking-tight">
@@ -148,7 +148,7 @@ const StartHere = () => {
           {/* Progress bar */}
           <div className="w-full h-1.5 bg-gray-100 rounded-full mb-6">
             <div
-              className="h-1.5 bg-emerald-500 rounded-full transition-all duration-500"
+              className="h-1.5 bg-[#008037] rounded-full transition-all duration-500"
               style={{ width: `${(completedCount / checklistSteps.length) * 100}%` }}
             />
           </div>
@@ -157,21 +157,21 @@ const StartHere = () => {
             {checklistSteps.map((step, i) => (
               <div
                 key={i}
-                className={`flex flex-col gap-2 p-4 rounded-xl border ${step.done ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-gray-200'}`}
+                className={`flex flex-col gap-2 p-4 rounded-xl border ${step.done ? 'bg-[#008037]/5 border-[#008037]/25' : 'bg-white border-gray-200'}`}
               >
                 <div className="flex items-center gap-2">
                   {step.loading ? (
                     <Loader2 className="h-4 w-4 text-gray-400 animate-spin shrink-0" />
                   ) : step.done ? (
-                    <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                    <CheckCircle2 className="h-4 w-4 text-[#008037] shrink-0" />
                   ) : (
                     <Circle className="h-4 w-4 text-gray-300 shrink-0" />
                   )}
-                  <span className={`text-xs font-medium ${step.done ? 'text-emerald-700' : 'text-gray-500'}`}>
+                  <span className={`text-xs font-medium ${step.done ? 'text-[#006a2d]' : 'text-gray-500'}`}>
                     Step {i + 1}
                   </span>
                 </div>
-                <p className={`text-sm font-semibold leading-snug ${step.done ? 'text-emerald-900' : 'text-gray-700'}`}>
+                <p className={`text-sm font-semibold leading-snug ${step.done ? 'text-[#004a1f]' : 'text-gray-700'}`}>
                   {step.label}
                 </p>
                 {step.action && <div className="mt-auto pt-1">{step.action}</div>}
@@ -190,7 +190,7 @@ const StartHere = () => {
                 key={i}
                 className="relative flex flex-col p-5 border border-gray-200 rounded-xl bg-white shadow-sm hover:shadow-md transition-shadow duration-200"
               >
-                <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold mb-3">
+                <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-[#008037]/5 border border-[#008037]/25 text-[#006a2d] text-xs font-bold mb-3">
                   {i + 1}
                 </span>
                 <Icon className="h-5 w-5 text-gray-400 mb-3" />
@@ -210,8 +210,8 @@ const StartHere = () => {
 
           {/* Active member banner */}
           {isSubscribed && (
-            <div className="flex items-center gap-3 p-4 mb-6 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-sm font-medium">
-              <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0" />
+            <div className="flex items-center gap-3 p-4 mb-6 bg-[#008037]/5 border border-[#008037]/25 rounded-xl text-[#005a26] text-sm font-medium">
+              <CheckCircle2 className="h-5 w-5 text-[#008037] shrink-0" />
               You're an active SFC Talent member. Your introduction requests are unlimited.
             </div>
           )}
@@ -228,19 +228,19 @@ const StartHere = () => {
               <ul className="space-y-2 flex-1">
                 {PLAN_FEATURES_MONTHLY.map(f => (
                   <li key={f} className="flex items-start gap-2 text-sm text-gray-600">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-500 mt-0.5 shrink-0" />
+                    <CheckCircle2 className="h-4 w-4 text-[#008037] mt-0.5 shrink-0" />
                     {f}
                   </li>
                 ))}
               </ul>
               {isSubscribed ? (
-                <div className="flex items-center gap-2 text-sm font-semibold text-emerald-700">
+                <div className="flex items-center gap-2 text-sm font-semibold text-[#006a2d]">
                   <CheckCircle2 className="h-4 w-4" /> Your Current Plan
                 </div>
               ) : (
                 <button
                   onClick={() => openPricingModal('monthly')}
-                  className="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm transition-colors"
+                  className="w-full py-2.5 rounded-lg bg-[#008037] hover:bg-[#006a2d] text-white font-semibold text-sm transition-colors"
                 >
                   Get Started Monthly
                 </button>
@@ -248,11 +248,11 @@ const StartHere = () => {
             </div>
 
             {/* Annual */}
-            <div className="border-2 border-emerald-500 rounded-xl p-6 flex flex-col gap-4 relative">
-              <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-emerald-600 text-white text-xs font-bold px-3 py-1 rounded-full">
+            <div className="border-2 border-[#008037] rounded-xl p-6 flex flex-col gap-4 relative">
+              <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#008037] text-white text-xs font-bold px-3 py-1 rounded-full">
                 Best Value
               </span>
-              <div className="text-sm font-semibold text-emerald-600 uppercase tracking-wide">Annual</div>
+              <div className="text-sm font-semibold text-[#008037] uppercase tracking-wide">Annual</div>
               <div>
                 <span className="text-4xl font-bold text-gray-900">$300</span>
                 <span className="text-gray-500 text-sm">/mo</span>
@@ -261,19 +261,19 @@ const StartHere = () => {
               <ul className="space-y-2 flex-1">
                 {PLAN_FEATURES_ANNUAL.map(f => (
                   <li key={f} className="flex items-start gap-2 text-sm text-gray-600">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-500 mt-0.5 shrink-0" />
+                    <CheckCircle2 className="h-4 w-4 text-[#008037] mt-0.5 shrink-0" />
                     {f}
                   </li>
                 ))}
               </ul>
               {isSubscribed ? (
-                <div className="flex items-center gap-2 text-sm font-semibold text-emerald-700">
+                <div className="flex items-center gap-2 text-sm font-semibold text-[#006a2d]">
                   <CheckCircle2 className="h-4 w-4" /> Active
                 </div>
               ) : (
                 <button
                   onClick={() => openPricingModal('annual')}
-                  className="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm transition-colors"
+                  className="w-full py-2.5 rounded-lg bg-[#008037] hover:bg-[#006a2d] text-white font-semibold text-sm transition-colors"
                 >
                   Get Started Annually
                 </button>
@@ -303,8 +303,8 @@ const StartHere = () => {
         </div>
 
         {/* Privacy Info Box */}
-        <div className="flex items-start gap-4 p-6 bg-emerald-50 border border-emerald-200 rounded-xl mb-12">
-          <ShieldCheck className="h-6 w-6 text-emerald-600 flex-shrink-0 mt-0.5" />
+        <div className="flex items-start gap-4 p-6 bg-[#008037]/5 border border-[#008037]/25 rounded-xl mb-12">
+          <ShieldCheck className="h-6 w-6 text-[#008037] flex-shrink-0 mt-0.5" />
           <div>
             <h3 className="text-sm font-semibold text-gray-900 mb-1">Privacy First</h3>
             <p className="text-sm text-gray-600 leading-relaxed">
@@ -318,7 +318,7 @@ const StartHere = () => {
           <p className="text-base text-gray-500 mb-4">Ready to find your next hire?</p>
           <Link
             to="/browse"
-            className="inline-flex items-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-lg transition-colors duration-200"
+            className="inline-flex items-center gap-2 px-6 py-3 bg-[#008037] hover:bg-[#006a2d] text-white text-sm font-semibold rounded-lg transition-colors duration-200"
           >
             Browse Candidates
             <ArrowRight className="h-4 w-4" />

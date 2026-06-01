@@ -43,7 +43,7 @@ function getInitials(label: string): string {
 
 function getLabelColor(label: string): string {
   const l = label.toLowerCase();
-  if (l.includes('private equity') || l.includes('venture') || /\bpe\b/.test(l) || /\bvc\b/.test(l)) return '#0F6E56';
+  if (l.includes('private equity') || l.includes('venture') || /\bpe\b/.test(l) || /\bvc\b/.test(l)) return '#008037';
   if (l.includes('investment banking') || l.includes('banking')) return '#1e40af';
   if (l.includes('fp&a') || l.includes('fpa') || l.includes('finance')) return '#6d28d9';
   return '#6b7280';
@@ -660,7 +660,7 @@ export default function CandidateSearch() {
                       const display = isExpanded || !isLong ? safe : safe.slice(0, TRUNCATE).trimEnd() + '…';
                       return (
                         <div className="border-t pt-3 mt-1">
-                          <p className="text-[10px] uppercase tracking-wider font-semibold text-emerald-700 italic mb-1.5">SFC Take</p>
+                          <p className="text-[10px] uppercase tracking-wider font-semibold text-[#006a2d] italic mb-1.5">SFC Take</p>
                           <p className="text-xs text-foreground leading-relaxed">
                             {display}
                             {isLong && (
@@ -671,7 +671,7 @@ export default function CandidateSearch() {
                                   if (isExpanded) next.delete(candidate.id); else next.add(candidate.id);
                                   return next;
                                 })}
-                                className="ml-1 text-emerald-700 hover:underline font-medium"
+                                className="ml-1 text-[#006a2d] hover:underline font-medium"
                               >
                                 {isExpanded ? 'Show less' : 'Read more'}
                               </button>
@@ -680,7 +680,7 @@ export default function CandidateSearch() {
                           {candidate.sfc_role_fit && candidate.sfc_role_fit.length > 0 && (
                             <div className="flex flex-wrap gap-1 mt-2">
                               {candidate.sfc_role_fit.map((rf, i) => (
-                                <Badge key={`${rf}-${i}`} variant="outline" className="text-[10px] border-emerald-200 bg-emerald-50 text-emerald-800">
+                                <Badge key={`${rf}-${i}`} variant="outline" className="text-[10px] border-[#008037]/25 bg-[#008037]/5 text-[#005a26]">
                                   {rf}
                                 </Badge>
                               ))}
@@ -725,7 +725,7 @@ export default function CandidateSearch() {
                   <div className="text-3xl mb-3">🔒</div>
                   <h3 className="text-lg font-bold text-gray-900 mb-1">Unlock the Full Talent Network</h3>
                   <p className="text-sm text-gray-500 mb-4 max-w-xs">Subscribe to see all candidates and request introductions</p>
-                  <Button className="bg-emerald-600 hover:bg-emerald-700 text-white px-6" onClick={() => setShowPricingModal(true)}>
+                  <Button className="bg-[#008037] hover:bg-[#006a2d] text-white px-6" onClick={() => setShowPricingModal(true)}>
                     View Pricing
                   </Button>
                 </div>
@@ -779,7 +779,7 @@ export default function CandidateSearch() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-0.5">
                       <span className="font-semibold text-gray-900 text-sm">{candidate.display_name}</span>
-                      <Badge className="text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-50 font-normal">
+                      <Badge className="text-xs bg-[#008037]/5 text-[#006a2d] border border-[#008037]/25 hover:bg-[#008037]/5 font-normal">
                         {candidate.label}
                       </Badge>
                     </div>
@@ -829,7 +829,7 @@ export default function CandidateSearch() {
                       onClick={() => handleIntroduceMe(candidate)}
                       disabled={pendingIntroductions.includes(candidate.id) || completedIntroductions.includes(candidate.id)}
                       variant={(pendingIntroductions.includes(candidate.id) || completedIntroductions.includes(candidate.id)) ? "secondary" : "default"}
-                      className="whitespace-nowrap bg-emerald-600 hover:bg-emerald-700 text-white"
+                      className="whitespace-nowrap bg-[#008037] hover:bg-[#006a2d] text-white"
                     >
                       <Handshake className="mr-1.5 h-4 w-4" />
                       {pendingIntroductions.includes(candidate.id)
@@ -848,7 +848,7 @@ export default function CandidateSearch() {
                   <div className="text-3xl mb-3">🔒</div>
                   <h3 className="text-lg font-bold text-gray-900 mb-1">Unlock the Full Talent Network</h3>
                   <p className="text-sm text-gray-500 mb-4 max-w-xs">Subscribe to see all candidates and request introductions</p>
-                  <Button className="bg-emerald-600 hover:bg-emerald-700 text-white px-6" onClick={() => setShowPricingModal(true)}>
+                  <Button className="bg-[#008037] hover:bg-[#006a2d] text-white px-6" onClick={() => setShowPricingModal(true)}>
                     View Pricing
                   </Button>
                 </div>

@@ -735,7 +735,7 @@ setCandidates(transformedCandidates);
   const candidateStatusBadgeClass = (s: string): string => {
     switch (s) {
       case 'pending':  return 'bg-amber-100 text-amber-800 border-amber-200';
-      case 'active':   return 'bg-emerald-100 text-emerald-800 border-emerald-200';
+      case 'active':   return 'bg-[#008037]/12 text-[#005a26] border-[#008037]/25';
       case 'rejected': return 'bg-red-100 text-red-700 border-red-200';
       case 'inactive': return 'bg-gray-100 text-gray-600 border-gray-200';
       default:         return 'bg-gray-100 text-gray-600 border-gray-200';
@@ -996,7 +996,7 @@ setCandidates(transformedCandidates);
                                   setReviewDownloadError(null);
                                   setSelectedCandidate(candidate);
                                 }}
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                                className="bg-[#008037] hover:bg-[#006a2d] text-white"
                               >
                                 Review <ChevronRight className="ml-1 h-3 w-3" />
                               </Button>
@@ -1629,7 +1629,7 @@ TalentConnect Team"
                               <Button
                                 onClick={() => handleAdminResumeDownload(selectedCandidate.id)}
                                 disabled={reviewDownloading}
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                                className="bg-[#008037] hover:bg-[#006a2d] text-white"
                               >
                                 {reviewDownloading ? (<><Loader2 className="w-4 h-4 mr-2 animate-spin" />Generating link…</>) : (<><Download className="w-4 h-4 mr-2" />Download Resume</>)}
                               </Button>
@@ -1667,7 +1667,7 @@ TalentConnect Team"
                             <XCircle className="w-4 h-4 mr-2" /> Reject
                           </Button>
                           <Button
-                            className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+                            className="flex-1 bg-[#008037] hover:bg-[#006a2d] text-white"
                             disabled={actionLoading}
                             onClick={() => setConfirmAction({ kind: 'approve', candidate: selectedCandidate })}
                           >
@@ -1697,7 +1697,7 @@ TalentConnect Team"
                       )}
                       {cs === 'inactive' && (
                         <Button
-                          className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+                          className="w-full bg-[#008037] hover:bg-[#006a2d] text-white"
                           disabled={actionLoading}
                           onClick={() => setConfirmAction({ kind: 'reactivate', candidate: selectedCandidate })}
                         >

@@ -60,7 +60,7 @@ export default function PricingModal({ open, onOpenChange, userId, userEmail }: 
         <ul className="space-y-1 my-2">
           {FEATURES.map(f => (
             <li key={f} className="flex items-center gap-2 text-sm text-muted-foreground">
-              <CheckCircle className="h-4 w-4 text-[#0F6E56] shrink-0" />
+              <CheckCircle className="h-4 w-4 text-[#008037] shrink-0" />
               {f}
             </li>
           ))}
@@ -77,7 +77,7 @@ export default function PricingModal({ open, onOpenChange, userId, userEmail }: 
             </div>
             <div className="text-xs text-muted-foreground">Billed monthly</div>
             <Button
-              className="w-full mt-auto bg-[#0F6E56] hover:bg-[#0a5a45]"
+              className="w-full mt-auto bg-[#008037] hover:bg-[#0a5a45]"
               onClick={() => handleGetStarted('monthly')}
               disabled={loadingPlan !== null}
             >
@@ -88,18 +88,18 @@ export default function PricingModal({ open, onOpenChange, userId, userEmail }: 
           </div>
 
           {/* Annual — highlighted */}
-          <div className="border-2 border-[#0F6E56] rounded-xl p-5 flex flex-col gap-3 relative">
-            <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#0F6E56] text-white text-xs px-3 py-0.5 whitespace-nowrap">
+          <div className="border-2 border-[#008037] rounded-xl p-5 flex flex-col gap-3 relative">
+            <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#008037] text-white text-xs px-3 py-0.5 whitespace-nowrap">
               Best Value
             </Badge>
-            <div className="text-sm font-semibold text-[#0F6E56] uppercase tracking-wide">Annual</div>
+            <div className="text-sm font-semibold text-[#008037] uppercase tracking-wide">Annual</div>
             <div>
               <span className="text-3xl font-bold">$300</span>
               <span className="text-muted-foreground text-sm">/mo</span>
             </div>
             <div className="text-xs text-muted-foreground">Billed annually · Save $2,400/year</div>
             <Button
-              className="w-full mt-auto bg-[#0F6E56] hover:bg-[#0a5a45]"
+              className="w-full mt-auto bg-[#008037] hover:bg-[#0a5a45]"
               onClick={() => handleGetStarted('annual')}
               disabled={loadingPlan !== null}
             >

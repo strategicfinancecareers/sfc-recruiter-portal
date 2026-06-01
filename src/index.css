@@ -19,7 +19,20 @@ All colors MUST be HSL.
     --popover: 0 0% 100%;
     --popover-foreground: 150 10% 15%;
 
-    --primary: 142 71% 45%;
+    /* Brand green #008037 — matches the inline BRAND constant in the
+       candidate dashboard and the brand color used by the auth shells
+       and marketing landing. Updated from the prior bright-green
+       142 71% 45% (≈ #21cd6c) so every shadcn primitive that inherits
+       --primary (Button default, Badge, Checkbox, RadioGroup, Switch,
+       Slider, Progress, Calendar, Sonner) and every recruiter-portal
+       surface that uses bg-primary/text-primary (Layout sidebar nav,
+       LoaderScreen, RedactedResume, CandidateSearch, Admin) lands on
+       the actual brand color. Non-recruiter surfaces are unaffected
+       because they either inline their own brand hex (candidate
+       dashboard, auth shells) or override the Button's background
+       inline (the /apply wizard's Continue/Submit/Save buttons all
+       carry `bg-emerald-600 hover:bg-emerald-700` explicitly). */
+    --primary: 146 100% 25%;
     --primary-foreground: 0 0% 98%;
 
     --secondary: 142 20% 96%;
@@ -74,7 +87,9 @@ All colors MUST be HSL.
     --popover: 150 15% 10%;
     --popover-foreground: 142 20% 92%;
 
-    --primary: 142 71% 55%;
+    /* Dark-mode brand green — same hue/sat as light mode, lifted
+       lightness for legibility on dark backgrounds. */
+    --primary: 146 100% 32%;
     --primary-foreground: 150 15% 8%;
 
     --secondary: 150 15% 15%;

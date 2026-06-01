@@ -180,7 +180,7 @@ const SignUp = () => {
                 }}
                 className={`flex-1 py-3 text-sm font-semibold transition-colors ${
                   authTab === tab
-                    ? 'border-b-2 border-emerald-600 text-emerald-700'
+                    ? 'border-b-2 border-[#008037] text-[#006a2d]'
                     : 'text-gray-500 hover:text-gray-700'
                 }`}
               >
@@ -200,7 +200,7 @@ const SignUp = () => {
                   onChange={e => setSigninEmail(e.target.value)}
                   required
                   autoFocus
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#008037] focus:border-transparent"
                 />
               </div>
               <div>
@@ -212,7 +212,7 @@ const SignUp = () => {
                     value={signinPassword}
                     onChange={e => setSigninPassword(e.target.value)}
                     required
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 pr-10 text-sm bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 pr-10 text-sm bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#008037] focus:border-transparent"
                   />
                   <button
                     type="button"
@@ -236,7 +236,7 @@ const SignUp = () => {
               <button
                 type="submit"
                 disabled={signinLoading}
-                className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:opacity-60 text-white rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors mt-1"
+                className="w-full bg-[#008037] hover:bg-[#008037] disabled:opacity-60 text-white rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors mt-1"
               >
                 {signinLoading ? 'Signing in…' : 'Sign in'}
               </button>
@@ -258,7 +258,7 @@ const SignUp = () => {
                   value={firstName}
                   onChange={e => setFirstName(e.target.value)}
                   required
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#008037] focus:border-transparent"
                 />
               </div>
               <div>
@@ -269,7 +269,7 @@ const SignUp = () => {
                   value={lastName}
                   onChange={e => setLastName(e.target.value)}
                   required
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#008037] focus:border-transparent"
                 />
               </div>
             </div>
@@ -282,7 +282,7 @@ const SignUp = () => {
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 required
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#008037] focus:border-transparent"
               />
             </div>
 
@@ -294,7 +294,7 @@ const SignUp = () => {
                 value={company}
                 onChange={e => setCompany(e.target.value)}
                 required
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#008037] focus:border-transparent"
               />
             </div>
 
@@ -308,7 +308,7 @@ const SignUp = () => {
                 required
                 pattern=".*linkedin\.com/in/.*"
                 title="Must contain linkedin.com/in/"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#008037] focus:border-transparent"
               />
               <p className="text-xs text-gray-400 mt-1">We use this for vetting only — never shared with candidates.</p>
             </div>
@@ -323,7 +323,7 @@ const SignUp = () => {
                   onChange={e => setPassword(e.target.value)}
                   required
                   minLength={8}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 pr-10 text-sm bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 pr-10 text-sm bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#008037] focus:border-transparent"
                 />
                 <button
                   type="button"
@@ -347,7 +347,7 @@ const SignUp = () => {
             <button
               type="submit"
               disabled={localLoading}
-              className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:opacity-60 text-white rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors mt-1"
+              className="w-full bg-[#008037] hover:bg-[#008037] disabled:opacity-60 text-white rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors mt-1"
             >
               {localLoading ? 'Submitting application…' : 'Submit application'}
             </button>
@@ -362,7 +362,7 @@ const SignUp = () => {
                 <button
                   type="button"
                   onClick={() => { setAuthTab('signin'); setError(null); setSigninError(null); }}
-                  className="text-emerald-600 hover:underline font-medium"
+                  className="text-[#008037] hover:underline font-medium"
                 >
                   Sign in
                 </button>
@@ -373,7 +373,7 @@ const SignUp = () => {
                 <button
                   type="button"
                   onClick={() => { setAuthTab('signup'); setError(null); setSigninError(null); }}
-                  className="text-emerald-600 hover:underline font-medium"
+                  className="text-[#008037] hover:underline font-medium"
                 >
                   Create account
                 </button>
@@ -398,7 +398,7 @@ const SignUp = () => {
             The most efficient way I've found quality finance talent. The candidates are pre-vetted and actually responsive.
           </blockquote>
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-bold text-sm shrink-0">
+            <div className="w-10 h-10 rounded-full bg-[#008037]/12 flex items-center justify-center text-[#006a2d] font-bold text-sm shrink-0">
               MR
             </div>
             <div>

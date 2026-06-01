@@ -241,7 +241,7 @@ const openApprovedModal = (request: IntroductionRequest) => {
               {approvedModal.request?.candidate?.sfc_take_published_at && approvedModal.request?.candidate?.sfc_take && (
                 <div className="border-t pt-4 space-y-4">
                   <div>
-                    <p className="text-[10px] uppercase tracking-wider font-semibold text-emerald-700 italic mb-1.5">SFC Take</p>
+                    <p className="text-[10px] uppercase tracking-wider font-semibold text-[#006a2d] italic mb-1.5">SFC Take</p>
                     <p className="text-sm text-foreground leading-relaxed whitespace-pre-line">
                       {approvedModal.request.candidate.sfc_take}
                     </p>
@@ -252,7 +252,7 @@ const openApprovedModal = (request: IntroductionRequest) => {
                       <p className="text-xs uppercase tracking-wide text-muted-foreground font-medium mb-1.5">Role fit</p>
                       <div className="flex flex-wrap gap-1">
                         {approvedModal.request.candidate.sfc_role_fit.map((rf: string, i: number) => (
-                          <Badge key={`rf-${i}`} variant="outline" className="text-xs border-emerald-200 bg-emerald-50 text-emerald-800">{rf}</Badge>
+                          <Badge key={`rf-${i}`} variant="outline" className="text-xs border-[#008037]/25 bg-[#008037]/5 text-[#005a26]">{rf}</Badge>
                         ))}
                       </div>
                     </div>

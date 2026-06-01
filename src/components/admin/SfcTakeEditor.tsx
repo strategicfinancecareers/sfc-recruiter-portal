@@ -120,7 +120,7 @@ export default function SfcTakeEditor({ candidate, adminUserId, onChanged }: Pro
   const isPublished = !!candidate.sfc_take_published_at;
   const statusLabel = isPublished ? 'Published' : (hasDraft ? 'Draft' : 'Not drafted');
   const statusClass = isPublished
-    ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+    ? 'bg-[#008037]/12 text-[#005a26] border-[#008037]/25'
     : hasDraft
       ? 'bg-amber-100 text-amber-800 border-amber-200'
       : 'bg-gray-100 text-gray-600 border-gray-200';
@@ -235,7 +235,7 @@ export default function SfcTakeEditor({ candidate, adminUserId, onChanged }: Pro
           <Button
             onClick={runGenerate}
             disabled={regenerating}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white"
+            className="bg-[#008037] hover:bg-[#006a2d] text-white"
           >
             {regenerating
               ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Generating (15–30s)…</>
@@ -310,7 +310,7 @@ export default function SfcTakeEditor({ candidate, adminUserId, onChanged }: Pro
               size="sm"
               onClick={handleSave}
               disabled={!isDirty || saving || regenerating || publishing}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              className="bg-[#008037] hover:bg-[#006a2d] text-white"
             >
               {saving
                 ? <><Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />Saving…</>

@@ -146,7 +146,7 @@ const Dashboard = () => {
               </p>
               <Link
                 to="/browse"
-                className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium transition-colors"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-[#008037] hover:bg-[#006a2d] text-white rounded-lg text-sm font-medium transition-colors"
               >
                 <Users className="h-4 w-4" />
                 Browse Now

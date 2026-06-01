@@ -451,7 +451,7 @@ const handleImport = async () => {
                     type="button"
                     onClick={handleImport}
                     disabled={importing || !importUrl.trim()}
-                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+                    className="w-full bg-[#008037] hover:bg-[#006a2d] text-white"
                     size="lg"
                   >
                     {importing ? (
@@ -482,7 +482,7 @@ const handleImport = async () => {
                 </DialogHeader>
 
                 {importSuccess && (
-                  <div className="flex items-center gap-2 p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-sm text-emerald-700">
+                  <div className="flex items-center gap-2 p-3 bg-[#008037]/5 border border-[#008037]/25 rounded-lg text-sm text-[#006a2d]">
                     <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
                     Imported successfully — review and edit below
                   </div>

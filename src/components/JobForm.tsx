@@ -5,10 +5,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, CheckCircle2 } from "lucide-react";
+import { Loader2, CheckCircle2, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useJobDraft, EMPTY_JOB_FORM } from "@/contexts/JobDraftContext";
 
 interface JobFormData {
   title: string;
@@ -47,40 +48,65 @@ export function JobForm({ open, onOpenChange, onJobCreated, editingJob }: JobFor
   const { toast } = useToast();
   const { session } = useAuth();
   const [submitting, setSubmitting] = useState(false);
-
-  // 'import' = step 1 (URL input only), 'form' = step 2 (full form)
-  const [step, setStep] = useState<'import' | 'form'>(editingJob ? 'form' : 'import');
-  const [importUrl, setImportUrl] = useState('');
   const [importing, setImporting] = useState(false);
-  const [importSuccess, setImportSuccess] = useState(false);
-  const [importError, setImportError] = useState('');
 
-  const [formData, setFormData] = useState<JobFormData>({
-    title: editingJob?.title || '',
-    company: editingJob?.company || '',
-    location: editingJob?.location || '',
-    type: editingJob?.type || 'full-time',
-    salaryRange: editingJob?.salary_range || '',
-    jobDescriptionUrl: editingJob?.job_description_url || '',
-    description: editingJob?.description || '',
-    requirements: editingJob?.requirements || '',
-  });
+  // NEW-job draft from the shared context (hoisted in Layout above
+  // <Outlet />) so it survives recruiter-sidebar tab switches — fix
+  // for bug #1.15. EDIT-existing-job state is local-only and seeded
+  // from the editingJob row; it must NOT touch the shared new-job
+  // draft, so an in-flight edit can't clobber an unrelated new-job
+  // in progress.
+  const draft = useJobDraft();
+  const [editingFormData, setEditingFormData] = useState<JobFormData>(
+    editingJob
+      ? {
+          title: editingJob.title,
+          company: editingJob.company,
+          location: editingJob.location,
+          type: editingJob.type,
+          salaryRange: editingJob.salary_range || '',
+          jobDescriptionUrl: editingJob.job_description_url || '',
+          description: editingJob.description || '',
+          requirements: editingJob.requirements || '',
+        }
+      : EMPTY_JOB_FORM
+  );
+  const [editingStep, setEditingStep] = useState<'import' | 'form'>('form');
+  const [editingImportUrl, setEditingImportUrl] = useState('');
+  const [editingImportSuccess, setEditingImportSuccess] = useState(false);
+  const [editingImportError, setEditingImportError] = useState('');
+
+  // Active form state branches on editingJob. Both setters share
+  // Dispatch<SetStateAction<...>> so the existing setState callsites
+  // (setFormData(prev => ...), setStep('form'), etc.) work unchanged.
+  const formData: JobFormData = editingJob ? editingFormData : draft.formData;
+  const setFormData: React.Dispatch<React.SetStateAction<JobFormData>> =
+    editingJob ? setEditingFormData : draft.setFormData;
+  const step: 'import' | 'form' = editingJob ? editingStep : draft.importStep;
+  const setStep: React.Dispatch<React.SetStateAction<'import' | 'form'>> =
+    editingJob ? setEditingStep : draft.setImportStep;
+  const importUrl = editingJob ? editingImportUrl : draft.importUrl;
+  const setImportUrl: React.Dispatch<React.SetStateAction<string>> =
+    editingJob ? setEditingImportUrl : draft.setImportUrl;
+  const importSuccess = editingJob ? editingImportSuccess : draft.importSuccess;
+  const setImportSuccess: React.Dispatch<React.SetStateAction<boolean>> =
+    editingJob ? setEditingImportSuccess : draft.setImportSuccess;
+  const importError = editingJob ? editingImportError : draft.importError;
+  const setImportError: React.Dispatch<React.SetStateAction<string>> =
+    editingJob ? setEditingImportError : draft.setImportError;
 
   const resetForm = () => {
-    setFormData({
-      title: '',
-      company: '',
-      location: '',
-      type: 'full-time',
-      salaryRange: '',
-      jobDescriptionUrl: '',
-      description: '',
-      requirements: '',
-    });
-    setStep('import');
-    setImportUrl('');
-    setImportSuccess(false);
-    setImportError('');
+    if (editingJob) {
+      // Edit-mode reset clears the local edit buffer back to empty
+      // (matches old behavior). Doesn't touch the shared draft.
+      setEditingFormData(EMPTY_JOB_FORM);
+      setEditingStep('form');
+      setEditingImportUrl('');
+      setEditingImportSuccess(false);
+      setEditingImportError('');
+    } else {
+      draft.resetDraft();
+    }
   };
 
   const handleImport = async () => {
@@ -189,8 +215,25 @@ export function JobForm({ open, onOpenChange, onJobCreated, editingJob }: JobFor
   };
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { if (!o) resetForm(); onOpenChange(o); }}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+    {/* Close-path policy (fix for bug #1.15) — see Jobs.tsx for the
+        full rationale. Summary: onOpenChange only updates the open
+        flag (no reset path); Cancel + custom X discard the draft via
+        the explicit handler; overlay-click + Escape close without
+        resetting; navigate-away unmounts cleanly without firing any
+        callback (Radix's onOpenChange is event-driven, not lifecycle-
+        driven). The built-in shadcn X is hidden via
+        `[&>button.absolute]:hidden` and replaced with our own. */}
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto [&>button.absolute]:hidden">
+        <button
+          type="button"
+          aria-label="Close and discard changes"
+          onClick={() => { resetForm(); onOpenChange(false); }}
+          className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+        >
+          <X className="h-4 w-4" />
+          <span className="sr-only">Close and discard changes</span>
+        </button>
 
         {/* Step 1: URL import only */}
         {step === 'import' && (
@@ -355,7 +398,7 @@ export function JobForm({ open, onOpenChange, onJobCreated, editingJob }: JobFor
               </div>
 
               <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+                <Button type="button" variant="outline" onClick={() => { resetForm(); onOpenChange(false); }}>
                   Cancel
                 </Button>
                 <Button type="submit" disabled={submitting}>

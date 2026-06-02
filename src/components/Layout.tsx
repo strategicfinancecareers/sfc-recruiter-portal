@@ -3,6 +3,7 @@ import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { Briefcase, Users, Heart, Settings, LogOut, Gauge, Menu, Handshake, Sparkles, ShieldCheck } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
+import { JobDraftProvider } from "../contexts/JobDraftContext";
 import { useState } from 'react';
 
 const Layout = () => {
@@ -112,10 +113,15 @@ const Layout = () => {
         </div>
       </div>
 
-      {/* Main Content */}
+      {/* Main Content. JobDraftProvider wraps the Outlet so an
+          in-progress NEW-job posting survives sidebar tab switches
+          (the route component inside Outlet unmounts on navigate;
+          the provider above it doesn't). Fix for bug #1.15. */}
       <div className="flex-1 overflow-hidden">
         <div className="h-full overflow-auto">
-          <Outlet />
+          <JobDraftProvider>
+            <Outlet />
+          </JobDraftProvider>
         </div>
       </div>
     </div>

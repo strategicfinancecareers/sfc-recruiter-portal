@@ -7,11 +7,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Edit2, Trash2, MapPin, DollarSign, Clock, Loader2, CheckCircle2 } from "lucide-react";
+import { Plus, Edit2, Trash2, MapPin, DollarSign, Clock, Loader2, CheckCircle2, X } from "lucide-react";
 
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useJobDraft, EMPTY_JOB_FORM, type JobFormData } from "@/contexts/JobDraftContext";
 import LoaderScreen from "@/components/LoaderScreen";
 
 interface Job {
@@ -38,25 +39,40 @@ const Jobs = () => {
   const [showJobForm, setShowJobForm] = useState(false);
   const [editingJob, setEditingJob] = useState<Job | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState<Job | null>(null);
+  const [importing, setImporting] = useState(false); // transient; not part of the persisted draft
 
-  // Import step state: 'import' = step 1 (URL only), 'form' = step 2 (full form)
-  const [importStep, setImportStep] = useState<'import' | 'form'>('import');
-  const [importUrl, setImportUrl] = useState('');
-  const [importing, setImporting] = useState(false);
-  const [importSuccess, setImportSuccess] = useState(false);
-  const [importError, setImportError] = useState('');
+  // NEW-job draft lives in JobDraftContext (above <Outlet />) so it
+  // survives sidebar tab switches — fix for bug #1.15.
+  // EDIT-existing-job state stays local: it's per-row, ephemeral, and
+  // seeded from the row being edited; it must not leak into or be
+  // overwritten by the shared new-job draft.
+  const draft = useJobDraft();
+  const [editingFormData, setEditingFormData] = useState<JobFormData>(EMPTY_JOB_FORM);
 
-// Form state
-const [formData, setFormData] = useState({
-  title: '',
-  company: '',
-  location: '',
-  type: 'full-time' as Job['type'],
-  salaryRange: '',
-  jobDescriptionUrl: '',
-  description: '',
-  requirements: '',
-});
+  // Active form state branches on editingJob. Both setters share the
+  // same Dispatch<SetStateAction<JobFormData>> signature so existing
+  // setFormData(prev => ({...prev, x: ...})) call sites work
+  // unchanged.
+  const formData: JobFormData = editingJob ? editingFormData : draft.formData;
+  const setFormData: React.Dispatch<React.SetStateAction<JobFormData>> =
+    editingJob ? setEditingFormData : draft.setFormData;
+
+  // Import-step fields: when editing, we force 'form' (the URL-import
+  // step is meaningless for an existing posting) and route step
+  // mutations into no-ops because editing never traverses the import
+  // flow. When creating, they come from the shared context.
+  const importStep: 'import' | 'form' = editingJob ? 'form' : draft.importStep;
+  const setImportStep: React.Dispatch<React.SetStateAction<'import' | 'form'>> =
+    editingJob ? (() => { /* no-op in edit mode */ }) : draft.setImportStep;
+  const importUrl = editingJob ? '' : draft.importUrl;
+  const setImportUrl: React.Dispatch<React.SetStateAction<string>> =
+    editingJob ? (() => { /* no-op in edit mode */ }) : draft.setImportUrl;
+  const importSuccess = editingJob ? false : draft.importSuccess;
+  const setImportSuccess: React.Dispatch<React.SetStateAction<boolean>> =
+    editingJob ? (() => { /* no-op in edit mode */ }) : draft.setImportSuccess;
+  const importError = editingJob ? '' : draft.importError;
+  const setImportError: React.Dispatch<React.SetStateAction<string>> =
+    editingJob ? (() => { /* no-op in edit mode */ }) : draft.setImportError;
 
   // Fetch jobs from database
   const fetchJobs = async () => {
@@ -92,28 +108,28 @@ const [formData, setFormData] = useState({
     fetchJobs();
   }, [session, user]);
 
+// Reset wires through to the shared draft (for new-job mode) or
+// clears the local edit buffer (edit mode). Existing call sites
+// (Cancel/X/click-outside via onOpenChange, successful submit) keep
+// the same semantics — wipe the in-progress data. Navigate-away
+// does NOT call this because Dialog's onOpenChange doesn't fire on
+// component unmount; that's the whole reason the context survives.
 const resetForm = () => {
-  setFormData({
-    title: '',
-    company: '',
-    location: '',
-    type: 'full-time',
-    salaryRange: '',
-    jobDescriptionUrl: '',
-    description: '',
-    requirements: '',
-  });
-  setEditingJob(null);
-  setImportStep('import');
-  setImportUrl('');
-  setImportSuccess(false);
-  setImportError('');
+  if (editingJob) {
+    setEditingFormData(EMPTY_JOB_FORM);
+    setEditingJob(null);
+  } else {
+    draft.resetDraft();
+  }
 };
 
 const handleOpenForm = (job?: Job) => {
   if (job) {
+    // EDIT path: seed local-only state from the row being edited.
+    // Do NOT touch the shared new-job draft — preserves an unrelated
+    // in-progress new-job posting while the user edits an existing one.
     setEditingJob(job);
-    setFormData({
+    setEditingFormData({
       title: job.title,
       company: job.company,
       location: job.location,
@@ -123,9 +139,13 @@ const handleOpenForm = (job?: Job) => {
       description: job.description || '',
       requirements: job.requirements || '',
     });
-    setImportStep('form');
   } else {
-    resetForm();
+    // NEW path: just open. Do NOT reset the context draft — the whole
+    // point of the context is to preserve in-progress data across
+    // sidebar nav, including the case where the recruiter comes back
+    // and clicks "Create Job" again. Reset only happens on explicit
+    // Cancel/X (via onOpenChange below) or on successful submit.
+    setEditingJob(null);
   }
   setShowJobForm(true);
 };
@@ -427,9 +447,31 @@ const handleImport = async () => {
           )}
         </div>
 
-        {/* Job Form Dialog */}
-        <Dialog open={showJobForm} onOpenChange={(o) => { if (!o) resetForm(); setShowJobForm(o); }}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        {/* Job Form Dialog.
+            Close-path policy (fix for bug #1.15):
+              - Cancel button + our custom X button   → discard draft (intentional)
+              - Click-outside (overlay) + Escape      → close only, preserve draft
+              - Submit success                        → discard draft (unchanged)
+              - Sidebar navigate-away                 → component unmounts, NO callback,
+                                                        context draft survives in Layout
+            We move the reset out of onOpenChange entirely — onOpenChange now only
+            updates the open flag — and route the explicit-discard intent through
+            the dedicated handleDiscardAndClose() helper. The shadcn DialogContent's
+            built-in X button is hidden via `[&>button.absolute]:hidden` and replaced
+            with our own X that calls handleDiscardAndClose. This makes navigate-away
+            robust regardless of any future Radix behavior — there's no longer any
+            path from a controlled-close transition to a draft reset. */}
+        <Dialog open={showJobForm} onOpenChange={setShowJobForm}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto [&>button.absolute]:hidden">
+            <button
+              type="button"
+              aria-label="Close and discard changes"
+              onClick={() => { resetForm(); setShowJobForm(false); }}
+              className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+            >
+              <X className="h-4 w-4" />
+              <span className="sr-only">Close and discard changes</span>
+            </button>
 
             {/* Step 1: URL import only */}
             {importStep === 'import' && (
@@ -606,7 +648,7 @@ const handleImport = async () => {
                   )}
 
                   <DialogFooter>
-                    <Button type="button" variant="outline" onClick={() => setShowJobForm(false)}>
+                    <Button type="button" variant="outline" onClick={() => { resetForm(); setShowJobForm(false); }}>
                       Cancel
                     </Button>
                     <Button type="submit" disabled={submitting}>

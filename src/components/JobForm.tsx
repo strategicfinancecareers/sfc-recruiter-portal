@@ -214,15 +214,15 @@ export function JobForm({ open, onOpenChange, onJobCreated, editingJob }: JobFor
     }
   };
 
+  // Close-path policy (fix for bug #1.15) — see Jobs.tsx for the full
+  // rationale. Summary: onOpenChange only updates the open flag (no
+  // reset path). Cancel + custom X discard the draft via the explicit
+  // handler. Overlay-click and Escape close without resetting. Navigate-
+  // away unmounts cleanly without firing any callback (Radix's
+  // onOpenChange is event-driven, not lifecycle-driven). The built-in
+  // shadcn X is hidden via the [&>button.absolute]:hidden class on
+  // DialogContent and replaced with our own X above.
   return (
-    {/* Close-path policy (fix for bug #1.15) — see Jobs.tsx for the
-        full rationale. Summary: onOpenChange only updates the open
-        flag (no reset path); Cancel + custom X discard the draft via
-        the explicit handler; overlay-click + Escape close without
-        resetting; navigate-away unmounts cleanly without firing any
-        callback (Radix's onOpenChange is event-driven, not lifecycle-
-        driven). The built-in shadcn X is hidden via
-        `[&>button.absolute]:hidden` and replaced with our own. */}
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto [&>button.absolute]:hidden">
         <button

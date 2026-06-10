@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
+import { verifyBearerEmail } from './_shared/verifyBearerEmail.js';
 
 // Admin notify destination + sender; reuses the pattern from
 // api/recruiter-signup.js so deliverability + reply behavior match.
@@ -87,27 +88,9 @@ const CANDIDATE_GET_COLUMNS = [
   'status',
 ].join(', ');
 
-// ─── Auth helper ─────────────────────────────────────────────────────────────
-// Validates the Authorization header against the auth server and returns
-// the verified user's lowercased email. Returns { error, status } on
-// failure (caller forwards as response).
-async function verifyBearerEmail(req, supabase) {
-  const authHeader = req.headers?.authorization || req.headers?.Authorization || '';
-  const match = /^Bearer\s+(.+)$/i.exec(authHeader);
-  if (!match) {
-    return { error: 'Missing Authorization bearer token', status: 401 };
-  }
-  const token = match[1].trim();
-  if (!token) return { error: 'Missing Authorization bearer token', status: 401 };
-
-  // supabase.auth.getUser(jwt) hits the auth server to validate
-  // signature + expiry — do not trust an un-validated JWT.
-  const { data, error } = await supabase.auth.getUser(token);
-  if (error || !data?.user?.email) {
-    return { error: 'Invalid or expired session', status: 401 };
-  }
-  return { email: data.user.email.toLowerCase().trim() };
-}
+// Bearer auth helper extracted to api/_shared/verifyBearerEmail.js so
+// other candidate-self endpoints (e.g. /api/update-candidate-skills)
+// can use the same validated-against-auth-server check. Same contract.
 
 export default async function handler(req, res) {
   console.log('[candidate-profile] env check:', {

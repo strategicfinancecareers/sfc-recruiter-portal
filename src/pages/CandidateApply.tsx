@@ -31,41 +31,58 @@ const COMPANY_LOGOS = [
   'Blackstone', 'KKR', 'Citadel', 'JP Morgan', 'Bain', 'BCG', 'Sequoia',
 ];
 
+// Primary-background groups + their scoped detailed-experience areas.
+// The 5-group structure here is the source of truth: PRIMARY_BACKGROUNDS
+// values flow to candidates.primary_background (also reused as
+// secondary background options), and the DETAILED_EXPERIENCE_MAP keys
+// MUST match those values exactly (background-scoped lookup keys the
+// detail-area list at the Tab 2 render). The keys/values are passed
+// as raw strings everywhere downstream (admin views, SFC Take prompt,
+// the recruiter card) — no pattern matching on specific labels, so
+// relabeling here propagates cleanly. Existing candidates whose stored
+// values reference older labels will simply have to re-pick on their
+// next edit (test data; orphaned strings are acceptable per spec).
 const PRIMARY_BACKGROUNDS = [
   {
-    value: 'Capital Markets & Investing',
-    subtitle: 'Investment Banking, Private Equity, Venture Capital, Equity Research, Corporate Banking, Sales & Trading, Investor Relations',
+    value: 'Strategic Finance & Business Finance',
+    subtitle: 'Strategic Finance, Fundraising, Product and Marketing Finance, Pricing & Revenue Strategy, Mergers and Acquisitions, Investor and Board Work',
   },
   {
-    value: 'Corporate Finance & FP&A',
-    subtitle: 'Strategic Finance, FP&A, Corporate Finance, Treasury, Commercial Finance, Business Finance, Corporate Development',
+    value: 'FP&A & Corporate Finance',
+    subtitle: 'FP&A, Corporate Finance, Treasury, Forecasting & Budgeting',
+  },
+  {
+    value: 'Capital Markets & Investing',
+    subtitle: 'Investment Banking, Private Equity, Venture Capital, Equity Research, Corporate Banking, Investor Relations',
   },
   {
     value: 'Strategy & Operations',
-    subtitle: 'Management Consulting, Business Operations, Strategy, Chief of Staff, Revenue Operations, Analytics',
+    subtitle: 'Management Consulting, Strategy, Business Operations, Revenue Operations, Chief of Staff, Analytics',
   },
   {
     value: 'Accounting & Compliance',
-    subtitle: 'Accounting, Audit, Tax, Bookkeeping, Payroll Operations, AP/AR, Compliance',
+    subtitle: 'Accounting, Audit, Tax, Payroll, AP/AR, Compliance',
   },
 ];
 
 const DETAILED_EXPERIENCE_MAP: Record<string, string[]> = {
+  'Strategic Finance & Business Finance': [
+    'Strategic Finance', 'Fundraising', 'Product and Marketing Finance',
+    'Pricing & Revenue Strategy', 'Mergers and Acquisitions', 'Investor and Board Work',
+  ],
+  'FP&A & Corporate Finance': [
+    'FP&A', 'Corporate Finance', 'Treasury', 'Forecasting & Budgeting',
+  ],
   'Capital Markets & Investing': [
     'Investment Banking', 'Private Equity', 'Venture Capital', 'Equity Research',
-    'Corporate Banking', 'M&A Advisory', 'Sales & Trading', 'Investor Relations',
-  ],
-  'Corporate Finance & FP&A': [
-    'Strategic Finance', 'FP&A', 'Corporate Finance', 'Treasury',
-    'Commercial Finance', 'Business Finance', 'Corporate Development',
+    'Corporate Banking', 'Investor Relations',
   ],
   'Strategy & Operations': [
-    'Management Consulting', 'Business Operations', 'Strategy', 'Chief of Staff',
-    'Revenue Operations', 'Analytics', 'Data Analysis',
+    'Management Consulting', 'Strategy', 'Business Operations',
+    'Revenue Operations', 'Chief of Staff', 'Analytics',
   ],
   'Accounting & Compliance': [
-    'Accounting', 'Audit', 'Tax', 'Bookkeeping',
-    'Payroll Operations', 'AP/AR', 'Compliance', 'Financial Reporting',
+    'Accounting', 'Audit', 'Tax', 'Payroll', 'AP/AR', 'Compliance',
   ],
 };
 

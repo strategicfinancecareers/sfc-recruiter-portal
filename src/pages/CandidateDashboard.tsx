@@ -8,7 +8,6 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { authedFetch } from '@/integrations/supabase/authedFetch';
 import AnonymousCandidateCard from '@/components/AnonymousCandidateCard';
-import { bucketSkills } from '@/lib/skillsBucket';
 import '@fontsource-variable/newsreader';
 import '@fontsource-variable/manrope';
 import '@fontsource-variable/geist-mono';
@@ -664,11 +663,6 @@ function ProfileTab({
   // using the wizard's own clickable tab bar (which is freely
   // clickable in edit mode).
   const bio = candidate.profile_description || '';
-  // Split candidate-facing skills into the same Core Expertise /
-  // Technical Skills groups recruiters see on /browse, via the
-  // shared @/lib/skillsBucket helper. Single source of truth — when
-  // the bucketer changes, both surfaces change in lockstep.
-  const { core: coreSkills, tech: techSkills } = bucketSkills(skills);
   const workPrefDisplay = (candidate.work_preferences && candidate.work_preferences.join(', '))
     || candidate.work_preference;
 
@@ -713,49 +707,25 @@ function ProfileTab({
           </div>
         </div>
         {bio && <p className="text-sm leading-relaxed" style={{ color: 'rgba(14,14,13,.75)' }}>{bio}</p>}
-        {(coreSkills.length > 0 || techSkills.length > 0) && (
-          <div className="space-y-3 pt-1">
-            {coreSkills.length > 0 && (
-              <div>
-                <p
-                  className="mb-1.5"
-                  style={{ fontFamily: MONO, fontSize: 10.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(14,14,13,.55)' }}
+        {skills.length > 0 && (
+          <div className="pt-1">
+            <p
+              className="mb-1.5"
+              style={{ fontFamily: MONO, fontSize: 10.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(14,14,13,.55)' }}
+            >
+              Technical Skills
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {skills.map(s => (
+                <span
+                  key={s}
+                  className="px-2.5 py-1 rounded-full text-xs font-medium border"
+                  style={{ background: 'rgba(0,128,55,.06)', color: BRAND, borderColor: 'rgba(0,128,55,.18)' }}
                 >
-                  Core Expertise
-                </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {coreSkills.map(s => (
-                    <span
-                      key={s}
-                      className="px-2.5 py-1 rounded-full text-xs font-medium border"
-                      style={{ background: 'rgba(0,128,55,.06)', color: BRAND, borderColor: 'rgba(0,128,55,.18)' }}
-                    >
-                      {s}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-            {techSkills.length > 0 && (
-              <div>
-                <p
-                  className="mb-1.5"
-                  style={{ fontFamily: MONO, fontSize: 10.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(14,14,13,.55)' }}
-                >
-                  Technical Skills
-                </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {techSkills.map(s => (
-                    <span
-                      key={s}
-                      className="px-2.5 py-1 rounded-full text-xs font-medium border border-gray-200 bg-gray-50 text-gray-700"
-                    >
-                      {s}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
+                  {s}
+                </span>
+              ))}
+            </div>
           </div>
         )}
         <div className="space-y-1 pt-2">

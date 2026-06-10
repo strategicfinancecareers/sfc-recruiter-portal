@@ -1222,6 +1222,34 @@ export default function CandidateApply() {
         setSubmitError('Could not save changes — please try again.');
         return;
       }
+
+      // ── Skills write (separate endpoint by design) ───────────────
+      // candidates.skills doesn't exist as a column — skills live in
+      // the candidate_skills join table. So skills are not part of
+      // the PATCH payload above (the candidate-profile whitelist
+      // excludes them). We post them to a dedicated endpoint that
+      // mirrors the same bearer+ownership auth model and writes the
+      // join. If the PATCH succeeded but skills fail, we surface a
+      // partial-failure message so the user knows profile fields are
+      // saved but skills aren't — never silently lose data.
+      const skillsRes = await authedFetch('/api/update-candidate-skills-list', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: editCandidateId, skills: form.skills }),
+      });
+      if (!skillsRes.ok) {
+        let detail = '';
+        try { detail = (await skillsRes.json())?.error || ''; } catch { /* keep blank */ }
+        console.error('[CandidateApply] skills save failed after profile saved:', skillsRes.status, detail);
+        setSubmitError(
+          'Your profile changes were saved, but your skills update failed. Please try saving again.'
+        );
+        // Don't clear the autosave draft — the in-progress skills
+        // state matters; the next save attempt should still have it.
+        // Don't navigate away either; let the user retry.
+        return;
+      }
+
       // Clear the autosave draft now that the live row holds the
       // canonical version. Leaving the draft in place would shadow
       // the freshly-saved data on the next /apply?edit=1 visit and
@@ -2713,33 +2741,17 @@ export default function CandidateApply() {
 
               <div>
                 <Label>Skills</Label>
-                {isEditMode ? (
-                  // Read-only in edit mode: candidates.skills isn't a
-                  // direct column on the candidates table — skills live
-                  // in a candidate_skills join table that the create-
-                  // flow's submit-candidate.ts writes via a separate
-                  // insert loop. Until a dedicated update endpoint
-                  // owns those join writes, edit mode shows the
-                  // current skills as static chips.
-                  <>
-                    <p className="text-xs text-gray-400 mt-0.5">Editing skills coming soon — current skills shown below.</p>
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      {form.skills.length === 0 && (
-                        <p className="text-xs text-gray-400">No skills on file.</p>
-                      )}
-                      {form.skills.map(s => (
-                        <span key={s} className="px-2.5 py-1 bg-gray-100 text-gray-700 border border-gray-200 rounded-full text-xs font-medium">
-                          {s}
-                        </span>
-                      ))}
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <p className="text-xs text-gray-400 mt-0.5">Press Enter to add each skill</p>
-                    <SkillsInput skills={form.skills} onChange={v => set('skills', v)} />
-                  </>
-                )}
+                {/* Editable in both create AND edit mode. On Save Changes
+                    in edit mode, the wizard PATCHes profile fields via
+                    /api/candidate-profile (whitelist still excludes
+                    `skills` because candidates has no skills column)
+                    AND posts the skill set to
+                    /api/update-candidate-skills-list, which writes the
+                    candidate_skills join table. Recruiter cards read
+                    that same join via useCandidates, so the edits
+                    propagate to /browse. */}
+                <p className="text-xs text-gray-400 mt-0.5">Press Enter to add each skill</p>
+                <SkillsInput skills={form.skills} onChange={v => set('skills', v)} />
               </div>
               </div>
               {/* End editor block */}

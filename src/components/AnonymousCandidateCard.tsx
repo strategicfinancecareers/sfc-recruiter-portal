@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { MapPin, Handshake, Shield, ChevronDown, ChevronUp, Eye } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { bucketSkills } from '@/lib/skillsBucket';
 
 // Anonymous candidate card — the full dossier view shown to recruiters
 // when they click "View Profile" on /browse, and now also used to render
@@ -63,15 +64,8 @@ type Props = { candidate: AnonymousCandidateCardData } & (RecruiterModeProps | P
 
 const BIO_LIMIT = 320;
 
-const CORE_FINANCE = new Set([
-  'strategic finance', 'fp&a', 'fpa', 'm&a', 'corporate development', 'capital raising',
-  'private equity', 'investment banking', 'equity research', 'financial modeling', 'financial modelling',
-  'valuation', 'dcf', 'lbo', 'budgeting', 'forecasting', 'budgeting & forecasting', 'treasury',
-  'corporate finance', 'portfolio management', 'credit analysis', 'risk management',
-  'investor relations', 'mergers & acquisitions', 'due diligence', 'capital markets',
-  'leveraged buyout', 'discounted cash flow', 'financial analysis', 'corporate strategy',
-  'business development', 'restructuring',
-]);
+// Core/Technical bucketer moved to @/lib/skillsBucket so the candidate
+// dashboard can display the same split — single source of truth.
 
 export default function AnonymousCandidateCard(props: Props) {
   const { candidate: c } = props;
@@ -83,10 +77,10 @@ export default function AnonymousCandidateCard(props: Props) {
   const bio = (c.profile_description || '').split('\n\n')[0].trim();
   const bioTruncated = bio.length > BIO_LIMIT && !showFullBio;
 
-  // Skills split (verbatim from source)
+  // Skills split via the shared @/lib/skillsBucket helper so the
+  // candidate dashboard renders the same Core / Technical groups.
   const allSkills = (c.skills || []).map(s => s.skill).filter(Boolean);
-  const coreSkills = allSkills.filter(s => CORE_FINANCE.has(s.toLowerCase()));
-  const techSkills = allSkills.filter(s => !CORE_FINANCE.has(s.toLowerCase()));
+  const { core: coreSkills, tech: techSkills } = bucketSkills(allSkills);
 
   // Executive chips (verbatim from source)
   const chips: string[] = [];

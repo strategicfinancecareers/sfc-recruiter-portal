@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { MapPin, Handshake, Shield, ChevronDown, ChevronUp, Eye } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { bucketSkills } from '@/lib/skillsBucket';
 
 // Anonymous candidate card — the full dossier view shown to recruiters
 // when they click "View Profile" on /browse, and now also used to render
@@ -64,9 +63,6 @@ type Props = { candidate: AnonymousCandidateCardData } & (RecruiterModeProps | P
 
 const BIO_LIMIT = 320;
 
-// Core/Technical bucketer moved to @/lib/skillsBucket so the candidate
-// dashboard can display the same split — single source of truth.
-
 export default function AnonymousCandidateCard(props: Props) {
   const { candidate: c } = props;
   const isPreview = props.mode === 'preview';
@@ -77,10 +73,12 @@ export default function AnonymousCandidateCard(props: Props) {
   const bio = (c.profile_description || '').split('\n\n')[0].trim();
   const bioTruncated = bio.length > BIO_LIMIT && !showFullBio;
 
-  // Skills split via the shared @/lib/skillsBucket helper so the
-  // candidate dashboard renders the same Core / Technical groups.
+  // All candidate-typed skills render as a single "Technical Skills"
+  // section. The previous Core Expertise / Technical Skills split
+  // (a hardcoded CORE_FINANCE allow-list bucketer) was removed so the
+  // recruiter card and the candidate dashboard show every skill the
+  // candidate typed in one flat list.
   const allSkills = (c.skills || []).map(s => s.skill).filter(Boolean);
-  const { core: coreSkills, tech: techSkills } = bucketSkills(allSkills);
 
   // Executive chips (verbatim from source)
   const chips: string[] = [];
@@ -163,39 +161,18 @@ export default function AnonymousCandidateCard(props: Props) {
           </div>
         )}
 
-        {/* Skills */}
+        {/* Technical Skills — single flat list of every skill the
+            candidate typed. Brand-green chip treatment kept for the
+            recruiter card; the dashboard's mirror of this section
+            uses the same label. */}
         {allSkills.length > 0 && (
-          <div className="space-y-3">
-            {coreSkills.length > 0 && (
-              <div>
-                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Core Expertise</h3>
-                <div className="flex flex-wrap gap-1.5">
-                  {coreSkills.map(s => (
-                    <span key={s} className="px-2.5 py-1 bg-[#008037]/5 border border-[#008037]/25 text-[#005a26] rounded-full text-xs font-medium">{s}</span>
-                  ))}
-                </div>
-              </div>
-            )}
-            {techSkills.length > 0 && (
-              <div>
-                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Technical Skills</h3>
-                <div className="flex flex-wrap gap-1.5">
-                  {techSkills.map(s => (
-                    <span key={s} className="px-2.5 py-1 bg-gray-100 border border-gray-200 text-gray-700 rounded-full text-xs font-medium">{s}</span>
-                  ))}
-                </div>
-              </div>
-            )}
-            {coreSkills.length === 0 && (
-              <div>
-                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Skills</h3>
-                <div className="flex flex-wrap gap-1.5">
-                  {allSkills.map(s => (
-                    <span key={s} className="px-2.5 py-1 bg-[#008037]/5 border border-[#008037]/25 text-[#005a26] rounded-full text-xs font-medium">{s}</span>
-                  ))}
-                </div>
-              </div>
-            )}
+          <div>
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Technical Skills</h3>
+            <div className="flex flex-wrap gap-1.5">
+              {allSkills.map(s => (
+                <span key={s} className="px-2.5 py-1 bg-[#008037]/5 border border-[#008037]/25 text-[#005a26] rounded-full text-xs font-medium">{s}</span>
+              ))}
+            </div>
           </div>
         )}
 

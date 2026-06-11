@@ -163,7 +163,30 @@ export default async function handler(req, res) {
       }
 
       const skills = (skillsData || []).map(s => s.skills?.skill).filter(Boolean);
-      return res.status(200).json({ candidate: { ...candidate, skills } });
+
+      // Step 3: candidate's resumes from the Phase A candidate_resumes
+      // table. Returned here so the dashboard Resume tab doesn't need
+      // a separate list endpoint. The same bearer + email-ownership
+      // gate above protects this read. Order is default first, then
+      // by creation. storage_path is included so the client can
+      // derive a filename for display; the actual download URL is
+      // minted via /api/get-candidate-resume-url (separate auth +
+      // signed-URL gate).
+      const { data: resumesData, error: resumesError } = await supabase
+        .from('candidate_resumes')
+        .select('id, label, storage_path, is_default, created_at, updated_at')
+        .eq('candidate_id', candidate.id)
+        .order('is_default', { ascending: false })
+        .order('created_at', { ascending: true });
+      if (resumesError) {
+        // Non-fatal: if the resumes lookup fails, return the rest of
+        // the profile so the dashboard still renders. Empty array
+        // signals "no resumes on file" to the UI.
+        console.warn('[candidate-profile] resumes lookup failed (non-fatal):', resumesError.message);
+      }
+      const resumes = resumesData || [];
+
+      return res.status(200).json({ candidate: { ...candidate, skills, resumes } });
     }
 
     // ── PATCH — candidate-self update ────────────────────────────────────

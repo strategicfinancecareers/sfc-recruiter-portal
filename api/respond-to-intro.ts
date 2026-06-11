@@ -10,6 +10,54 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 );
 
+// Phase B chooser page. Rendered when the candidate clicks YES on the
+// email link AND has more than one resume on file. Each option links
+// back to GET /api/respond-to-intro?introId=X&response=yes&resumeId=Y
+// so the second click pins selected_resume_id and finalizes the
+// accept. Plain HTML so it renders inline from the email's link
+// without depending on the SPA. HTML-escaped to defend against any
+// hostile label content (labels are candidate-typed, so this is
+// defense-in-depth rather than expected exploitation).
+function escapeHtml(s: string): string {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+function renderResumePicker({ introId, resumes }: {
+  introId: string;
+  resumes: Array<{ id: string; label: string; is_default: boolean }>;
+}): string {
+  const cards = resumes.map(r => `
+    <a href="/api/respond-to-intro?introId=${encodeURIComponent(introId)}&response=yes&resumeId=${encodeURIComponent(r.id)}"
+       style="display:block; padding:16px 18px; margin-bottom:10px; background:white; border:1px solid #e5e7eb; border-radius:10px; text-decoration:none; color:#111; transition:border-color .15s, box-shadow .15s;"
+       onmouseover="this.style.borderColor='#008037'; this.style.boxShadow='0 1px 4px rgba(0,128,55,.15)';"
+       onmouseout="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
+      <div style="display:flex; align-items:center; justify-content:space-between;">
+        <div>
+          <div style="font-weight:600; font-size:15px;">${escapeHtml(r.label)}</div>
+          ${r.is_default ? '<div style="font-size:11px; color:#008037; margin-top:2px; text-transform:uppercase; letter-spacing:.08em;">Default</div>' : ''}
+        </div>
+        <div style="color:#9ca3af; font-size:13px;">Use this →</div>
+      </div>
+    </a>
+  `).join('');
+  return `
+    <html>
+      <head><meta name="viewport" content="width=device-width, initial-scale=1" /></head>
+      <body style="font-family:sans-serif; display:flex; align-items:center; justify-content:center; min-height:100vh; margin:0; background:#f9f9f9; padding:24px;">
+        <div style="max-width:480px; width:100%; background:white; border-radius:12px; padding:32px; box-shadow:0 2px 12px rgba(0,0,0,0.08);">
+          <h2 style="margin:0 0 6px; color:#111;">Choose a resume to send</h2>
+          <p style="margin:0 0 20px; color:#6b7280; font-size:14px;">The recruiter will receive the resume you pick along with your contact details. You can change which resume is your default any time from your dashboard.</p>
+          ${cards}
+        </div>
+      </body>
+    </html>
+  `;
+}
+
 // NOTE: This file previously hardcoded a personal Gmail address as a
 // permanent CC on every recruiter-facing intro response email
 // (approved + rejected). That meant a real human inbox was receiving
@@ -22,9 +70,9 @@ const supabase = createClient(
 // hardcoded address here.
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const { introId, response } = req.query;
+  const { introId, response, resumeId } = req.query;
 
-  console.log('[respond-to-intro] introId:', introId, 'response:', response);
+  console.log('[respond-to-intro] introId:', introId, 'response:', response, 'resumeId:', resumeId || '(none)');
 
   if (!introId || !response) {
     return res.status(400).send('Invalid request');
@@ -44,17 +92,60 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const accepted = response === 'yes';
 
-    // Update status + responded_at in database.
+    // ── Multi-resume picker gate (Phase B) ──────────────────────────────
+    // When the candidate accepts and has more than one resume on file, we
+    // pause and render a chooser page instead of finalizing. The chooser
+    // submits back to this same endpoint with ?resumeId=<chosen> so the
+    // selected_resume_id gets pinned to the intro before the email goes
+    // out and the recruiter's signedUrl fallback chain picks the right
+    // file. If the candidate has 1 resume (the common case), we
+    // auto-pick it silently — zero new friction. If they have 0 we
+    // fall through to the existing flow with selected_resume_id NULL
+    // and the helper falls back to the deprecated mirror column. The
+    // 'no' path bypasses this entirely.
+    let resolvedResumeId: string | null = null;
+    if (accepted) {
+      if (typeof resumeId === 'string' && resumeId.trim()) {
+        resolvedResumeId = resumeId.trim();
+      } else {
+        const { data: resumesList, error: resumesErr } = await supabase
+          .from('candidate_resumes')
+          .select('id, label, is_default, created_at')
+          .eq('candidate_id', (intro as any).candidate_id)
+          .order('is_default', { ascending: false })
+          .order('created_at', { ascending: true });
+        if (resumesErr) {
+          console.warn('[respond-to-intro] resume count lookup failed (proceeding with no pick):', resumesErr.message);
+        } else if ((resumesList?.length || 0) > 1) {
+          // Render the chooser page and stop. No DB writes yet, so a
+          // candidate who closes the tab without choosing leaves the
+          // intro in 'pending' — they can click YES again later.
+          return res.status(200).send(renderResumePicker({
+            introId: String(introId),
+            resumes: resumesList as Array<{ id: string; label: string; is_default: boolean }>,
+          }));
+        } else if ((resumesList?.length || 0) === 1) {
+          resolvedResumeId = (resumesList as any)[0].id;
+        }
+        // 0 resumes → resolvedResumeId stays null; fallback chain reaches the deprecated mirror.
+      }
+    }
+
+    // Update status + responded_at + selected_resume_id (when accepted).
     // responded_at is set on every flip (status only flips once in practice,
-    // so this is effectively first-write-wins).
+    // so this is effectively first-write-wins). selected_resume_id is only
+    // set on accept paths and is left NULL on rejects — the 'pass' email
+    // doesn't reveal anything about the candidate's resume set anyway.
+    const updatePayload: Record<string, unknown> = {
+      status: accepted ? 'approved' : 'rejected',
+      responded_at: new Date().toISOString(),
+    };
+    if (accepted && resolvedResumeId) updatePayload.selected_resume_id = resolvedResumeId;
     const { error: updateErr } = await supabase
       .from('introduction_requests')
-      .update({
-        status: accepted ? 'approved' : 'rejected',
-        responded_at: new Date().toISOString(),
-      })
+      .update(updatePayload)
       .eq('id', introId);
-    console.log('[respond-to-intro] status update error:', JSON.stringify(updateErr));
+    console.log('[respond-to-intro] status update error:', JSON.stringify(updateErr), '| selected_resume_id:', resolvedResumeId);
 
     // Fetch candidate, job, and recruiter user in parallel
     const [{ data: candidate }, { data: job }, { data: recruiterUser }] = await Promise.all([
@@ -103,10 +194,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // — don't fail the acceptance over an email cosmetic.
       let resumeDownloadUrl: string | null = null;
       if (candidate?.id) {
+        // resolvedResumeId is what we just pinned to the intro row
+        // (or null if the candidate has no resumes). Use it directly
+        // — same source of truth the recruiter modal will use post-
+        // accept via the row's selected_resume_id.
         const result = await generateBestResumeSignedUrlForIntro({
           supabase,
           candidateId: candidate.id,
-          selectedResumeId: (intro as any)?.selected_resume_id || null,
+          selectedResumeId: resolvedResumeId,
           expiresIn: 7 * 24 * 60 * 60,
         });
         if (result.status === 200 && result.url) {

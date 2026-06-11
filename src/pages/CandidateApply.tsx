@@ -849,10 +849,13 @@ export default function CandidateApply() {
   // Map ?tab=<name> → step index. Both ?tab=preferences and ?step=4
   // are accepted (numeric wins if both are present). Out-of-range or
   // unknown values silently fall back to step 1.
+  // Phase B reorder: resume=2, experience=3 (swapped). Deep-link
+  // callers (e.g. /apply?edit=1&tab=experience) keep using the same
+  // ?tab names; only the resolved step indices changed.
   const TAB_TO_STEP: Record<string, number> = {
     contact: 1,
-    experience: 2,
-    resume: 3,
+    resume: 2,
+    experience: 3,
     preferences: 4,
     'work-auth': 5,
     review: 6,
@@ -1364,17 +1367,15 @@ export default function CandidateApply() {
   const canProceedStep1 =
     !!(form.firstName && form.lastName && form.email && form.phone.trim().length >= 7 && form.linkedin.trim() && form.committed);
 
-  const canProceedStep2 =
-    !!(form.primaryBackground && form.detailedExperience.length > 0 && form.experience);
+  // Phase B reorder: Resume is now step 2, Professional Experience is step 3.
+  // In CREATE mode step 2 requires a parsed resume; in EDIT mode an
+  // already-uploaded resume (signalled by editResumeFilename, derived
+  // from resume_full_url during the edit prefill) also satisfies the
+  // gate.
+  const canProceedStep2 = form.resumeParsed !== null || (isEditMode && !!editResumeFilename);
 
-  // In CREATE mode the candidate must upload + parse a resume on this
-  // step (resumeParsed is set by handleResumeUpload after the
-  // parse-resume call resolves). In EDIT mode the resume isn't
-  // re-uploaded — the single-resume model is preserved; the existing
-  // file is shown read-only. So an already-uploaded resume (signalled
-  // by editResumeFilename, derived from resume_full_url during the
-  // edit prefill) also satisfies this step's gate.
-  const canProceedStep3 = form.resumeParsed !== null || (isEditMode && !!editResumeFilename);
+  const canProceedStep3 =
+    !!(form.primaryBackground && form.detailedExperience.length > 0 && form.experience);
 
   // Tab 4: comp is now mandatory here (only place it's asked); work
   // preferences must be at least one selected (multi-select); job-status
@@ -1417,7 +1418,10 @@ export default function CandidateApply() {
     // back to the disqualified screen — they're editing an existing
     // active profile. Admins can deactivate if needed via the admin
     // tools; the disqualifier is a CREATE-flow gate only.
-    if (!isEditMode && step === 2 && isDisqualified(form)) {
+    // Phase B reorder: Professional Experience is now step 3; the
+    // <2-years-experience disqualifier was previously checked when
+    // advancing OFF step 2 (Experience). Same intent, new step index.
+    if (!isEditMode && step === 3 && isDisqualified(form)) {
       setScreen('disqualified');
       return;
     }
@@ -2049,18 +2053,24 @@ export default function CandidateApply() {
   // Step labels for the clickable tab bar. Order matches the validators.
   // Long form for >=md screens, short form below — never truncates to
   // single letters at narrow widths.
+  // Phase B wizard reorder: Resume moves BEFORE Professional Experience
+  // so the parse-derived fields (currentRole, location, education,
+  // skills, bio) are available on the Experience screen instead of
+  // arriving a step later. The parse flow itself is unchanged — the
+  // upload still POSTs to /api/parse-resume and seeds form fields;
+  // it just happens one step earlier in the user's path.
   const STEP_LABELS_LONG = [
     'Contact Information',
-    'Professional Experience',
     'Resume Upload',
+    'Professional Experience',
     'Future Job Preferences',
     'Work Authorization',
     'Review your profile',
   ];
   const STEP_LABELS_SHORT = [
     'Contact',
-    'Experience',
     'Resume',
+    'Experience',
     'Preferences',
     'Work Auth',
     'Review',
@@ -2275,7 +2285,7 @@ export default function CandidateApply() {
         )}
 
         {/* ── Tab 2: Professional Experience ───────────────────────────── */}
-        {step === 2 && (
+        {step === 3 && (
           <div className="max-w-xl mx-auto">
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Professional Experience</h2>
             <p className="text-gray-500 mb-8 text-sm leading-relaxed">
@@ -2404,7 +2414,7 @@ export default function CandidateApply() {
         )}
 
         {/* ── Tab 3: Resume Upload (resume only) ──────────────────────── */}
-        {step === 3 && isEditMode && (
+        {step === 2 && isEditMode && (
           <div className="max-w-xl mx-auto">
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Your Resume</h2>
             <p className="text-gray-500 mb-8 text-sm">
@@ -2426,7 +2436,7 @@ export default function CandidateApply() {
             )}
           </div>
         )}
-        {step === 3 && !isEditMode && (
+        {step === 2 && !isEditMode && (
           <div className="max-w-xl mx-auto">
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Upload Your Resume</h2>
             <p className="text-gray-500 mb-8 text-sm">

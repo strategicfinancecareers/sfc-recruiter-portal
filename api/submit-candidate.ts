@@ -240,6 +240,50 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
+    // ── Close the multi-resume create-flow gap (Phase B) ─────────────────
+    // Phase A's candidate_resumes table is the new source of truth; the
+    // candidates.resume_full_url column above is the deprecated mirror
+    // we'll drop in Phase C. Until then we DUAL-WRITE on submission so
+    // every new candidate has a candidate_resumes row alongside the
+    // mirror, matching the model the dashboard + intro-pick flows
+    // expect. ON CONFLICT keeps re-applications (which UPDATE the
+    // candidates row) idempotent against the UNIQUE(candidate_id,
+    // label) constraint — re-applying with the same default label
+    // doesn't error, and a re-application that updates resumePath
+    // updates the row's storage_path to match.
+    // Wrapped in its own try/catch so a thrown exception (network
+    // blip, supabase-js client failure, etc.) on the candidate_resumes
+    // upsert can NEVER fail the submission. By this point the
+    // candidates row and the resume_full_url + storage upload are
+    // already committed, and the deprecated mirror keeps the
+    // fallback chain working — so a missing candidate_resumes row
+    // is at worst a transient gap until the candidate next opens
+    // the dashboard and uploads/edits. The outer handler's catch
+    // returns 500 to the client; we must not let a mirror-write
+    // failure trigger that.
+    if (candidateId && resumePath) {
+      try {
+        const { error: resumeRowErr } = await supabase
+          .from('candidate_resumes')
+          .upsert(
+            {
+              candidate_id: candidateId,
+              label: 'Resume',
+              storage_path: resumePath,
+              is_default: true,
+            },
+            { onConflict: 'candidate_id,label' }
+          );
+        if (resumeRowErr) {
+          console.warn('[submit-candidate] candidate_resumes upsert returned error (mirror still works):', resumeRowErr.message);
+        } else {
+          console.log('[submit-candidate] candidate_resumes row written (default=true)');
+        }
+      } catch (resumeRowThrow: any) {
+        console.warn('[submit-candidate] candidate_resumes upsert threw (mirror still works):', resumeRowThrow?.message || String(resumeRowThrow));
+      }
+    }
+
     // Auth account is created during signup — just use the plain dashboard URL
     const dashboardLink = 'https://sfc-recruiter-portal.vercel.app/candidate-dashboard';
 

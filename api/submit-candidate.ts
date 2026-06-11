@@ -27,6 +27,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       industries, industriesOther, sectors: legacySectors,
       // Background segmentation
       primaryBackground, secondaryBackgrounds, detailedExperience,
+      // Phase 2 of the skills redesign: the new controlled-taxonomy
+      // field. The wizard currently dual-writes — sending the same
+      // array as both areasOfExpertise (new column) and
+      // detailedExperience (legacy column). We accept both and
+      // write to both columns until Phase 3 re-points the readers.
+      areasOfExpertise,
       // NEW form-rework fields
       companyStages, newAreas,
       // Availability / preferences (work_preferences is now a multi-select
@@ -174,6 +180,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       primary_background: primaryBackground || null,
       secondary_backgrounds: Array.isArray(secondaryBackgrounds) ? secondaryBackgrounds : [],
       detailed_experience: Array.isArray(detailedExperience) ? detailedExperience : [],
+      // Phase 2 dual-write: write the same array to the new
+      // controlled-taxonomy column. Falls back to detailedExperience
+      // if a legacy client hasn't been updated to send areasOfExpertise
+      // explicitly — keeps backward compat in flight while the wizard
+      // ships.
+      areas_of_expertise: Array.isArray(areasOfExpertise) && areasOfExpertise.length > 0
+        ? areasOfExpertise
+        : (Array.isArray(detailedExperience) ? detailedExperience : []),
       industries: industriesArr,
       industries_other: (typeof industriesOther === 'string' && industriesOther.trim()) ? industriesOther.trim() : null,
       target_company_stages: companyStagesArr,

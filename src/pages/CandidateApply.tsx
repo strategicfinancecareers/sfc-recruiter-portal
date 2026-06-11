@@ -23,6 +23,8 @@ import { authedFetch } from '@/integrations/supabase/authedFetch';
 import '@fontsource-variable/newsreader';
 
 import AnonymousCandidateCard from '@/components/AnonymousCandidateCard';
+import { AREA_GROUPS, AREAS_MAX, groupForPrimaryBackground } from '@/lib/areasOfExpertise';
+import { TOOL_GROUPS } from '@/lib/toolsAndTechnicalSkills';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -197,6 +199,13 @@ interface FormState {
   primaryBackground: string;
   secondaryBackgrounds: string[];
   detailedExperience: string[];
+  // Phase 2 of the skills redesign: the new candidate-facing field
+  // backed by candidates.areas_of_expertise. detailedExperience is
+  // kept on FormState for the dual-write transition (Phase 3 drops
+  // it from this file once readers re-point); on save we write the
+  // same array to both columns so existing readers (SFC Take prompt,
+  // admin notify email) keep working unmodified until then.
+  areasOfExpertise: string[];
   experience: string;              // years bucket: under2 / 2to5 / 5to10 / 10plus
   industries: string[];            // moved from old Step 4; → candidates.industries[]
   industriesOther: string;         // free text when 'Other' is in industries[]
@@ -237,7 +246,7 @@ const INITIAL_FORM: FormState = {
   // Tab 1
   firstName: '', lastName: '', email: '', phone: '', linkedin: '', committed: false,
   // Tab 2
-  primaryBackground: '', secondaryBackgrounds: [], detailedExperience: [], experience: '',
+  primaryBackground: '', secondaryBackgrounds: [], detailedExperience: [], areasOfExpertise: [], experience: '',
   industries: [], industriesOther: '',
   companyStages: [], newAreas: [],
   // Tab 3
@@ -362,6 +371,234 @@ function SkillsInput({ skills, onChange }: { skills: string[]; onChange: (s: str
             </button>
           </span>
         ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Phase 2 skills-redesign pickers ─────────────────────────────────────────
+
+/**
+ * Areas of Expertise picker.
+ *
+ * Renders the canonical taxonomy from src/lib/areasOfExpertise.ts as a
+ * grouped chip grid. Every tag is always available; primaryBackground
+ * only re-orders the groups so the most-relevant group appears first
+ * under a "Most relevant for [Primary Background]" heading. Hard
+ * server-enforced cap of AREAS_MAX (10) is mirrored in the UI: at
+ * cap, unselected chips are disabled and a "10 of 10 selected" hint
+ * shows; selected chips stay clickable so the candidate can swap.
+ */
+function AreasOfExpertisePicker({
+  selected,
+  primaryBackground,
+  onChange,
+}: {
+  selected: string[];
+  primaryBackground: string;
+  onChange: (next: string[]) => void;
+}) {
+  // Most-relevant group is pulled to the top; the rest follow in
+  // declaration order. groupForPrimaryBackground returns null for
+  // unknown / empty primaryBackground → ordered groups stays
+  // identical to AREA_GROUPS.
+  const mostRelevantGroup = groupForPrimaryBackground(primaryBackground);
+  const orderedGroups = mostRelevantGroup
+    ? [
+        ...AREA_GROUPS.filter(g => g.group === mostRelevantGroup),
+        ...AREA_GROUPS.filter(g => g.group !== mostRelevantGroup),
+      ]
+    : [...AREA_GROUPS];
+
+  const atCap = selected.length >= AREAS_MAX;
+  const toggle = (tag: string) => {
+    if (selected.includes(tag)) onChange(selected.filter(t => t !== tag));
+    else if (!atCap) onChange([...selected, tag]);
+    // else at cap and not selected → no-op (chip is disabled below).
+  };
+
+  return (
+    <div>
+      <Label className="text-sm font-semibold text-gray-800">
+        Which areas have you developed meaningful experience in throughout your career? <span className="text-red-500">*</span>
+        <span className="ml-2 text-xs font-normal text-gray-400">Select up to {AREAS_MAX}</span>
+      </Label>
+      <p className="text-xs text-gray-500 mt-1 leading-relaxed">
+        If you've spent your career in Investment Banking, you may select M&amp;A, Capital Markets, Financial Modeling, and Fundraising. If you're in Strategic Finance, you might select Pricing, FP&amp;A, Revenue Strategy, and Board Reporting. Both profiles are equally valuable — the goal is accuracy, not maximizing selections.
+      </p>
+
+      <div className="mt-3 flex items-center gap-2 text-xs">
+        <span className={atCap ? 'font-semibold text-amber-700' : 'text-gray-500'}>
+          {selected.length} of {AREAS_MAX} selected
+        </span>
+        {selected.length > 0 && (
+          <button
+            type="button"
+            onClick={() => onChange([])}
+            className="text-gray-400 hover:text-gray-600 underline"
+          >
+            Clear
+          </button>
+        )}
+      </div>
+
+      <div className="mt-3 space-y-4">
+        {orderedGroups.map((g, idx) => {
+          const isMostRelevant = idx === 0 && mostRelevantGroup === g.group;
+          return (
+            <div key={g.group}>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                {g.group}
+                {isMostRelevant && (
+                  <span className="ml-2 text-[10px] font-bold text-emerald-700">MOST RELEVANT FOR YOU</span>
+                )}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {g.tags.map(tag => {
+                  const isSelected = selected.includes(tag);
+                  const disabled = !isSelected && atCap;
+                  return (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => toggle(tag)}
+                      disabled={disabled}
+                      className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                        isSelected
+                          ? 'bg-emerald-600 border-emerald-600 text-white'
+                          : disabled
+                            ? 'bg-gray-50 border-gray-200 text-gray-300 cursor-not-allowed'
+                            : 'bg-white border-gray-300 text-gray-700 hover:border-emerald-400'
+                      }`}
+                      aria-pressed={isSelected}
+                    >
+                      {tag}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Tools & Technical Skills picker.
+ *
+ * Two-part affordance over a single string[]:
+ *  - Suggested chips grouped by TOOL_GROUPS — clicking adds (or
+ *    toggles off if already selected). Same store as the free-text
+ *    input below; dedupe is case-insensitive.
+ *  - Free-text input for anything not in the suggestions (NetSuite,
+ *    SAP, Anaplan, etc.). Press Enter to add. Same store.
+ *
+ * NO cap (per spec). Persistence: form.skills flows through
+ * submit-candidate's upsert loop on create and
+ * /api/update-candidate-skills-list on edit — both already dedupe
+ * case-insensitively at the server side, so the UI can be modestly
+ * forgiving with comparisons.
+ */
+function ToolsAndTechnicalSkillsPicker({
+  selected,
+  onChange,
+}: {
+  selected: string[];
+  onChange: (next: string[]) => void;
+}) {
+  const [input, setInput] = useState('');
+
+  const lowerSelected = new Set(selected.map(s => s.toLowerCase()));
+  const isSelected = (tag: string) => lowerSelected.has(tag.toLowerCase());
+
+  const toggle = (tag: string) => {
+    if (isSelected(tag)) {
+      onChange(selected.filter(s => s.toLowerCase() !== tag.toLowerCase()));
+    } else {
+      onChange([...selected, tag]);
+    }
+  };
+
+  const addCustom = () => {
+    const t = input.trim();
+    if (!t) return;
+    if (!isSelected(t)) onChange([...selected, t]);
+    setInput('');
+  };
+
+  const removeOne = (tag: string) => {
+    onChange(selected.filter(s => s !== tag));
+  };
+
+  // Anything in `selected` that's NOT in any suggested group — surface
+  // as "your custom tags" so the candidate can see and remove them
+  // without scrolling through the (potentially long) suggested groups.
+  const suggestedLower = new Set(TOOL_GROUPS.flatMap(g => g.tags.map(t => t.toLowerCase())));
+  const customSelected = selected.filter(s => !suggestedLower.has(s.toLowerCase()));
+
+  return (
+    <div>
+      <Label className="text-sm font-semibold text-gray-800">
+        What tools and technical skills have you used professionally?
+        <span className="ml-2 text-xs font-normal text-gray-400">Select and/or add your own</span>
+      </Label>
+
+      <div className="mt-3 space-y-4">
+        {TOOL_GROUPS.map(g => (
+          <div key={g.group}>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">{g.group}</p>
+            <div className="flex flex-wrap gap-2">
+              {g.tags.map(tag => {
+                const sel = isSelected(tag);
+                return (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() => toggle(tag)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                      sel
+                        ? 'bg-emerald-600 border-emerald-600 text-white'
+                        : 'bg-white border-gray-300 text-gray-700 hover:border-emerald-400'
+                    }`}
+                    aria-pressed={sel}
+                  >
+                    {tag}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+
+        <div>
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Add your own</p>
+          <div className="flex gap-2">
+            <Input
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCustom(); } }}
+              placeholder="e.g. NetSuite, SAP, Anaplan…"
+              className="flex-1"
+            />
+            <Button type="button" variant="outline" size="sm" onClick={addCustom} disabled={!input.trim()}>
+              <Plus className="w-4 h-4" />
+            </Button>
+          </div>
+          {customSelected.length > 0 && (
+            <div className="flex flex-wrap gap-2 mt-3">
+              {customSelected.map(tag => (
+                <span key={tag} className="inline-flex items-center gap-1 px-3 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-full text-sm">
+                  {tag}
+                  <button type="button" onClick={() => removeOne(tag)} aria-label={`Remove ${tag}`}>
+                    <X className="w-3 h-3 hover:text-red-500" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -1011,6 +1248,14 @@ export default function CandidateApply() {
           primaryBackground: c.primary_background || '',
           secondaryBackgrounds: Array.isArray(c.secondary_backgrounds) ? c.secondary_backgrounds : [],
           detailedExperience: Array.isArray(c.detailed_experience) ? c.detailed_experience : [],
+          // Phase 2 prefill: hydrate areasOfExpertise from the new
+          // column when present, else fall back to detailed_experience
+          // as a one-time mirror so the 11 existing candidates' values
+          // surface on their first edit. After they Save Changes, the
+          // dual-write keeps both columns in sync.
+          areasOfExpertise: Array.isArray((c as any).areas_of_expertise) && (c as any).areas_of_expertise.length > 0
+            ? (c as any).areas_of_expertise
+            : (Array.isArray(c.detailed_experience) ? c.detailed_experience : []),
           experience: yearsBucket,
           industries: Array.isArray(c.industries) ? c.industries : [],
           industriesOther: c.industries_other || '',
@@ -1204,7 +1449,15 @@ export default function CandidateApply() {
         // Tab 2
         primary_background: form.primaryBackground || null,
         secondary_backgrounds: form.secondaryBackgrounds,
-        detailed_experience: form.detailedExperience,
+        // Phase 2 dual-write: write the legacy detailed_experience
+        // column with the same array the candidate just picked for
+        // areasOfExpertise. detailedExperience is no longer a
+        // separately-editable field — the picker only writes
+        // form.areasOfExpertise — but every existing reader (SFC
+        // Take prompt, admin notify email) still consumes
+        // detailed_experience until Phase 3 re-points them, so we
+        // keep the mirror populated. Phase 5 drops the column.
+        detailed_experience: form.areasOfExpertise,
         experience: experienceInt,
         industries: form.industries,
         industries_other: form.industriesOther || null,
@@ -1240,6 +1493,31 @@ export default function CandidateApply() {
       });
       if (!res.ok) {
         setSubmitError('Could not save changes — please try again.');
+        return;
+      }
+
+      // ── Areas of Expertise write (Phase 2) ────────────────────────
+      // candidates.areas_of_expertise is the new controlled-taxonomy
+      // field; it's NOT in the candidate-profile PATCH whitelist by
+      // design (its writes go through a dedicated endpoint with its
+      // own cap-10 + taxonomy validation server-side). We send the
+      // same array we just dual-wrote to detailed_experience above.
+      // Partial-failure handling matches the skills write below: if
+      // the profile PATCH succeeded but Areas fails, we surface an
+      // actionable message and preserve the draft so the user can
+      // retry without losing in-progress edits.
+      const areasRes = await authedFetch('/api/update-candidate-areas', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ candidateId: editCandidateId, areasOfExpertise: form.areasOfExpertise }),
+      });
+      if (!areasRes.ok) {
+        let detail = '';
+        try { detail = (await areasRes.json())?.error || ''; } catch { /* keep blank */ }
+        console.error('[CandidateApply] areas save failed after profile saved:', areasRes.status, detail);
+        setSubmitError(
+          'Your profile changes were saved, but your Areas of Expertise update failed. Please try saving again.'
+        );
         return;
       }
 
@@ -1374,8 +1652,12 @@ export default function CandidateApply() {
   // gate.
   const canProceedStep2 = form.resumeParsed !== null || (isEditMode && !!editResumeFilename);
 
+  // Phase 2: the picker on this step writes form.areasOfExpertise
+  // (the new field), not form.detailedExperience (kept on FormState
+  // only as the dual-write target). At least one area must be
+  // selected — same shape as the legacy gate.
   const canProceedStep3 =
-    !!(form.primaryBackground && form.detailedExperience.length > 0 && form.experience);
+    !!(form.primaryBackground && form.areasOfExpertise.length > 0 && form.experience);
 
   // Tab 4: comp is now mandatory here (only place it's asked); work
   // preferences must be at least one selected (multi-select); job-status
@@ -1549,7 +1831,14 @@ export default function CandidateApply() {
           newAreas: form.newAreas,
           primaryBackground: form.primaryBackground,
           secondaryBackgrounds: form.secondaryBackgrounds,
-          detailedExperience: form.detailedExperience,
+          // Phase 2 dual-write — submit-candidate.ts now accepts
+          // areasOfExpertise as the new source of truth; the
+          // detailedExperience field is sent as a mirror so the
+          // server's existing detailed_experience column write keeps
+          // populating the legacy column that readers still consume.
+          // The server writes both columns to the same array.
+          detailedExperience: form.areasOfExpertise,
+          areasOfExpertise: form.areasOfExpertise,
           // Future Job Preferences (single comp source of truth)
           jobSearchStatus: form.jobSearchStatus,
           targetComp: form.targetComp,
@@ -2356,18 +2645,34 @@ export default function CandidateApply() {
                 </div>
               )}
 
-              {form.primaryBackground && detailOptions.length > 0 && (
-                <div>
-                  <Label className="text-sm font-semibold text-gray-800">
-                    Select all areas that apply to your experience: <span className="text-red-500">*</span>
-                  </Label>
-                  <ChipGrid
-                    options={detailOptions}
-                    selected={form.detailedExperience}
-                    onChange={v => set('detailedExperience', v)}
-                  />
-                </div>
+              {/* Phase 2: Areas of Expertise picker — the new
+                  controlled-taxonomy field (replaces the legacy
+                  background-scoped detailedExperience grid). Available
+                  whenever primary_background is set; the picker uses
+                  primary_background only for ORDERING (most-relevant
+                  group first), not scoping — every taxonomy tag is
+                  always selectable. */}
+              {form.primaryBackground && (
+                <AreasOfExpertisePicker
+                  selected={form.areasOfExpertise}
+                  primaryBackground={form.primaryBackground}
+                  onChange={v => set('areasOfExpertise', v)}
+                />
               )}
+
+              {/* Phase 2: Tools & Technical Skills picker — the same
+                  candidate_skills store the Review-tab SkillsInput
+                  writes to; both surfaces edit form.skills, so adding
+                  here is additive (the Review SkillsInput still
+                  works as a final-pass adjuster). No cap; suggested
+                  grouped tags + free-text custom tags. Skills are
+                  persisted via submit-candidate's upsert loop on
+                  create, and via /api/update-candidate-skills-list
+                  on edit. */}
+              <ToolsAndTechnicalSkillsPicker
+                selected={form.skills}
+                onChange={v => set('skills', v)}
+              />
 
               <div>
                 <Label>Years of full-time professional experience? <span className="text-red-500">*</span></Label>

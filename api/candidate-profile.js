@@ -79,6 +79,14 @@ const CANDIDATE_GET_COLUMNS = [
   'label', 'location', 'experience',
   'education', 'highest_education_level',
   'primary_background', 'secondary_backgrounds', 'detailed_experience',
+  // Phase 2 of the skills redesign: the new controlled-taxonomy
+  // field. Returned so the wizard's edit-mode prefill can hydrate
+  // form.areasOfExpertise from it (falling back to
+  // detailed_experience as a one-time mirror for the 11 existing
+  // candidates). Writes happen through /api/update-candidate-areas,
+  // NOT through this PATCH — areas_of_expertise stays out of the
+  // PATCH whitelist by design.
+  'areas_of_expertise',
   'profile_description', 'open_to_opportunities',
   'work_preference', 'work_preferences',
   'target_salary', 'preferred_cities', 'preferred_cities_other',

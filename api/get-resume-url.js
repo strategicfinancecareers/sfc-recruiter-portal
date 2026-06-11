@@ -1,5 +1,12 @@
 import { createClient } from '@supabase/supabase-js';
-import { generateResumeSignedUrl } from './_shared/signedUrl.js';
+import { generateResumeSignedUrl, generateBestResumeSignedUrlForIntro } from './_shared/signedUrl.js';
+
+// Multi-resume Phase A: both GET and POST now accept an optional
+// resumeId / selected_resume_id. When supplied, the helper prefers
+// that specific candidate_resumes row; otherwise it falls back to the
+// candidate's default candidate_resumes row, then to the deprecated
+// candidates.resume_full_url. Recruiter + admin auth gates are
+// unchanged — only the URL-resolution path picks up the new model.
 
 // Note: introduction_requests.status uses 'approved' (not 'accepted') —
 // see api/respond-to-intro.ts where the row is updated.
@@ -12,8 +19,8 @@ export default async function handler(req, res) {
   );
 
   if (req.method === 'GET') {
-    const { candidateId, requesterId, adminUserId } = req.query;
-    console.log('[get-resume-url] entry:', { method: 'GET', candidateId, requesterId, adminUserId });
+    const { candidateId, requesterId, adminUserId, resumeId } = req.query;
+    console.log('[get-resume-url] entry:', { method: 'GET', candidateId, requesterId, adminUserId, resumeId });
 
     if (!candidateId || (!requesterId && !adminUserId)) {
       return res.status(400).json({ error: 'candidateId and (requesterId | adminUserId) required' });
@@ -37,7 +44,9 @@ export default async function handler(req, res) {
         return res.status(403).json({ error: 'Forbidden' });
       }
 
-      const result = await generateResumeSignedUrl(supabase, candidateId, 3600);
+      const result = await generateBestResumeSignedUrlForIntro({
+        supabase, candidateId, selectedResumeId: resumeId || null, expiresIn: 3600,
+      });
       if (result.status !== 200) return res.status(result.status).json({ error: result.error });
       return res.status(200).json({ url: result.url });
     }
@@ -64,7 +73,14 @@ export default async function handler(req, res) {
       return res.status(403).json({ error: 'No approved introduction request for this candidate' });
     }
 
-    const result = await generateResumeSignedUrl(supabase, candidateId, 3600); // 1 hour
+    // Phase A: prefer ?resumeId (matches what the recruiter modal will
+    // pass once Phase B's "selected resume" UI lands), then fall back
+    // to the candidate's default candidate_resumes row, then to the
+    // deprecated candidates.resume_full_url. Recruiter auth (approved
+    // intro) unchanged.
+    const result = await generateBestResumeSignedUrlForIntro({
+      supabase, candidateId, selectedResumeId: resumeId || null, expiresIn: 3600,
+    });
     if (result.status !== 200) {
       return res.status(result.status).json({ error: result.error });
     }
@@ -72,17 +88,19 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'POST') {
-    const { introId, expiresIn } = req.body || {};
-    console.log('[get-resume-url] entry:', { method: 'POST', introId, expiresIn });
+    const { introId, expiresIn, resumeId } = req.body || {};
+    console.log('[get-resume-url] entry:', { method: 'POST', introId, expiresIn, resumeId });
 
     if (!introId) {
       return res.status(400).json({ error: 'introId required' });
     }
 
-    // Authorization: the intro must exist and be approved.
+    // Authorization: the intro must exist and be approved. We also
+    // read selected_resume_id so the helper can prefer the resume the
+    // candidate explicitly chose for this intro (Phase B UI).
     const { data: intro, error: introErr } = await supabase
       .from('introduction_requests')
-      .select('status, candidate_id')
+      .select('status, candidate_id, selected_resume_id')
       .eq('id', introId)
       .maybeSingle();
 
@@ -103,7 +121,16 @@ export default async function handler(req, res) {
       return res.status(403).json({ error: 'introduction request is not approved' });
     }
 
-    const result = await generateResumeSignedUrl(supabase, intro.candidate_id, expiresIn);
+    const result = await generateBestResumeSignedUrlForIntro({
+      supabase,
+      candidateId: intro.candidate_id,
+      // Explicit body resumeId beats the intro's selected_resume_id —
+      // the caller may want a specific one. Otherwise fall through to
+      // the intro's selection, then the candidate's default, then the
+      // deprecated mirror.
+      selectedResumeId: resumeId || intro.selected_resume_id || null,
+      expiresIn,
+    });
     if (result.status !== 200) {
       return res.status(result.status).json({ error: result.error });
     }

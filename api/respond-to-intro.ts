@@ -2,7 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
 // @ts-ignore — ESM JS helper, no .d.ts file
-import { generateResumeSignedUrl } from './_shared/signedUrl.js';
+import { generateBestResumeSignedUrlForIntro } from './_shared/signedUrl.js';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 const supabase = createClient(
@@ -92,16 +92,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const company = job?.company;
 
     if (accepted) {
-      // Generate a 7-day signed URL for the recruiter to download the resume.
-      // If signed-URL generation fails for any reason, fall back to a portal
-      // link — don't fail the whole acceptance flow over an email cosmetic.
+      // Generate a 7-day signed URL for the recruiter to download the
+      // resume. Multi-resume aware: prefers
+      // introduction_requests.selected_resume_id (set when the
+      // candidate picks at acceptance — Phase B will add the UI for
+      // this; through Phase A it's always NULL), falls back to the
+      // candidate's default candidate_resumes row, and finally to
+      // the deprecated candidates.resume_full_url. If all three
+      // paths fail (no resume on file at all), we degrade gracefully
+      // — don't fail the acceptance over an email cosmetic.
       let resumeDownloadUrl: string | null = null;
-      if (candidate?.resume_full_url && candidate?.id) {
-        const result = await generateResumeSignedUrl(supabase, candidate.id, 7 * 24 * 60 * 60);
+      if (candidate?.id) {
+        const result = await generateBestResumeSignedUrlForIntro({
+          supabase,
+          candidateId: candidate.id,
+          selectedResumeId: (intro as any)?.selected_resume_id || null,
+          expiresIn: 7 * 24 * 60 * 60,
+        });
         if (result.status === 200 && result.url) {
           resumeDownloadUrl = result.url;
         } else {
-          console.warn('[respond-to-intro] signed URL fallback:', result.status, result.error);
+          console.warn('[respond-to-intro] no signed URL via fallback chain:', result.status, result.error);
         }
       }
 

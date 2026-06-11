@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import {
   UserPlus, LogIn, Loader2, CheckCircle2, X, ChevronLeft,
   User, Mail, FileText, Settings as SettingsIcon, Menu,
-  LogOut, KeyRound, ExternalLink, Eye,
+  LogOut, KeyRound, ExternalLink, Eye, Upload,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { authedFetch } from '@/integrations/supabase/authedFetch';
@@ -74,6 +74,18 @@ interface CandidateRow {
   work_authorized_us?: boolean;
   requires_sponsorship?: boolean;
   status?: 'pending' | 'active' | 'rejected' | 'inactive' | 'deleted';
+  // Phase B: candidate's resumes from the new candidate_resumes table,
+  // returned by /api/candidate-profile GET. Up to 2; one is_default.
+  resumes?: ResumeRow[];
+}
+
+interface ResumeRow {
+  id: string;
+  label: string;
+  storage_path: string;
+  is_default: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 interface IntroRequest {
@@ -447,6 +459,21 @@ function Dashboard({
   // navigates away and back, so a fresh GET picks up the new data on
   // dashboard re-mount. No in-place mutation pipeline needed here.
 
+  // Phase B: refresh the candidate (notably resumes) after the Resume
+  // tab mutates via the upload/update/delete endpoints. Cheap — same
+  // bearer-gated GET the dashboard mount uses.
+  const refreshCandidate = async () => {
+    try {
+      const r = await authedFetch(`/api/candidate-profile?email=${encodeURIComponent(candidate.email.toLowerCase())}`);
+      if (!r.ok) return;
+      const { candidate: c } = await r.json();
+      setCandidate(c);
+      setSkills((c.skills || []) as string[]);
+    } catch (err) {
+      console.warn('[Dashboard] refreshCandidate failed:', err);
+    }
+  };
+
   // ── Tabs ─────────────────────────────────────────────────────────────────
   const TABS: { key: TabKey; label: string; icon: typeof User; badge?: number }[] = [
     { key: 'profile',        label: 'Profile',        icon: User },
@@ -599,6 +626,7 @@ function Dashboard({
                 candidateId={candidate.id}
                 intros={intros}
                 setIntros={setIntros}
+                resumes={candidate.resumes || []}
               />
             ) : (
               <Card title="Introductions">
@@ -609,7 +637,7 @@ function Dashboard({
             )
           )}
           {tab === 'resume' && (
-            <ResumeTab candidate={candidate} />
+            <ResumeTab candidate={candidate} onRefresh={refreshCandidate} />
           )}
           {tab === 'settings' && (
             <SettingsTab candidate={candidate} onSignOut={onSignOut} />
@@ -764,23 +792,51 @@ function IntroductionsTab({
   candidateId,
   intros,
   setIntros,
+  resumes,
 }: {
   candidateId: string;
   intros: IntroRequest[] | null;
   setIntros: React.Dispatch<React.SetStateAction<IntroRequest[] | null>>;
+  resumes: ResumeRow[];
 }) {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const _cid = candidateId;
   const [responding, setResponding] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState<string | null>(null);
+  // Phase B: when the candidate accepts an intro AND has more than one
+  // resume, we show a chooser before finalizing. pickerFor holds the
+  // introId of the request awaiting a pick; null means no chooser
+  // open. Single-resume / no-resume candidates skip the chooser and
+  // the accept finalizes one-click (matching the email-link flow).
+  const [pickerFor, setPickerFor] = useState<string | null>(null);
 
-  const respond = async (introId: string, accept: boolean) => {
+  const finalize = async (introId: string, accept: boolean, resumeId?: string | null) => {
     setResponding(introId);
-    await fetch(`/api/respond-to-intro?introId=${introId}&response=${accept ? 'yes' : 'no'}`).catch(() => {});
+    const params = new URLSearchParams({
+      introId,
+      response: accept ? 'yes' : 'no',
+    });
+    if (accept && resumeId) params.set('resumeId', resumeId);
+    await fetch(`/api/respond-to-intro?${params.toString()}`).catch(() => {});
     setIntros(prev => prev?.map(i => i.id === introId ? { ...i, status: accept ? 'approved' : 'rejected' } : i) ?? null);
     setConfirmed(introId);
     setResponding(null);
+    setPickerFor(null);
     setTimeout(() => setConfirmed(null), 4000);
+  };
+
+  const respond = (introId: string, accept: boolean) => {
+    if (!accept) return finalize(introId, false);
+    // Accept path: route through the resume picker when the candidate
+    // has > 1 resume; auto-pick the only / default resume otherwise.
+    if (resumes.length > 1) {
+      setPickerFor(introId);
+      return Promise.resolve();
+    }
+    const auto = resumes.length === 1
+      ? resumes[0].id
+      : (resumes.find(r => r.is_default)?.id ?? null);
+    return finalize(introId, true, auto);
   };
 
   const pendingCount = intros?.filter(i => i.status === 'pending').length ?? 0;
@@ -914,55 +970,572 @@ function IntroductionsTab({
           })}
         </div>
       )}
+
+      {/* Phase B resume picker. Renders inside the same card when an
+          accept is pending and the candidate has > 1 resume. Picking
+          a row calls finalize(introId, true, resumeId); cancelling
+          leaves the intro in 'pending' so the candidate can choose
+          again later. */}
+      {pickerFor && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center px-4"
+          style={{ background: 'rgba(14,14,13,.45)' }}
+          onClick={() => setPickerFor(null)}
+        >
+          <div
+            className="bg-white rounded-2xl p-6 max-w-md w-full"
+            onClick={e => e.stopPropagation()}
+            style={{ boxShadow: '0 8px 32px rgba(0,0,0,.18)' }}
+          >
+            <h3 className="text-lg font-semibold mb-1" style={{ color: INK }}>Choose a resume to send</h3>
+            <p className="text-xs mb-4" style={{ color: 'rgba(14,14,13,.6)' }}>
+              The recruiter will receive the resume you pick. You can change your default any time from the Resume tab.
+            </p>
+            <div className="space-y-2">
+              {resumes.map(r => (
+                <button
+                  key={r.id}
+                  type="button"
+                  onClick={() => finalize(pickerFor, true, r.id)}
+                  disabled={responding === pickerFor}
+                  className="w-full text-left p-3 rounded-xl border transition-colors disabled:opacity-60"
+                  style={{ borderColor: 'rgba(14,14,13,.12)', background: 'white' }}
+                  onMouseEnter={e => (e.currentTarget.style.borderColor = BRAND)}
+                  onMouseLeave={e => (e.currentTarget.style.borderColor = 'rgba(14,14,13,.12)')}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold truncate" style={{ color: INK }}>{r.label}</p>
+                      {r.is_default && (
+                        <p className="text-[10px] font-bold mt-0.5" style={{ color: BRAND, letterSpacing: '0.08em' }}>DEFAULT</p>
+                      )}
+                    </div>
+                    <span className="text-xs shrink-0" style={{ color: 'rgba(14,14,13,.5)' }}>Use this →</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => setPickerFor(null)}
+              className="mt-4 text-xs font-medium hover:underline"
+              style={{ color: 'rgba(14,14,13,.55)' }}
+            >
+              Cancel — don't send anything yet
+            </button>
+          </div>
+        </div>
+      )}
     </Card>
   );
 }
 
 // ─── Resume tab ─────────────────────────────────────────────────────────────
 
-function ResumeTab({ candidate }: { candidate: CandidateRow }) {
-  // resume_full_url stores a Supabase Storage PATH (not a URL — the bucket
-  // is private). Recruiters get signed URLs through /api/get-resume-url
-  // after intro approval; that endpoint doesn't yet have a candidate-self
-  // path. Until then we just surface the filename so the candidate can
-  // confirm something is on file.
-  const path = candidate.resume_full_url || '';
-  const filename = path ? path.split('/').pop() : '';
+// File→base64 utility used by upload + replace. Strips the data URL
+// prefix so the API gets pure base64 (matches submit-candidate.ts).
+function readFileAsBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      const idx = result.indexOf(',');
+      resolve(idx >= 0 ? result.slice(idx + 1) : result);
+    };
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
 
+const MAX_RESUME_MB = 5;
+
+function ResumeTab({ candidate, onRefresh }: { candidate: CandidateRow; onRefresh: () => Promise<void> }) {
+  const resumes = candidate.resumes || [];
+  const atCap = resumes.length >= 2;
+
+  // Per-row + global busy state. We deliberately gate at the action
+  // level (one mutation at a time per row) rather than disabling the
+  // whole tab — keeps the UI responsive when, e.g., View is fast.
+  const [busy, setBusy] = useState<string>(''); // composite key like "delete:<id>" / "upload"
+  const [error, setError] = useState<string>('');
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState<ResumeRow | null>(null);
+  const [showUpload, setShowUpload] = useState(false);
+  const [uploadLabel, setUploadLabel] = useState('');
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [replaceTarget, setReplaceTarget] = useState<ResumeRow | null>(null);
+  const [replaceFile, setReplaceFile] = useState<File | null>(null);
+  const [replaceReparse, setReplaceReparse] = useState(false);
+  const [reparseSuggestions, setReparseSuggestions] = useState<any | null>(null);
+
+  const fileInputUploadRef = useRef<HTMLInputElement>(null);
+  const fileInputReplaceRef = useRef<HTMLInputElement>(null);
+
+  const setBusyAction = (key: string) => { setBusy(key); setError(''); };
+  const clearBusy = () => setBusy('');
+
+  // ── View: fetch a signed URL from /api/get-candidate-resume-url ──
+  const handleView = async (r: ResumeRow) => {
+    setBusyAction(`view:${r.id}`);
+    try {
+      const res = await authedFetch(`/api/get-candidate-resume-url?id=${encodeURIComponent(r.id)}`);
+      if (!res.ok) {
+        const detail = await res.json().catch(() => ({}));
+        setError(detail?.error || 'Could not generate a download link. Please try again.');
+        return;
+      }
+      const { url } = await res.json();
+      if (url) window.open(url, '_blank', 'noopener,noreferrer');
+    } finally {
+      clearBusy();
+    }
+  };
+
+  // ── Set as default ──────────────────────────────────────────────
+  const handleSetDefault = async (r: ResumeRow) => {
+    if (r.is_default) return;
+    setBusyAction(`default:${r.id}`);
+    try {
+      const res = await authedFetch('/api/update-candidate-resume', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: r.id, isDefault: true }),
+      });
+      if (!res.ok) {
+        const detail = await res.json().catch(() => ({}));
+        setError(detail?.error || 'Could not set as default. Please try again.');
+        return;
+      }
+      await onRefresh();
+    } finally {
+      clearBusy();
+    }
+  };
+
+  // ── Rename label inline ─────────────────────────────────────────
+  const startRename = (r: ResumeRow) => { setRenamingId(r.id); setRenameValue(r.label); setError(''); };
+  const cancelRename = () => { setRenamingId(null); setRenameValue(''); };
+  const handleRename = async (r: ResumeRow) => {
+    const trimmed = renameValue.trim();
+    if (!trimmed || trimmed === r.label) { cancelRename(); return; }
+    setBusyAction(`rename:${r.id}`);
+    try {
+      const res = await authedFetch('/api/update-candidate-resume', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: r.id, label: trimmed }),
+      });
+      if (!res.ok) {
+        const detail = await res.json().catch(() => ({}));
+        setError(detail?.error || 'Could not rename. Please try a different label.');
+        return;
+      }
+      cancelRename();
+      await onRefresh();
+    } finally {
+      clearBusy();
+    }
+  };
+
+  // ── Delete (with last-resume warning surfaced by the endpoint) ──
+  const handleDelete = async (r: ResumeRow) => {
+    setBusyAction(`delete:${r.id}`);
+    try {
+      const res = await authedFetch('/api/delete-candidate-resume', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: r.id }),
+      });
+      if (!res.ok) {
+        const detail = await res.json().catch(() => ({}));
+        setError(detail?.error || 'Could not delete. Please try again.');
+        return;
+      }
+      setConfirmDelete(null);
+      await onRefresh();
+    } finally {
+      clearBusy();
+    }
+  };
+
+  // ── Upload another (POST /api/upload-candidate-resume) ──────────
+  const handleUpload = async () => {
+    if (!uploadFile || !uploadLabel.trim()) {
+      setError('Pick a PDF and give it a label.');
+      return;
+    }
+    if (uploadFile.size > MAX_RESUME_MB * 1024 * 1024) {
+      setError(`Resume too large (${(uploadFile.size / 1024 / 1024).toFixed(1)} MB; max ${MAX_RESUME_MB} MB).`);
+      return;
+    }
+    setBusyAction('upload');
+    try {
+      const resumeBase64 = await readFileAsBase64(uploadFile);
+      const res = await authedFetch('/api/upload-candidate-resume', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          candidateId: candidate.id,
+          resumeBase64,
+          fileName: uploadFile.name,
+          label: uploadLabel.trim(),
+        }),
+      });
+      if (!res.ok) {
+        const detail = await res.json().catch(() => ({}));
+        setError(detail?.error || 'Upload failed. Please try again.');
+        return;
+      }
+      setShowUpload(false);
+      setUploadFile(null);
+      setUploadLabel('');
+      if (fileInputUploadRef.current) fileInputUploadRef.current.value = '';
+      await onRefresh();
+    } finally {
+      clearBusy();
+    }
+  };
+
+  // ── Replace file (PATCH /api/update-candidate-resume) ───────────
+  const openReplace = (r: ResumeRow) => {
+    setReplaceTarget(r);
+    setReplaceFile(null);
+    setReplaceReparse(false);
+    setReparseSuggestions(null);
+    setError('');
+  };
+  const closeReplace = () => {
+    setReplaceTarget(null);
+    setReplaceFile(null);
+    setReplaceReparse(false);
+    setReparseSuggestions(null);
+    if (fileInputReplaceRef.current) fileInputReplaceRef.current.value = '';
+  };
+  const handleReplace = async () => {
+    if (!replaceTarget || !replaceFile) {
+      setError('Pick a replacement PDF.');
+      return;
+    }
+    if (replaceFile.size > MAX_RESUME_MB * 1024 * 1024) {
+      setError(`Resume too large (${(replaceFile.size / 1024 / 1024).toFixed(1)} MB; max ${MAX_RESUME_MB} MB).`);
+      return;
+    }
+    setBusyAction(`replace:${replaceTarget.id}`);
+    try {
+      const replaceBase64 = await readFileAsBase64(replaceFile);
+      const res = await authedFetch('/api/update-candidate-resume', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: replaceTarget.id,
+          replaceBase64,
+          replaceFileName: replaceFile.name,
+          // reparse only makes sense for the default; the endpoint also
+          // enforces this server-side and silently ignores reparse on
+          // non-default rows.
+          ...(replaceTarget.is_default && replaceReparse ? { reparse: true } : {}),
+        }),
+      });
+      if (!res.ok) {
+        const detail = await res.json().catch(() => ({}));
+        setError(detail?.error || 'Replace failed. Please try again.');
+        return;
+      }
+      const body = await res.json().catch(() => ({}));
+      // If reparse was requested AND the endpoint ran the parser, show
+      // the suggestions to the candidate. The endpoint NEVER auto-
+      // applies; this is purely a surface for "want to update your
+      // profile fields from this new resume?" The actual profile
+      // edits happen back through the wizard so they can be reviewed
+      // — we just deep-link there pre-filled with the parsed values.
+      if (body?.parsed && !body.parsed.parseError) {
+        setReparseSuggestions(body.parsed);
+        await onRefresh();
+        return; // leave the dialog open showing suggestions
+      }
+      closeReplace();
+      await onRefresh();
+    } finally {
+      clearBusy();
+    }
+  };
+
+  // ── Render ──────────────────────────────────────────────────────
   return (
-    <Card title="Resume">
-      {filename ? (
-        <div className="space-y-3">
-          <div
-            className="flex items-start gap-3 p-4 rounded-xl border"
-            style={{ borderColor: 'rgba(14,14,13,.1)', background: 'rgba(0,128,55,.04)' }}
+    <Card
+      title="Resumes"
+      action={
+        !atCap ? (
+          <button
+            type="button"
+            onClick={() => { setShowUpload(true); setError(''); }}
+            className="text-sm font-semibold transition-colors"
+            style={{ color: BRAND }}
+            onMouseEnter={e => (e.currentTarget.style.color = BRAND_HOVER)}
+            onMouseLeave={e => (e.currentTarget.style.color = BRAND)}
           >
-            <FileText className="w-5 h-5 shrink-0 mt-0.5" style={{ color: BRAND }} />
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold truncate" style={{ color: INK }} title={filename}>{filename}</p>
-              <p className="text-xs mt-0.5" style={{ color: 'rgba(14,14,13,.55)' }}>On file with SFC Talent</p>
-            </div>
-          </div>
-          <p className="text-xs leading-relaxed" style={{ color: 'rgba(14,14,13,.55)' }}>
-            To replace your resume, email{' '}
-            <a href="mailto:talent@strategicfinancecareers.com" className="underline font-medium" style={{ color: BRAND }}>
-              talent@strategicfinancecareers.com
-            </a>
-            . Self-serve replace is coming soon.
-          </p>
-        </div>
-      ) : (
+            Upload another
+          </button>
+        ) : (
+          <span className="text-xs" style={{ color: 'rgba(14,14,13,.5)' }}>2 of 2 — delete one to add another</span>
+        )
+      }
+    >
+      {error && (
+        <p className="text-xs mb-3 px-3 py-2 rounded-lg" style={{ background: 'rgba(220,38,38,.06)', color: '#991b1b' }}>
+          {error}
+        </p>
+      )}
+
+      {resumes.length === 0 && (
         <div className="space-y-3">
           <p className="text-sm" style={{ color: 'rgba(14,14,13,.7)' }}>
-            We don't have a resume on file for your profile yet.
+            You don't have a resume on file yet. Recruiters can request introductions but will see "no resume available" until you upload one.
           </p>
-          <p className="text-xs leading-relaxed" style={{ color: 'rgba(14,14,13,.55)' }}>
-            Self-serve upload is coming soon. In the meantime, email your resume to{' '}
-            <a href="mailto:talent@strategicfinancecareers.com" className="underline font-medium" style={{ color: BRAND }}>
-              talent@strategicfinancecareers.com
-            </a>
-            .
-          </p>
+          <button
+            type="button"
+            onClick={() => setShowUpload(true)}
+            className="inline-flex items-center gap-2 text-white rounded-lg px-4 py-2 text-sm font-semibold transition-colors"
+            style={{ background: BRAND }}
+            onMouseEnter={e => (e.currentTarget.style.background = BRAND_HOVER)}
+            onMouseLeave={e => (e.currentTarget.style.background = BRAND)}
+          >
+            <Upload className="w-3.5 h-3.5" /> Upload your first resume
+          </button>
+        </div>
+      )}
+
+      <div className="space-y-3">
+        {resumes.map(r => {
+          const filename = (r.storage_path || '').split('/').pop() || '';
+          return (
+            <div
+              key={r.id}
+              className="border rounded-xl p-4 space-y-3"
+              style={{ borderColor: 'rgba(14,14,13,.1)', background: r.is_default ? 'rgba(0,128,55,.04)' : 'white' }}
+            >
+              <div className="flex items-start gap-3">
+                <FileText className="w-5 h-5 shrink-0 mt-0.5" style={{ color: r.is_default ? BRAND : 'rgba(14,14,13,.5)' }} />
+                <div className="min-w-0 flex-1">
+                  {renamingId === r.id ? (
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={renameValue}
+                        onChange={e => setRenameValue(e.target.value)}
+                        maxLength={40}
+                        autoFocus
+                        className="text-sm font-semibold flex-1 px-2 py-1 border rounded"
+                        style={{ borderColor: 'rgba(14,14,13,.2)' }}
+                        onKeyDown={e => { if (e.key === 'Enter') handleRename(r); if (e.key === 'Escape') cancelRename(); }}
+                      />
+                      <button onClick={() => handleRename(r)} disabled={busy === `rename:${r.id}`} className="text-xs font-semibold" style={{ color: BRAND }}>Save</button>
+                      <button onClick={cancelRename} className="text-xs" style={{ color: 'rgba(14,14,13,.5)' }}>Cancel</button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-semibold truncate" style={{ color: INK }}>{r.label}</p>
+                      {r.is_default && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(0,128,55,.12)', color: BRAND, letterSpacing: '0.06em' }}>DEFAULT</span>
+                      )}
+                      <button type="button" onClick={() => startRename(r)} className="text-xs hover:underline" style={{ color: 'rgba(14,14,13,.5)' }}>Rename</button>
+                    </div>
+                  )}
+                  {filename && (
+                    <p className="text-xs mt-0.5 truncate" style={{ color: 'rgba(14,14,13,.5)' }} title={filename}>{filename}</p>
+                  )}
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleView(r)}
+                  disabled={busy === `view:${r.id}`}
+                  className="text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors hover:bg-gray-50 disabled:opacity-60"
+                  style={{ borderColor: 'rgba(14,14,13,.15)', color: INK }}
+                >
+                  {busy === `view:${r.id}` ? <Loader2 className="w-3 h-3 animate-spin inline mr-1" /> : null}
+                  View
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openReplace(r)}
+                  className="text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors hover:bg-gray-50"
+                  style={{ borderColor: 'rgba(14,14,13,.15)', color: INK }}
+                >
+                  Replace
+                </button>
+                {!r.is_default && (
+                  <button
+                    type="button"
+                    onClick={() => handleSetDefault(r)}
+                    disabled={busy === `default:${r.id}`}
+                    className="text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors disabled:opacity-60"
+                    style={{ borderColor: 'rgba(0,128,55,.3)', color: BRAND }}
+                  >
+                    {busy === `default:${r.id}` ? <Loader2 className="w-3 h-3 animate-spin inline mr-1" /> : null}
+                    Set as default
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => { setConfirmDelete(r); setError(''); }}
+                  className="text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors ml-auto hover:bg-red-50"
+                  style={{ borderColor: 'rgba(220,38,38,.25)', color: '#b91c1c' }}
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* ── Upload dialog ───────────────────────────────────────── */}
+      {showUpload && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: 'rgba(14,14,13,.45)' }} onClick={() => setShowUpload(false)}>
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full" onClick={e => e.stopPropagation()} style={{ boxShadow: '0 8px 32px rgba(0,0,0,.18)' }}>
+            <h3 className="text-lg font-semibold mb-1" style={{ color: INK }}>Upload another resume</h3>
+            <p className="text-xs mb-4" style={{ color: 'rgba(14,14,13,.6)' }}>Add a second resume. You'll pick which one to send when you accept each introduction.</p>
+            <label className="block text-xs font-semibold mb-1" style={{ color: 'rgba(14,14,13,.7)' }}>Label</label>
+            <input
+              type="text"
+              value={uploadLabel}
+              onChange={e => setUploadLabel(e.target.value)}
+              placeholder="e.g. Strategy resume"
+              maxLength={40}
+              className="w-full px-3 py-2 border rounded-lg text-sm mb-3"
+              style={{ borderColor: 'rgba(14,14,13,.2)' }}
+            />
+            <input
+              ref={fileInputUploadRef}
+              type="file"
+              accept=".pdf"
+              onChange={e => setUploadFile(e.target.files?.[0] || null)}
+              className="text-xs mb-4"
+            />
+            <p className="text-xs mb-4" style={{ color: 'rgba(14,14,13,.5)' }}>PDF only. Up to {MAX_RESUME_MB} MB.</p>
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setShowUpload(false)} className="px-4 py-2 text-sm font-medium rounded-lg" style={{ color: 'rgba(14,14,13,.6)' }}>Cancel</button>
+              <button
+                onClick={handleUpload}
+                disabled={busy === 'upload' || !uploadFile || !uploadLabel.trim()}
+                className="text-white rounded-lg px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-60"
+                style={{ background: BRAND }}
+              >
+                {busy === 'upload' ? <Loader2 className="w-3.5 h-3.5 animate-spin inline mr-1" /> : null}
+                Upload
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Replace dialog ──────────────────────────────────────── */}
+      {replaceTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: 'rgba(14,14,13,.45)' }} onClick={closeReplace}>
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full" onClick={e => e.stopPropagation()} style={{ boxShadow: '0 8px 32px rgba(0,0,0,.18)' }}>
+            <h3 className="text-lg font-semibold mb-1" style={{ color: INK }}>Replace "{replaceTarget.label}"</h3>
+            <p className="text-xs mb-4" style={{ color: 'rgba(14,14,13,.6)' }}>The old file will be removed once the new one uploads successfully.</p>
+            {!reparseSuggestions && (
+              <>
+                <input
+                  ref={fileInputReplaceRef}
+                  type="file"
+                  accept=".pdf"
+                  onChange={e => setReplaceFile(e.target.files?.[0] || null)}
+                  className="text-xs mb-3"
+                />
+                {replaceTarget.is_default && (
+                  <label className="flex items-start gap-2 mb-4 text-xs cursor-pointer" style={{ color: 'rgba(14,14,13,.75)' }}>
+                    <input
+                      type="checkbox"
+                      checked={replaceReparse}
+                      onChange={e => setReplaceReparse(e.target.checked)}
+                      className="mt-0.5"
+                    />
+                    <span>
+                      Also re-parse my profile from this resume?
+                      <span className="block mt-0.5" style={{ color: 'rgba(14,14,13,.5)' }}>
+                        We'll suggest updates to your role, education, skills and bio. Nothing is changed until you confirm.
+                      </span>
+                    </span>
+                  </label>
+                )}
+                <div className="flex gap-2 justify-end">
+                  <button onClick={closeReplace} className="px-4 py-2 text-sm font-medium rounded-lg" style={{ color: 'rgba(14,14,13,.6)' }}>Cancel</button>
+                  <button
+                    onClick={handleReplace}
+                    disabled={busy.startsWith('replace:') || !replaceFile}
+                    className="text-white rounded-lg px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-60"
+                    style={{ background: BRAND }}
+                  >
+                    {busy.startsWith('replace:') ? <Loader2 className="w-3.5 h-3.5 animate-spin inline mr-1" /> : null}
+                    Replace file
+                  </button>
+                </div>
+              </>
+            )}
+            {reparseSuggestions && (
+              <div className="space-y-3">
+                <p className="text-xs" style={{ color: 'rgba(14,14,13,.7)' }}>
+                  Your resume was replaced. Suggested profile updates from the new file:
+                </p>
+                <div className="text-xs space-y-1.5 p-3 rounded-lg" style={{ background: 'rgba(0,128,55,.04)', border: '1px solid rgba(0,128,55,.2)' }}>
+                  {reparseSuggestions.currentRole && <p><strong>Current role:</strong> {reparseSuggestions.currentRole}</p>}
+                  {reparseSuggestions.location && <p><strong>Location:</strong> {reparseSuggestions.location}</p>}
+                  {reparseSuggestions.education && <p><strong>Education:</strong> {reparseSuggestions.education}</p>}
+                  {Array.isArray(reparseSuggestions.skills) && reparseSuggestions.skills.length > 0 && (
+                    <p><strong>Skills:</strong> {reparseSuggestions.skills.join(', ')}</p>
+                  )}
+                  {reparseSuggestions.bio && <p className="mt-2 italic">"{reparseSuggestions.bio}"</p>}
+                </div>
+                <p className="text-xs" style={{ color: 'rgba(14,14,13,.55)' }}>
+                  Nothing was changed automatically. To apply these, edit your profile and review each field.
+                </p>
+                <div className="flex gap-2 justify-end">
+                  <button onClick={closeReplace} className="px-4 py-2 text-sm font-medium rounded-lg" style={{ color: 'rgba(14,14,13,.6)' }}>Close</button>
+                  <Link
+                    to="/apply?edit=1&tab=review"
+                    onClick={closeReplace}
+                    className="text-white rounded-lg px-4 py-2 text-sm font-semibold transition-colors inline-block"
+                    style={{ background: BRAND }}
+                  >
+                    Edit profile to apply
+                  </Link>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Delete-confirm dialog ───────────────────────────────── */}
+      {confirmDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: 'rgba(14,14,13,.45)' }} onClick={() => setConfirmDelete(null)}>
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full" onClick={e => e.stopPropagation()} style={{ boxShadow: '0 8px 32px rgba(0,0,0,.18)' }}>
+            <h3 className="text-lg font-semibold mb-1" style={{ color: INK }}>Delete "{confirmDelete.label}"?</h3>
+            <p className="text-xs mb-4" style={{ color: 'rgba(14,14,13,.65)' }}>
+              {resumes.length === 1
+                ? 'This is your last resume. Recruiters will see "no resume available" on any new introduction you accept until you upload another.'
+                : confirmDelete.is_default
+                  ? "This is currently your default. We'll promote your other resume to default and recruiters will receive it on new introductions."
+                  : 'This file will be removed permanently.'}
+            </p>
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setConfirmDelete(null)} className="px-4 py-2 text-sm font-medium rounded-lg" style={{ color: 'rgba(14,14,13,.6)' }}>Cancel</button>
+              <button
+                onClick={() => handleDelete(confirmDelete)}
+                disabled={busy === `delete:${confirmDelete.id}`}
+                className="text-white rounded-lg px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-60"
+                style={{ background: '#b91c1c' }}
+              >
+                {busy === `delete:${confirmDelete.id}` ? <Loader2 className="w-3.5 h-3.5 animate-spin inline mr-1" /> : null}
+                Delete
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </Card>

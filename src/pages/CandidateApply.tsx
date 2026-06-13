@@ -8,8 +8,11 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 import {
+  Sheet, SheetContent,
+} from '@/components/ui/sheet';
+import {
   CheckCircle2, Upload, Loader2, ChevronRight, ChevronLeft,
-  X, Plus, RefreshCw, Mail, FileText, Sparkles, Check,
+  X, Plus, RefreshCw, Mail, FileText, Sparkles, Check, Eye,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,7 +28,16 @@ import { authedFetch } from '@/integrations/supabase/authedFetch';
 // packages are already imported elsewhere in the app, e.g. Home.tsx.)
 import '@fontsource-variable/newsreader';
 
-import AnonymousCandidateCard from '@/components/AnonymousCandidateCard';
+// Phase 1 of the wizard two-column redesign: the persistent right-rail
+// preview is a fresh, single-column card built for the signup context
+// (RecruiterPreviewCard, below). The real recruiter dossier
+// (AnonymousCandidateCard) keeps its current shape for /browse and the
+// dashboard's Recruiter View tab; this wizard surface no longer
+// embeds it. Substance still matches what recruiters will see — both
+// cards read the same FormState-derived fields — but the chrome is
+// tuned for the in-progress build flow (narrow column, scannable
+// sections, completion %, brand-green primary signal).
+import RecruiterPreviewCard, { profileCompletion } from '@/components/wizard/RecruiterPreviewCard';
 // Phase 4 swap-in: the search-and-suggest picker consumes the flat
 // taxonomy lists (ALL_*_TAGS) rather than the grouped structures.
 // The grouped structures + groupForPrimaryBackground helper are no
@@ -1101,6 +1113,12 @@ export default function CandidateApply() {
   // Cancel-confirmation modal state. Controlled so we can open it
   // programmatically (when dirty) or bypass it (when clean).
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  // Mobile preview drawer state — Sheet at < lg containing the same
+  // RecruiterPreviewCard instance the desktop right rail renders.
+  // Controlled (rather than uncontrolled SheetTrigger) so a step
+  // change can auto-close it if we ever want to. For now it just
+  // opens on the floating pill click and the user closes it.
+  const [previewSheetOpen, setPreviewSheetOpen] = useState(false);
   const navigate = useNavigate();
 
   // Map ?tab=<name> → step index. Both ?tab=preferences and ?step=4
@@ -1646,6 +1664,14 @@ export default function CandidateApply() {
   }, [screen, authEmail]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Derived ─────────────────────────────────────────────────────────────────
+
+  // Profile completion % — shown on the floating mobile preview pill
+  // and on the right-rail preview card's progress bar. Pure derived
+  // from form; the helper lives alongside the preview component so
+  // the card and the pill stay in sync (one source of truth). Memoed
+  // on the form reference because the helper iterates every gated
+  // field on every change.
+  const profileCompletionPct = useMemo(() => profileCompletion(form), [form]);
 
   const detailOptions = DETAILED_EXPERIENCE_MAP[form.primaryBackground] ?? [];
   // Secondary backgrounds = all categories except primary
@@ -2528,12 +2554,35 @@ export default function CandidateApply() {
         </div>
       </div>
 
-      {/* Outer container — widened to max-w-5xl (~1024px) per spec so
-          long step-bar labels render without truncation and the Review
-          step has room for its two-column layout. Single-column steps
-          (1-5) cap their content at max-w-xl inside this container so
-          forms don't feel too sparse. */}
-      <div className="max-w-5xl mx-auto px-6 md:px-8 py-10">
+      {/* Outer container — widened from max-w-5xl to max-w-7xl in the
+          wizard two-column redesign (Phase 1) so the persistent right-
+          rail RecruiterPreviewCard has its 360px column without
+          squeezing the form. The step bar above keeps its own
+          max-w-5xl container (unchanged) — the wider grid only applies
+          to the content row.
+
+          Layout at lg+:
+            ┌───────────────────────────┬─────────────────┐
+            │ form column (min-w-0)     │ <aside>         │
+            │ — existing per-step blocks│  sticky top-6   │
+            │ — Back / Continue footer  │  RecruiterPreviewCard │
+            └───────────────────────────┴─────────────────┘
+          Below lg the grid collapses to a single column and the
+          preview is reachable via the floating "Preview · N%" pill
+          that opens a Sheet (below the closing footer block).
+
+          Inside the form column the per-step blocks and the Back /
+          Continue footer are kept VERBATIM — only the wrapping
+          container changed. Every load-bearing piece (FormState,
+          validators, autosave, edit-prefill, deep-links, the
+          disqualification guard, handleEditSave/handleSubmit) lives
+          outside this JSX and is untouched. */}
+      <div className="max-w-7xl mx-auto px-6 md:px-8 py-10 lg:grid lg:grid-cols-[minmax(0,1fr)_360px] lg:gap-10">
+
+        {/* ── Left column: the form ─────────────────────────────────────
+            min-w-0 protects the existing inner max-w-xl wrappers from
+            being pushed wider by long words in the grid track. */}
+        <div className="min-w-0">
 
         {/* ── Tab 1: Contact Information ───────────────────────────────── */}
         {step === 1 && (
@@ -3148,36 +3197,13 @@ export default function CandidateApply() {
               </div>
               {/* End editor block */}
 
-              {/* Recruiter-view preview — full-width below the editor.
-                  AnonymousCandidateCard renders its own lg:flex-row
-                  dossier layout internally (left summary/skills column
-                  + right Candidate Snapshot rail at lg+), and that
-                  layout gets the breathing room of the full max-w-5xl
-                  container here. Stacks single-column on smaller
-                  viewports via the card's own responsive break. */}
-              <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
-                  Recruiter view
-                </p>
-                <div className="border border-gray-200 rounded-2xl overflow-hidden bg-white shadow-sm">
-                  <AnonymousCandidateCard
-                    mode="preview"
-                    candidate={{
-                      label: (form.currentRole || form.primaryBackground || 'Finance Professional'),
-                      display_name: (form.currentRole || form.primaryBackground || 'Finance Professional'),
-                      location: form.location || 'United States',
-                      experience: Number(form.yearsExperience) || 0,
-                      education: form.education || 'Not specified',
-                      highest_education_level: form.educationLevel || null,
-                      profile_description: form.bio || null,
-                      primary_background: form.primaryBackground || null,
-                      secondary_backgrounds: form.secondaryBackgrounds,
-                      open_to_opportunities: form.jobSearchStatus === 'Actively Looking',
-                      skills: form.skills.map((s, i) => ({ id: i, skill: s })),
-                    }}
-                  />
-                </div>
-              </div>
+              {/* Recruiter-view preview embed REMOVED in the wizard
+                  two-column redesign (Phase 1). The persistent right-
+                  rail RecruiterPreviewCard (and the mobile Sheet at
+                  < lg) replaces it: the preview is now visible from
+                  every step, so duplicating it inside the Review tab
+                  would be redundant. The Review tab keeps its editor
+                  block + Submit / Save CTA. */}
             </div>
             {/* End stacked layout */}
 
@@ -3214,7 +3240,56 @@ export default function CandidateApply() {
             </Button>
           )}
         </div>
+        </div>
+        {/* ── End left (form) column ─────────────────────────────────── */}
+
+        {/* ── Right column: persistent live recruiter preview ───────────
+            Hidden below lg — that breakpoint is served by the mobile
+            Sheet (below). At lg+ the card sticks to the top so it
+            stays in view as the candidate scrolls long steps (the
+            Review tab in particular). Reads form directly; React
+            rerenders the card on every set() / setForm() call so
+            "live binding" is automatic. */}
+        <aside className="hidden lg:block">
+          <div className="sticky top-6">
+            <RecruiterPreviewCard form={form} step={step} isEditMode={isEditMode} />
+          </div>
+        </aside>
       </div>
+
+      {/* ── Mobile preview trigger + Sheet ─────────────────────────────
+          Below lg: a floating brand-green pill at bottom-right (above
+          the Back/Continue footer) opens a right-side Sheet containing
+          the same RecruiterPreviewCard instance. The pill sits at
+          z-30 so it stays under any modal overlay (Radix Dialog +
+          AlertDialog overlays render at z-50, so they always cover
+          this pill — no z-fight with the Cancel confirmation or the
+          résumé-suggestions Dialog). The Sheet itself uses the
+          default Radix z-50 stack; opening it from a button at z-30
+          doesn't conflict because the Sheet portals to the body root.
+
+          The trigger is wired through controlled state so future
+          phases can auto-close on step change if we ever want it. */}
+      {screen === 'form' && (
+        <>
+          <button
+            type="button"
+            onClick={() => setPreviewSheetOpen(true)}
+            className="lg:hidden fixed bottom-24 right-4 z-30 inline-flex items-center gap-1.5 bg-[#008037] hover:bg-[#006a2d] text-white text-xs font-semibold rounded-full shadow-lg px-4 py-2.5 transition-colors"
+            aria-label="Open recruiter preview"
+          >
+            <Eye className="w-3.5 h-3.5" />
+            Preview · {profileCompletionPct}%
+          </button>
+          <Sheet open={previewSheetOpen} onOpenChange={setPreviewSheetOpen}>
+            <SheetContent side="right" className="w-[90vw] sm:max-w-md overflow-y-auto p-4">
+              <div className="mt-6">
+                <RecruiterPreviewCard form={form} step={step} isEditMode={isEditMode} />
+              </div>
+            </SheetContent>
+          </Sheet>
+        </>
+      )}
 
       {/* Edit-mode Cancel confirmation. Controlled — opens only when
           handleEditCancel finds the form dirty. "Leave without saving"

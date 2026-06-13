@@ -2641,7 +2641,7 @@ export default function CandidateApply() {
 
         {/* ── Tab 1: Contact Information ───────────────────────────────── */}
         {step === 1 && (
-          <div className="max-w-xl mx-auto">
+          <div className="max-w-2xl mx-auto">
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Contact Information</h2>
             <p className="text-gray-500 mb-8 text-sm">Kept private — only shared with your explicit consent.</p>
 
@@ -2711,7 +2711,7 @@ export default function CandidateApply() {
 
         {/* ── Tab 2: Professional Experience ───────────────────────────── */}
         {step === 3 && (
-          <div className="max-w-xl mx-auto">
+          <div className="max-w-2xl mx-auto">
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Professional Experience</h2>
             <p className="text-gray-500 mb-8 text-sm leading-relaxed">
               Tell us about your background and what you've worked on.
@@ -2884,7 +2884,7 @@ export default function CandidateApply() {
 
         {/* ── Tab 3: Resume Upload (resume only) ──────────────────────── */}
         {step === 2 && isEditMode && (
-          <div className="max-w-xl mx-auto">
+          <div className="max-w-2xl mx-auto">
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Your Resume</h2>
             <p className="text-gray-500 mb-8 text-sm">
               We're staying on a single-resume model for now. Replace coming soon.
@@ -2906,7 +2906,7 @@ export default function CandidateApply() {
           </div>
         )}
         {step === 2 && !isEditMode && (
-          <div className="max-w-xl mx-auto">
+          <div className="max-w-2xl mx-auto">
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Upload Your Resume</h2>
             <p className="text-gray-500 mb-8 text-sm">
               We'll use AI to extract your profile automatically. PDF format required.
@@ -2916,7 +2916,7 @@ export default function CandidateApply() {
               <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl mb-4">
                 <span className="text-amber-500 text-base shrink-0 mt-0.5">⚠️</span>
                 <p className="text-sm text-amber-800">
-                  We couldn't automatically parse your resume — no worries. You can fix any details on the final Review tab.
+                  We couldn't automatically parse your résumé — no worries. You can fill in the details below.
                 </p>
               </div>
             )}
@@ -2970,19 +2970,133 @@ export default function CandidateApply() {
                   </button>
                 </div>
 
-                {/* Reassurance: candidates were unclear whether the AI
-                    extract is final. It isn't — they review and edit
-                    every parsed field on the Review tab. Surfaced
-                    inline (not buried) so they aren't confused by
-                    auto-filled state on subsequent steps. */}
+                {/* Reassurance + handoff: the AI extract isn't final.
+                    Candidates can edit the parsed fields (role, location,
+                    years, education, bio, skills) right here in the
+                    block below — no need to wait for Review. The
+                    centered Review preview ends up read-only and
+                    pencils route any further fixes back to this step. */}
                 {!form.parseWarning && (
                   <div className="mt-3 flex items-start gap-2 p-3 border border-[#008037]/25 bg-[#008037]/5 rounded-lg">
                     <Sparkles className="w-4 h-4 text-[#006a2d] shrink-0 mt-0.5" />
                     <p className="text-xs text-[#004a1f] leading-relaxed">
-                      We've pulled details from your résumé — you can review and adjust everything in the next steps.
+                      We've pulled details from your résumé — review and adjust them below before continuing.
                     </p>
                   </div>
                 )}
+
+                {/* ── Editable parsed-details block ─────────────────────
+                    Moved here from the old Review-tab editor. Renders
+                    whenever a résumé is loaded (success OR warning) so
+                    candidates whose parse failed can still type their
+                    details in directly. Bound to the same FormState
+                    fields the Review tab previously wrote to —
+                    form.currentRole / location / yearsExperience /
+                    educationLevel / education / bio / skills — so
+                    submit + edit-save payloads are unchanged. */}
+                <div className="mt-5 space-y-5 border border-gray-200 rounded-xl p-5 bg-gray-50">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                    Profile details (edit if needed)
+                  </p>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <Label>Current / most recent role</Label>
+                      <Input value={form.currentRole} onChange={e => set('currentRole', e.target.value)}
+                        placeholder="e.g. Senior Finance Manager" className="mt-2" />
+                    </div>
+                    <div>
+                      <Label>Location</Label>
+                      <Input value={form.location} onChange={e => set('location', e.target.value)}
+                        placeholder="e.g. New York, NY" className="mt-2" />
+                    </div>
+                    <div>
+                      <Label>Years of experience</Label>
+                      <Input type="number" min={0} max={50} value={form.yearsExperience}
+                        onChange={e => set('yearsExperience', e.target.value)}
+                        placeholder="e.g. 5" className="mt-2" />
+                    </div>
+                    <div>
+                      <Label>Education level</Label>
+                      {/* Same option set as the previous radio group.
+                          The empty <option value=""> renders as the
+                          placeholder when form.educationLevel is empty
+                          OR holds a value that isn't in the known list
+                          (e.g. a résumé parser returned an unmapped
+                          string) — the <select> falls back to value=""
+                          rather than throwing. State key / writes are
+                          unchanged: still set('educationLevel', v) →
+                          submit payload still sends
+                          highest_education_level. */}
+                      <select
+                        value={
+                          ['Bachelors', 'Masters', 'MBA', 'PhD'].includes(form.educationLevel)
+                            ? form.educationLevel
+                            : ''
+                        }
+                        onChange={e => set('educationLevel', e.target.value)}
+                        className="mt-2 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                      >
+                        <option value="">Select education level</option>
+                        <option value="Bachelors">Bachelor&rsquo;s</option>
+                        <option value="Masters">Master&rsquo;s</option>
+                        <option value="MBA">MBA</option>
+                        <option value="PhD">PhD</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label>Education (degree + field)</Label>
+                    <Input value={form.education} onChange={e => set('education', e.target.value)}
+                      placeholder="e.g. MBA Finance; BS Financial Economics" className="mt-2" />
+                    <p className="text-xs text-gray-400 mt-1">
+                      Include each degree on its own — both will show on your recruiter card.
+                    </p>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <Label>Your anonymous bio <span className="text-xs font-normal text-gray-400">(AI-generated, editable)</span></Label>
+                      {form.resumeBase64 && (
+                        <button
+                          type="button"
+                          onClick={handleRegenerateBio}
+                          disabled={regenerating}
+                          className="flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-700 font-medium disabled:opacity-50"
+                        >
+                          {regenerating
+                            ? <><Loader2 className="w-3 h-3 animate-spin" /> Regenerating…</>
+                            : <><RefreshCw className="w-3 h-3" /> Regenerate</>
+                          }
+                        </button>
+                      )}
+                    </div>
+                    <textarea
+                      value={form.bio}
+                      onChange={e => set('bio', e.target.value)}
+                      rows={5}
+                      placeholder="Your anonymous bio. You can edit it here."
+                      className="mt-2 w-full border border-gray-200 rounded-lg px-3 py-3 text-sm text-gray-700 leading-relaxed bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent resize-none"
+                    />
+                  </div>
+
+                  <div>
+                    <Label>Skills</Label>
+                    {/* Editable in both create AND edit mode. On Save
+                        Changes in edit mode, the wizard PATCHes profile
+                        fields via /api/candidate-profile (whitelist
+                        still excludes `skills` because candidates has
+                        no skills column) AND posts the skill set to
+                        /api/update-candidate-skills-list, which writes
+                        the candidate_skills join table. Recruiter
+                        cards read that same join via useCandidates, so
+                        the edits propagate to /browse. */}
+                    <p className="text-xs text-gray-400 mt-0.5">Press Enter to add each skill</p>
+                    <SkillsInput skills={form.skills} onChange={v => set('skills', v)} />
+                  </div>
+                </div>
+                {/* End editable parsed-details block */}
               </>
             )}
           </div>
@@ -2990,7 +3104,7 @@ export default function CandidateApply() {
 
         {/* ── Tab 4: Future Job Preferences ───────────────────────────── */}
         {step === 4 && (
-          <div className="max-w-xl mx-auto">
+          <div className="max-w-2xl mx-auto">
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Future Job Preferences</h2>
             <p className="text-gray-500 mb-8 text-sm">Help us match you with the right opportunities.</p>
 
@@ -3084,7 +3198,7 @@ export default function CandidateApply() {
 
         {/* ── Tab 5: Work Authorization ──────────────────────────────── */}
         {step === 5 && (
-          <div className="max-w-xl mx-auto">
+          <div className="max-w-2xl mx-auto">
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Work Authorization</h2>
             <p className="text-gray-500 mb-8 text-sm leading-relaxed">
               Two standard questions — we collect these as-is and never filter introductions on your answer.
@@ -3168,127 +3282,30 @@ export default function CandidateApply() {
             require coordinated layout animation, which we degrade to
             a clean fade instead of shipping jank. */}
         {step === 6 && (
-          <div className="max-w-3xl mx-auto">
+          <div className="max-w-4xl mx-auto">
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Review your profile</h2>
             <p className="text-gray-500 mb-6 text-sm">
-              This is exactly what recruiters will see (your real name, contact info, and resume stay hidden until you accept an introduction).
-              Edit any parsed details below — the preview updates as you type.
+              This is exactly what recruiters will see — your real name, contact info, and résumé stay hidden until you accept an introduction. Tap the pencil on any section to jump back and adjust it.
             </p>
 
-            {/* Centered live preview — the focal element on this step.
-                Reads the same form state as the right-rail preview on
-                steps 1-5, so the candidate sees identical data with
-                the centered framing the Review step warrants. The
-                fade-in only plays on mount of step 6 (React re-mounts
-                the conditional subtree on step change), so it doesn't
-                replay on every keystroke. */}
+            {/* Centered live preview — the focal editable surface on
+                the Review step (Phase 1.6). readOnly mode swaps each
+                section header for a pencil button that calls
+                onEditSection(stepNumber) to jump back to the step
+                that owns the field; the candidate fixes things in
+                place and returns to Review. The fade-in plays once
+                on mount of step 6 (React remounts the conditional
+                subtree on step change) so it never replays on
+                keystrokes inside the editors. */}
             <div className="mb-6 animate-in fade-in duration-500">
-              <RecruiterPreviewCard form={form} step={step} isEditMode={isEditMode} />
+              <RecruiterPreviewCard
+                form={form}
+                step={step}
+                isEditMode={isEditMode}
+                readOnly
+                onEditSection={(s) => setStep(s)}
+              />
             </div>
-
-            <div className="space-y-6">
-
-              <div className="space-y-5 border border-gray-200 rounded-xl p-5 bg-gray-50">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                Profile details (edit if needed)
-              </p>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <Label>Current / most recent role</Label>
-                  <Input value={form.currentRole} onChange={e => set('currentRole', e.target.value)}
-                    placeholder="e.g. Senior Finance Manager" className="mt-2" />
-                </div>
-                <div>
-                  <Label>Location</Label>
-                  <Input value={form.location} onChange={e => set('location', e.target.value)}
-                    placeholder="e.g. New York, NY" className="mt-2" />
-                </div>
-                <div>
-                  <Label>Years of experience</Label>
-                  <Input type="number" min={0} max={50} value={form.yearsExperience}
-                    onChange={e => set('yearsExperience', e.target.value)}
-                    placeholder="e.g. 5" className="mt-2" />
-                </div>
-                <div>
-                  <Label>Education level</Label>
-                  {/* Same option set as the previous radio group. The
-                      empty <option value=""> renders as the placeholder
-                      when form.educationLevel is empty OR holds a value
-                      that isn't in the known list (e.g. a resume parser
-                      returned an unmapped string) — the <select> falls
-                      back to value="" rather than throwing. State key /
-                      writes are unchanged: still set('educationLevel', v)
-                      → submit payload still sends highest_education_level. */}
-                  <select
-                    value={
-                      ['Bachelors', 'Masters', 'MBA', 'PhD'].includes(form.educationLevel)
-                        ? form.educationLevel
-                        : ''
-                    }
-                    onChange={e => set('educationLevel', e.target.value)}
-                    className="mt-2 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                  >
-                    <option value="">Select education level</option>
-                    <option value="Bachelors">Bachelor&rsquo;s</option>
-                    <option value="Masters">Master&rsquo;s</option>
-                    <option value="MBA">MBA</option>
-                    <option value="PhD">PhD</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <Label>Education (degree + field)</Label>
-                <Input value={form.education} onChange={e => set('education', e.target.value)}
-                  placeholder="e.g. MBA, Finance" className="mt-2" />
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <Label>Your anonymous bio <span className="text-xs font-normal text-gray-400">(AI-generated, editable)</span></Label>
-                  {form.resumeBase64 && (
-                    <button
-                      type="button"
-                      onClick={handleRegenerateBio}
-                      disabled={regenerating}
-                      className="flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-700 font-medium disabled:opacity-50"
-                    >
-                      {regenerating
-                        ? <><Loader2 className="w-3 h-3 animate-spin" /> Regenerating…</>
-                        : <><RefreshCw className="w-3 h-3" /> Regenerate</>
-                      }
-                    </button>
-                  )}
-                </div>
-                <textarea
-                  value={form.bio}
-                  onChange={e => set('bio', e.target.value)}
-                  rows={5}
-                  placeholder="Your anonymous bio. You can edit it here."
-                  className="mt-2 w-full border border-gray-200 rounded-lg px-3 py-3 text-sm text-gray-700 leading-relaxed bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent resize-none"
-                />
-              </div>
-
-              <div>
-                <Label>Skills</Label>
-                {/* Editable in both create AND edit mode. On Save Changes
-                    in edit mode, the wizard PATCHes profile fields via
-                    /api/candidate-profile (whitelist still excludes
-                    `skills` because candidates has no skills column)
-                    AND posts the skill set to
-                    /api/update-candidate-skills-list, which writes the
-                    candidate_skills join table. Recruiter cards read
-                    that same join via useCandidates, so the edits
-                    propagate to /browse. */}
-                <p className="text-xs text-gray-400 mt-0.5">Press Enter to add each skill</p>
-                <SkillsInput skills={form.skills} onChange={v => set('skills', v)} />
-              </div>
-              </div>
-              {/* End editor block */}
-
-            </div>
-            {/* End editor block + stacked layout */}
 
             <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800 mt-6">
               <strong>Note:</strong> Your profile will be reviewed by our team before going live.

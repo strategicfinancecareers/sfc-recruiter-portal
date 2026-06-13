@@ -36,6 +36,11 @@ export interface Candidate {
   // fall back to detailed_experience client-side.
   areas_of_expertise?: string[] | null;
   detailed_experience?: string[] | null;
+  // Industries the candidate has worked in (collected on the
+  // Professional Experience step). Surfaced on the recruiter card as
+  // a chip row alongside Areas of Expertise / Technical Skills —
+  // recruiter-safe (it's profile-shape metadata, not PII).
+  industries?: string[] | null;
   is_favorite?: boolean; // Computed in the hook from user_favorites — not selected.
   // SFC Take (Batch 2) — recruiters see these ONLY when sfc_take_published_at is non-null.
   // Filter happens at render time, not in the SELECT, so the hook can stay shared with admin views.
@@ -51,10 +56,11 @@ export interface Candidate {
 // Recruiter-safe column allow-list. NO sensitive PII (email, phone,
 // linkedin_url, resume_full_url, resume_redacted_url, work_authorized_us,
 // requires_sponsorship), NO unused preference fields (target_salary,
-// target_roles, industries, etc.), NO unused SFC Take fields
-// (sfc_strengths, sfc_considerations are not rendered by any recruiter
-// component), NO real name. Admin includeName=true appends `name` to
-// this list at query time.
+// target_roles, etc.), NO unused SFC Take fields (sfc_strengths,
+// sfc_considerations are not rendered by any recruiter component),
+// NO real name. Admin includeName=true appends `name` to this list
+// at query time. `industries` is now surfaced on the recruiter card
+// (added Phase 1.6 as a chip row) so it's included.
 const RECRUITER_COLUMNS = [
   'id',
   'display_name',
@@ -75,6 +81,7 @@ const RECRUITER_COLUMNS = [
   // Phase 5 once it's fully retired.
   'areas_of_expertise',
   'detailed_experience',
+  'industries',
   'sfc_take',
   'sfc_take_published_at',
   'sfc_role_fit',

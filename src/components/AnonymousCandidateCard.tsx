@@ -51,6 +51,10 @@ export interface AnonymousCandidateCardData {
   // fallback is bulletproof; Phase 5 drops detailed_experience.
   areas_of_expertise?: string[] | null;
   detailed_experience?: string[] | null;
+  // Industries the candidate has worked in. Surfaced as a chip row
+  // between Areas of Expertise and Technical Skills (Phase 1.6
+  // addition). Recruiter-safe — it's profile-shape metadata.
+  industries?: string[] | null;
 }
 
 interface RecruiterModeProps {
@@ -194,6 +198,24 @@ export default function AnonymousCandidateCard(props: Props) {
             <div className="flex flex-wrap gap-1.5">
               {areas.map(a => (
                 <span key={a} className="px-2.5 py-1 bg-[#008037]/12 border border-[#008037]/30 text-[#004a1f] rounded-full text-xs font-semibold">{a}</span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Industries — sectors the candidate has worked in
+            (collected on the wizard's Professional Experience step).
+            Neutral chip treatment so it reads as profile context
+            rather than competing with the brand-green primary
+            matching signal above. Only renders when non-empty.
+            Added Phase 1.6 — additive only; no other change to the
+            recruiter card layout. */}
+        {Array.isArray(c.industries) && c.industries.filter(Boolean).length > 0 && (
+          <div>
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Industries</h3>
+            <div className="flex flex-wrap gap-1.5">
+              {c.industries.filter(Boolean).map(i => (
+                <span key={i} className="px-2.5 py-1 bg-gray-100 border border-gray-200 text-gray-700 rounded-full text-xs font-medium">{i}</span>
               ))}
             </div>
           </div>

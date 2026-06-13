@@ -35,6 +35,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       areasOfExpertise,
       // NEW form-rework fields
       companyStages, newAreas,
+      // Stages the candidate has WORKED at — paired with the
+      // candidates.company_stage_experience column. Optional.
+      companyStageExperience,
       // Availability / preferences (work_preferences is now a multi-select
       // array; legacy clients may still send work_preference as a string)
       jobSearchStatus, targetComp,
@@ -56,6 +59,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       Array.isArray(workPreferences) ? workPreferences
       : (typeof legacyWorkPreference === 'string' && legacyWorkPreference ? [legacyWorkPreference] : []);
     const companyStagesArr: string[] = Array.isArray(companyStages) ? companyStages : [];
+    const companyStageExperienceArr: string[] =
+      Array.isArray(companyStageExperience) ? companyStageExperience : [];
     const newAreasArr: string[] = Array.isArray(newAreas) ? newAreas : [];
 
     if (!email || !firstName || !lastName) {
@@ -203,6 +208,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       industries: industriesArr,
       industries_other: (typeof industriesOther === 'string' && industriesOther.trim()) ? industriesOther.trim() : null,
       target_company_stages: companyStagesArr,
+      company_stage_experience: companyStageExperienceArr,
       new_areas: newAreasArr,
       target_salary: (typeof targetComp === 'string' && targetComp.trim()) ? targetComp.trim() : null,
       work_preferences: workPrefsArr,

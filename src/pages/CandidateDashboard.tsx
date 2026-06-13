@@ -1667,6 +1667,14 @@ function RecruiterViewTab({
           // (CandidateRow.industries), it just wasn't being threaded
           // into the card prop object before.
           industries: candidate.industries || null,
+          // Stages the candidate has WORKED at — added with the
+          // company_stage_experience build. Mirrors the recruiter
+          // browse card so the candidate sees the same row on their
+          // self-preview tab. Cast through any because CandidateRow
+          // hasn't been re-typed for this column yet (the
+          // candidate-profile GET returns it; useCandidates also
+          // selects it for the recruiter side).
+          company_stage_experience: (candidate as any).company_stage_experience || null,
           // The card expects { id, skill } objects; the dashboard
           // keeps skills as flat strings. Index works fine as a key.
           skills: skills.map((s, i) => ({ id: i, skill: s })),

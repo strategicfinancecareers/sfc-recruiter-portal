@@ -1661,6 +1661,12 @@ function RecruiterViewTab({
           primary_background: candidate.primary_background || null,
           secondary_backgrounds: candidate.secondary_backgrounds || null,
           open_to_opportunities: candidate.open_to_opportunities ?? null,
+          // Phase 1.6: pass industries through so the candidate's own
+          // Recruiter View tab mirrors what recruiters see on /browse.
+          // The candidate-profile GET already returns this column
+          // (CandidateRow.industries), it just wasn't being threaded
+          // into the card prop object before.
+          industries: candidate.industries || null,
           // The card expects { id, skill } objects; the dashboard
           // keeps skills as flat strings. Index works fine as a key.
           skills: skills.map((s, i) => ({ id: i, skill: s })),

@@ -1,17 +1,24 @@
 import { useMemo } from 'react';
-import { Eye, MapPin, Briefcase, GraduationCap, Sparkles, ShieldCheck, CheckCircle2 } from 'lucide-react';
+import { Eye, MapPin, Briefcase, GraduationCap, Sparkles, ShieldCheck, CheckCircle2, Pencil } from 'lucide-react';
 
 // RecruiterPreviewCard — the live "what recruiters will see" surface
-// rendered in the wizard's right rail (lg+) and inside a mobile Sheet
-// (< lg). Standalone by design: the real AnonymousCandidateCard is the
-// recruiter-facing dossier and must keep its current shape. This card
-// is a fresh, single-column, ~360px-clean preview that reads the same
-// data so substance matches what recruiters see, but its chrome is
-// built for the signup context (generous whitespace, brand-green
-// primary signal, scannable section headers, no internal split).
+// rendered in the wizard's right rail (lg+), inside a mobile Sheet
+// (< lg), and centered as the focal element on the Review step.
+// Standalone by design: the real AnonymousCandidateCard is the
+// recruiter-facing dossier and must keep its current shape. This
+// card is a fresh, single-column preview that reads the same data so
+// substance matches what recruiters see, but its chrome is built for
+// the signup context (generous whitespace, brand-green primary
+// signal, scannable section headers, no internal split).
 //
 // Pure render — no state, no effects, no writes. The wizard owns the
 // FormState; this card reads it and rerenders on every change.
+//
+// Read-only mode (Phase 1.6) drives the Review-step layout: each
+// editable section grows a small pencil affordance that calls
+// onEditSection with the wizard step number that owns the field, so
+// the candidate can jump back to fix something without leaving the
+// preview-first Review surface.
 
 // Minimum shape we read from FormState. Defined here instead of
 // importing FormState from CandidateApply.tsx to keep coupling loose
@@ -34,6 +41,8 @@ export interface PreviewFormShape {
   // Skills surfaces
   areasOfExpertise: string[];
   skills: string[];
+  // Industries the candidate has worked in (collected on step 3).
+  industries: string[];
   // Job-pref signals shown on the preview
   jobSearchStatus: string;
   workPreferences: string[];
@@ -46,7 +55,6 @@ export interface PreviewFormShape {
   committed: boolean;
   resumeParsed: any | null;
   targetComp: string;
-  workPreferences: string[];
   preferredCities: string[];
   targetRoles: string[];
   workAuthorizedUs: boolean | null;
@@ -144,9 +152,51 @@ interface Props {
   form: PreviewFormShape;
   step: number;
   isEditMode: boolean;
+  // Read-only mode hides the empty state and surfaces a small pencil
+  // on every editable section that wires back through onEditSection
+  // to the step that owns that field. Used by the Review step where
+  // the preview is the focal editable surface; left undefined on
+  // steps 1-5 where the right rail is just a passive mirror.
+  readOnly?: boolean;
+  onEditSection?: (step: number) => void;
 }
 
-export default function RecruiterPreviewCard({ form, step, isEditMode }: Props) {
+// Section header with an optional pencil affordance. Renders the
+// pencil only when readOnly + onEditSection are both supplied (i.e.
+// on the Review step's centered preview). Step argument is the
+// wizard step number the field lives on so the parent's setStep
+// jumps cleanly back there.
+function SectionLabel({
+  children,
+  step,
+  readOnly,
+  onEdit,
+  ariaLabel,
+}: {
+  children: React.ReactNode;
+  step: number;
+  readOnly?: boolean;
+  onEdit?: (step: number) => void;
+  ariaLabel: string;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-2 mb-2">
+      <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">{children}</p>
+      {readOnly && onEdit && (
+        <button
+          type="button"
+          onClick={() => onEdit(step)}
+          aria-label={ariaLabel}
+          className="inline-flex items-center justify-center w-6 h-6 rounded-md text-gray-400 hover:text-[#006a2d] hover:bg-[#008037]/8 transition-colors"
+        >
+          <Pencil className="w-3 h-3" />
+        </button>
+      )}
+    </div>
+  );
+}
+
+export default function RecruiterPreviewCard({ form, step, isEditMode, readOnly, onEditSection }: Props) {
   const pct = useMemo(() => profileCompletion(form), [form]);
 
   // Derived display values — bucket fallback so the experience chip
@@ -157,12 +207,25 @@ export default function RecruiterPreviewCard({ form, step, isEditMode }: Props) 
 
   const label = form.currentRole || form.primaryBackground || 'Finance Professional';
   const location = form.location || 'Location not set';
-  const education = form.educationLevel || form.education || 'Education not set';
+
+  // Education: render BOTH educationLevel and education when they
+  // differ (e.g. level="MBA", education="MBA Finance; BS Financial
+  // Economics" → user typed two degrees and we want both visible).
+  // Falls back gracefully — if only one is present, show only that;
+  // if neither, show a placeholder. No truncation: long strings wrap
+  // onto the next line rather than clipping.
+  const educationLines: string[] = [];
+  if (form.educationLevel) educationLines.push(form.educationLevel);
+  if (form.education && form.education.trim() !== form.educationLevel.trim()) {
+    educationLines.push(form.education);
+  }
+  if (educationLines.length === 0) educationLines.push('Education not set');
 
   const bio = (form.bio || '').trim();
   const areas = form.areasOfExpertise.filter(Boolean);
   const skills = form.skills.filter(Boolean);
   const secondaries = form.secondaryBackgrounds.filter(Boolean);
+  const industries = (form.industries || []).filter(Boolean);
   const workPrefs = form.workPreferences.filter(Boolean);
 
   // Availability indicator — three tiers now that "Passively Looking"
@@ -181,8 +244,19 @@ export default function RecruiterPreviewCard({ form, step, isEditMode }: Props) 
   // Empty state for early-step previews. Auto-removes once
   // completion crosses 30% (~ end of step 1 + a resume parse).
   // Edit mode never shows the empty state — the prefill always
-  // hydrates real values.
-  const showEmptyState = !isEditMode && pct <= 30 && step <= 2;
+  // hydrates real values. Read-only mode also suppresses it
+  // (Review is post-fill by definition).
+  const showEmptyState = !isEditMode && !readOnly && pct <= 30 && step <= 2;
+
+  // Step ownership map for the pencil affordances. The role caption,
+  // profile summary, and technical skills sections are populated by
+  // the résumé parse on step 2 — that's where their editors now
+  // live, so clicking the pencil returns the candidate to step 2.
+  // Backgrounds + areas + industries live on step 3. Availability +
+  // work preference live on step 4.
+  const STEP_RESUME = 2;
+  const STEP_EXPERIENCE = 3;
+  const STEP_PREFERENCES = 4;
 
   return (
     <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
@@ -229,45 +303,92 @@ export default function RecruiterPreviewCard({ form, step, isEditMode }: Props) 
           </div>
         ) : (
           <>
-            {/* Identity */}
+            {/* Identity. The role label + the small caption below are
+                the recruiter-facing headline — the caption makes that
+                explicit so candidates understand the line they typed
+                in "Current / most recent role" is what shows up at
+                the top of their listing. */}
             <div>
-              <h4 className="text-base font-semibold text-gray-900 leading-tight">{label}</h4>
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <h4 className="text-base font-semibold text-gray-900 leading-tight">{label}</h4>
+                  <p className="text-[11px] text-gray-400 mt-0.5">This is the title recruiters will see</p>
+                </div>
+                {readOnly && onEditSection && (
+                  <button
+                    type="button"
+                    onClick={() => onEditSection(STEP_RESUME)}
+                    aria-label="Edit role and headline"
+                    className="inline-flex items-center justify-center w-6 h-6 rounded-md text-gray-400 hover:text-[#006a2d] hover:bg-[#008037]/8 transition-colors shrink-0"
+                  >
+                    <Pencil className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+
               <div className="mt-2 space-y-1.5 text-xs text-gray-600">
-                <div className="flex items-center gap-1.5">
-                  <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                <div className="flex items-start gap-1.5">
+                  <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0 mt-0.5" />
                   <span>{location}</span>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <Briefcase className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                <div className="flex items-start gap-1.5">
+                  <Briefcase className="w-3.5 h-3.5 text-gray-400 shrink-0 mt-0.5" />
                   <span>{experience > 0 ? `${experience} yrs experience` : 'Experience not set'}</span>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <GraduationCap className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                  <span className="truncate">{education}</span>
+                <div className="flex items-start gap-1.5">
+                  <GraduationCap className="w-3.5 h-3.5 text-gray-400 shrink-0 mt-0.5" />
+                  <div className="min-w-0 space-y-0.5">
+                    {educationLines.map((line, i) => (
+                      <p key={i} className="break-words">{line}</p>
+                    ))}
+                  </div>
                 </div>
               </div>
 
               {availability && (
-                availability.tone === 'strong' ? (
-                  <span className="mt-3 inline-flex items-center gap-1 text-[11px] font-semibold text-[#004a1f] bg-[#008037]/12 border border-[#008037]/30 rounded-full px-2 py-0.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#008037]" />
-                    {availability.label}
-                  </span>
-                ) : (
-                  <span className="mt-3 inline-flex items-center gap-1 text-[11px] font-medium text-[#005a26] bg-[#008037]/5 border border-[#008037]/20 rounded-full px-2 py-0.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#008037]/50" />
-                    {availability.label}
-                  </span>
-                )
+                <div className="mt-3 flex items-center gap-2">
+                  {availability.tone === 'strong' ? (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#004a1f] bg-[#008037]/12 border border-[#008037]/30 rounded-full px-2 py-0.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#008037]" />
+                      {availability.label}
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-[#005a26] bg-[#008037]/5 border border-[#008037]/20 rounded-full px-2 py-0.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#008037]/50" />
+                      {availability.label}
+                    </span>
+                  )}
+                  {readOnly && onEditSection && (
+                    <button
+                      type="button"
+                      onClick={() => onEditSection(STEP_PREFERENCES)}
+                      aria-label="Edit availability"
+                      className="inline-flex items-center justify-center w-5 h-5 rounded-md text-gray-400 hover:text-[#006a2d] hover:bg-[#008037]/8 transition-colors"
+                    >
+                      <Pencil className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
               )}
             </div>
 
-            {/* Bio */}
+            {/* Profile summary — FULL bio, no truncation. Long bios
+                flow onto multiple lines; the centered Review step has
+                the width to hold them, and the narrow right rail
+                wraps. whitespace-pre-line preserves any double-newline
+                paragraph breaks the candidate typed. */}
             {bio && (
               <div>
-                <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Profile summary</p>
-                <p className="text-xs text-gray-600 leading-relaxed">
-                  {bio.length > 240 ? bio.slice(0, 240).trimEnd() + '…' : bio}
+                <SectionLabel
+                  step={STEP_RESUME}
+                  readOnly={readOnly}
+                  onEdit={onEditSection}
+                  ariaLabel="Edit profile summary"
+                >
+                  Profile summary
+                </SectionLabel>
+                <p className="text-xs text-gray-600 leading-relaxed whitespace-pre-line break-words">
+                  {bio}
                 </p>
               </div>
             )}
@@ -277,7 +398,14 @@ export default function RecruiterPreviewCard({ form, step, isEditMode }: Props) 
                 the candidate's primary selection. */}
             {form.primaryBackground && (
               <div>
-                <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-2">Primary Background</p>
+                <SectionLabel
+                  step={STEP_EXPERIENCE}
+                  readOnly={readOnly}
+                  onEdit={onEditSection}
+                  ariaLabel="Edit primary background"
+                >
+                  Primary Background
+                </SectionLabel>
                 <div className="flex flex-wrap gap-1.5">
                   <span className="px-2.5 py-1 bg-gray-900 text-white rounded-full text-[11px] font-medium">
                     {form.primaryBackground}
@@ -291,7 +419,14 @@ export default function RecruiterPreviewCard({ form, step, isEditMode }: Props) 
                 than competing visually with the primary signal. */}
             {secondaries.length > 0 && (
               <div>
-                <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-2">Additional Experience</p>
+                <SectionLabel
+                  step={STEP_EXPERIENCE}
+                  readOnly={readOnly}
+                  onEdit={onEditSection}
+                  ariaLabel="Edit additional experience"
+                >
+                  Additional Experience
+                </SectionLabel>
                 <div className="flex flex-wrap gap-1.5">
                   {secondaries.map(s => (
                     <span key={s} className="px-2.5 py-1 bg-gray-100 border border-gray-200 text-gray-700 rounded-full text-[11px] font-medium">
@@ -307,7 +442,14 @@ export default function RecruiterPreviewCard({ form, step, isEditMode }: Props) 
                 the candidate show up in a recruiter's filtered search. */}
             {areas.length > 0 && (
               <div>
-                <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-2">Areas of Expertise</p>
+                <SectionLabel
+                  step={STEP_EXPERIENCE}
+                  readOnly={readOnly}
+                  onEdit={onEditSection}
+                  ariaLabel="Edit areas of expertise"
+                >
+                  Areas of Expertise
+                </SectionLabel>
                 <div className="flex flex-wrap gap-1.5">
                   {areas.map(a => (
                     <span key={a} className="px-2.5 py-1 bg-[#008037]/12 border border-[#008037]/30 text-[#004a1f] rounded-full text-[11px] font-semibold">
@@ -318,10 +460,43 @@ export default function RecruiterPreviewCard({ form, step, isEditMode }: Props) 
               </div>
             )}
 
-            {/* Tools / Technical Skills */}
+            {/* Industries — sectors the candidate has worked in.
+                Collected on step 3 alongside the areas/background
+                pickers. Neutral chip treatment because it's recruiter-
+                filter context rather than a matching headline. */}
+            {industries.length > 0 && (
+              <div>
+                <SectionLabel
+                  step={STEP_EXPERIENCE}
+                  readOnly={readOnly}
+                  onEdit={onEditSection}
+                  ariaLabel="Edit industries"
+                >
+                  Industries
+                </SectionLabel>
+                <div className="flex flex-wrap gap-1.5">
+                  {industries.map(i => (
+                    <span key={i} className="px-2.5 py-1 bg-gray-100 border border-gray-200 text-gray-700 rounded-full text-[11px] font-medium">
+                      {i}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Tools / Technical Skills. Edited on the résumé step
+                (post-parse) in the new layout, so the pencil routes
+                back to step 2 — same as the role/headline/summary. */}
             {skills.length > 0 && (
               <div>
-                <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-2">Technical Skills</p>
+                <SectionLabel
+                  step={STEP_RESUME}
+                  readOnly={readOnly}
+                  onEdit={onEditSection}
+                  ariaLabel="Edit technical skills"
+                >
+                  Technical Skills
+                </SectionLabel>
                 <div className="flex flex-wrap gap-1.5">
                   {skills.map(s => (
                     <span key={s} className="px-2.5 py-1 bg-[#008037]/5 border border-[#008037]/25 text-[#005a26] rounded-full text-[11px] font-medium">
@@ -340,7 +515,14 @@ export default function RecruiterPreviewCard({ form, step, isEditMode }: Props) 
                 picked. */}
             {workPrefs.length > 0 && (
               <div>
-                <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-2">Work Preference</p>
+                <SectionLabel
+                  step={STEP_PREFERENCES}
+                  readOnly={readOnly}
+                  onEdit={onEditSection}
+                  ariaLabel="Edit work preference"
+                >
+                  Work Preference
+                </SectionLabel>
                 <div className="flex flex-wrap gap-1.5">
                   {workPrefs.map(w => (
                     <span key={w} className="px-2.5 py-1 bg-gray-50 border border-gray-200 text-gray-700 rounded-full text-[11px] font-medium">

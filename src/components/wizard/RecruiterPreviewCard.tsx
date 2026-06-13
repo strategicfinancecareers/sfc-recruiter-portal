@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { MapPin, Briefcase, GraduationCap, Sparkles, ShieldCheck, CheckCircle2, Pencil, Info } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { parseDegrees } from '@/lib/parseEducation';
 
 // RecruiterPreviewCard — the live "what recruiters will see" surface
 // rendered in the wizard's right rail (lg+), inside a mobile Sheet
@@ -184,7 +185,7 @@ function SectionLabel({
   ariaLabel: string;
 }) {
   return (
-    <div className="flex items-center justify-between gap-2 mb-2">
+    <div className="flex items-center justify-between gap-2 mb-3">
       <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">{children}</p>
       {readOnly && onEdit && (
         <button
@@ -212,18 +213,18 @@ export default function RecruiterPreviewCard({ form, step, isEditMode, readOnly,
   const label = form.currentRole || form.primaryBackground || 'Finance Professional';
   const location = form.location || 'Location not set';
 
-  // Education: render BOTH educationLevel and education when they
-  // differ (e.g. level="MBA", education="MBA Finance; BS Financial
-  // Economics" → user typed two degrees and we want both visible).
-  // Falls back gracefully — if only one is present, show only that;
-  // if neither, show a placeholder. No truncation: long strings wrap
-  // onto the next line rather than clipping.
-  const educationLines: string[] = [];
-  if (form.educationLevel) educationLines.push(form.educationLevel);
-  if (form.education && form.education.trim() !== form.educationLevel.trim()) {
-    educationLines.push(form.education);
-  }
-  if (educationLines.length === 0) educationLines.push('Education not set');
+  // Education: render one line per degree, each with its own
+  // GraduationCap icon. We parse form.education (a single string like
+  // "MBA Finance; BS Financial Economics") into structured degree
+  // rows via the shared parseDegrees helper; the row labels then
+  // render as "Degree, Specialization" (or just "Degree" when no
+  // specialization is present). The standalone educationLevel line
+  // is gone — the level field duplicated whatever degree the user
+  // already typed in education, producing the "MBA shown twice"
+  // bug. If parseDegrees returns nothing (no education typed yet),
+  // we fall back to "Education not set" so the slot doesn't render
+  // empty.
+  const degrees = parseDegrees(form.education);
 
   const bio = (form.bio || '').trim();
   const areas = form.areasOfExpertise.filter(Boolean);
@@ -265,8 +266,9 @@ export default function RecruiterPreviewCard({ form, step, isEditMode, readOnly,
 
   return (
     <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
-      {/* Header strip */}
-      <div className="px-5 pt-5 pb-4 border-b border-gray-100">
+      {/* Header strip — Phase 2a de-squish: matches the body's px-6
+          and the new vertical rhythm. */}
+      <div className="px-6 pt-5 pb-5 border-b border-gray-100">
         <div className="flex items-center justify-between gap-3">
           <h3 className="text-sm font-semibold text-gray-900 tracking-tight">Recruiter Preview</h3>
           {/* Reworded privacy affordance: states what the preview is
@@ -318,8 +320,10 @@ export default function RecruiterPreviewCard({ form, step, isEditMode, readOnly,
         </div>
       </div>
 
-      {/* Body */}
-      <div className="p-5 space-y-5">
+      {/* Body — Phase 2a de-squish: more generous padding + larger
+          inter-section rhythm so the card breathes like the Linear /
+          Stripe references rather than stacking blocks edge-to-edge. */}
+      <div className="p-6 space-y-6">
 
         {showEmptyState ? (
           <div className="text-center py-6">
@@ -356,23 +360,37 @@ export default function RecruiterPreviewCard({ form, step, isEditMode, readOnly,
                 )}
               </div>
 
-              <div className="mt-2 space-y-1.5 text-xs text-gray-600">
-                <div className="flex items-start gap-1.5">
-                  <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0 mt-0.5" />
+              <div className="mt-3 space-y-2 text-xs text-gray-600">
+                <div className="flex items-start gap-2">
+                  <MapPin className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
                   <span>{location}</span>
                 </div>
-                <div className="flex items-start gap-1.5">
-                  <Briefcase className="w-3.5 h-3.5 text-gray-400 shrink-0 mt-0.5" />
+                <div className="flex items-start gap-2">
+                  <Briefcase className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
                   <span>{experience > 0 ? `${experience} yrs experience` : 'Experience not set'}</span>
                 </div>
-                <div className="flex items-start gap-1.5">
-                  <GraduationCap className="w-3.5 h-3.5 text-gray-400 shrink-0 mt-0.5" />
-                  <div className="min-w-0 space-y-0.5">
-                    {educationLines.map((line, i) => (
-                      <p key={i} className="break-words">{line}</p>
-                    ))}
+                {degrees.length === 0 ? (
+                  <div className="flex items-start gap-2">
+                    <GraduationCap className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
+                    <span className="text-gray-400">Education not set</span>
                   </div>
-                </div>
+                ) : (
+                  // One line per degree, each with its own GraduationCap.
+                  // Renders "Degree, Specialization" when both halves
+                  // are present, "Degree" alone otherwise. break-words
+                  // protects long specialization strings from
+                  // overflowing the narrow right rail.
+                  degrees.map((d, i) => (
+                    <div key={`${d.degree}|${d.specialization}|${i}`} className="flex items-start gap-2">
+                      <GraduationCap className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
+                      <p className="break-words">
+                        {d.specialization
+                          ? <>{d.degree}, <span className="text-gray-500">{d.specialization}</span></>
+                          : d.degree}
+                      </p>
+                    </div>
+                  ))
+                )}
               </div>
 
               {availability && (
@@ -436,8 +454,8 @@ export default function RecruiterPreviewCard({ form, step, isEditMode, readOnly,
                 >
                   Primary Background
                 </SectionLabel>
-                <div className="flex flex-wrap gap-1.5">
-                  <span className="px-2.5 py-1 bg-gray-900 text-white rounded-full text-[11px] font-medium">
+                <div className="flex flex-wrap gap-2">
+                  <span className="px-3 py-1.5 bg-gray-900 text-white rounded-full text-[11px] font-medium">
                     {form.primaryBackground}
                   </span>
                 </div>
@@ -457,9 +475,9 @@ export default function RecruiterPreviewCard({ form, step, isEditMode, readOnly,
                 >
                   Additional Experience
                 </SectionLabel>
-                <div className="flex flex-wrap gap-1.5">
+                <div className="flex flex-wrap gap-2">
                   {secondaries.map(s => (
-                    <span key={s} className="px-2.5 py-1 bg-gray-100 border border-gray-200 text-gray-700 rounded-full text-[11px] font-medium">
+                    <span key={s} className="px-3 py-1.5 bg-gray-100 border border-gray-200 text-gray-700 rounded-full text-[11px] font-medium">
                       {s}
                     </span>
                   ))}
@@ -480,9 +498,9 @@ export default function RecruiterPreviewCard({ form, step, isEditMode, readOnly,
                 >
                   Areas of Expertise
                 </SectionLabel>
-                <div className="flex flex-wrap gap-1.5">
+                <div className="flex flex-wrap gap-2">
                   {areas.map(a => (
-                    <span key={a} className="px-2.5 py-1 bg-[#008037]/12 border border-[#008037]/30 text-[#004a1f] rounded-full text-[11px] font-semibold">
+                    <span key={a} className="px-3 py-1.5 bg-[#008037]/12 border border-[#008037]/30 text-[#004a1f] rounded-full text-[11px] font-semibold">
                       {a}
                     </span>
                   ))}
@@ -504,9 +522,9 @@ export default function RecruiterPreviewCard({ form, step, isEditMode, readOnly,
                 >
                   Industries
                 </SectionLabel>
-                <div className="flex flex-wrap gap-1.5">
+                <div className="flex flex-wrap gap-2">
                   {industries.map(i => (
-                    <span key={i} className="px-2.5 py-1 bg-gray-100 border border-gray-200 text-gray-700 rounded-full text-[11px] font-medium">
+                    <span key={i} className="px-3 py-1.5 bg-gray-100 border border-gray-200 text-gray-700 rounded-full text-[11px] font-medium">
                       {i}
                     </span>
                   ))}
@@ -528,9 +546,9 @@ export default function RecruiterPreviewCard({ form, step, isEditMode, readOnly,
                 >
                   Company Stage Experience
                 </SectionLabel>
-                <div className="flex flex-wrap gap-1.5">
+                <div className="flex flex-wrap gap-2">
                   {companyStageExp.map(s => (
-                    <span key={s} className="px-2.5 py-1 bg-gray-100 border border-gray-200 text-gray-700 rounded-full text-[11px] font-medium">
+                    <span key={s} className="px-3 py-1.5 bg-gray-100 border border-gray-200 text-gray-700 rounded-full text-[11px] font-medium">
                       {s}
                     </span>
                   ))}
@@ -551,9 +569,9 @@ export default function RecruiterPreviewCard({ form, step, isEditMode, readOnly,
                 >
                   Technical Skills
                 </SectionLabel>
-                <div className="flex flex-wrap gap-1.5">
+                <div className="flex flex-wrap gap-2">
                   {skills.map(s => (
-                    <span key={s} className="px-2.5 py-1 bg-[#008037]/5 border border-[#008037]/25 text-[#005a26] rounded-full text-[11px] font-medium">
+                    <span key={s} className="px-3 py-1.5 bg-[#008037]/5 border border-[#008037]/25 text-[#005a26] rounded-full text-[11px] font-medium">
                       {s}
                     </span>
                   ))}
@@ -577,9 +595,9 @@ export default function RecruiterPreviewCard({ form, step, isEditMode, readOnly,
                 >
                   Work Preference
                 </SectionLabel>
-                <div className="flex flex-wrap gap-1.5">
+                <div className="flex flex-wrap gap-2">
                   {workPrefs.map(w => (
-                    <span key={w} className="px-2.5 py-1 bg-gray-50 border border-gray-200 text-gray-700 rounded-full text-[11px] font-medium">
+                    <span key={w} className="px-3 py-1.5 bg-gray-50 border border-gray-200 text-gray-700 rounded-full text-[11px] font-medium">
                       {w}
                     </span>
                   ))}

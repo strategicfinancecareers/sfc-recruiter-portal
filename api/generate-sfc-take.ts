@@ -100,11 +100,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // name in the rendered take; the recruiter SELECT also no longer
     // ships `name` to the browser, so the scrub MUST happen at write
     // time).
+    // Phase 3 of the skills redesign: prefer areas_of_expertise (the
+    // new controlled-taxonomy field) and fall back to
+    // detailed_experience for candidates who haven't re-edited since
+    // Phase 2 shipped. Both columns are kept in sync via the wizard's
+    // dual-write; Phase 5 drops detailed_experience and this SELECT
+    // narrows to areas_of_expertise alone.
     .select(`
       id, name, display_name, label, location, experience, education, highest_education_level,
       profile_description, work_preference, target_salary, target_roles,
       preferred_cities, primary_background, secondary_backgrounds,
-      detailed_experience, resume_full_url
+      areas_of_expertise, detailed_experience, resume_full_url
     `)
     .eq('id', candidateId)
     .maybeSingle();
@@ -148,7 +154,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const c: any = candidate;
   const targetRoles = Array.isArray(c.target_roles) ? c.target_roles.join(', ') : '';
   const targetCities = Array.isArray(c.preferred_cities) ? c.preferred_cities.join(', ') : '';
-  const detailedExp = Array.isArray(c.detailed_experience) ? c.detailed_experience.join(', ') : '';
+  // Phase 3: prefer the new controlled-taxonomy field; fall back to
+  // the legacy detailed_experience so existing candidates' takes
+  // don't degrade. Either way the join(', ') formatting is preserved.
+  const areasArr: string[] = (Array.isArray((c as any).areas_of_expertise) && (c as any).areas_of_expertise.length > 0)
+    ? (c as any).areas_of_expertise
+    : (Array.isArray(c.detailed_experience) ? c.detailed_experience : []);
+  const areasOfExpertiseStr = areasArr.join(', ');
   const secondary = Array.isArray(c.secondary_backgrounds) ? c.secondary_backgrounds.join(', ') : '';
 
   const userMessage = [
@@ -173,7 +185,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     `Education: ${c.education || '—'}${c.highest_education_level ? ` (${c.highest_education_level})` : ''}`,
     `Primary background: ${c.primary_background || '—'}`,
     secondary ? `Secondary backgrounds: ${secondary}` : '',
-    detailedExp ? `Detailed experience: ${detailedExp}` : '',
+    areasOfExpertiseStr ? `Areas of Expertise: ${areasOfExpertiseStr}` : '',
     `Target roles: ${targetRoles || '—'}`,
     `Target comp: ${c.target_salary || '—'}`,
     `Work preference: ${c.work_preference || '—'}`,

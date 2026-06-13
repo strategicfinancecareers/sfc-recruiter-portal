@@ -16,6 +16,7 @@ import TermsDialog from "../components/TermsDialog";
 import LoaderScreen from "../components/LoaderScreen";
 import PricingModal from "../components/PricingModal";
 import { useCandidates, type Candidate } from "../hooks/useCandidates";
+import { AREA_GROUPS, ALL_AREA_TAGS } from "@/lib/areasOfExpertise";
 import { supabase } from "@/integrations/supabase/client";
 import { JobForm } from "@/components/JobForm";
 import AnonymousCandidateCard from "@/components/AnonymousCandidateCard";
@@ -147,6 +148,13 @@ export default function CandidateSearch() {
   const [educationFilter, setEducationFilter] = useState('');
   const [locationFilter, setLocationFilter] = useState('');
   const [skillsFilter, setSkillsFilter] = useState('');
+  // Phase 3: Areas of Expertise filter. Multi-select; ANY/OR match
+  // semantics — a candidate matches if their areas contain at least
+  // one of the selected tags. Reads from candidate.areas_of_expertise
+  // first, falls back to candidate.detailed_experience so the 11
+  // existing candidates with NULL areas_of_expertise still match.
+  const [areasFilter, setAreasFilter] = useState<string[]>([]);
+  const [areasPickerOpen, setAreasPickerOpen] = useState(false);
 
   // Fetch user's jobs
   const fetchUserJobs = async () => {
@@ -209,8 +217,21 @@ export default function CandidateSearch() {
       );
     }
 
+    // Phase 3: Areas of Expertise filter, ANY/OR match. Case-
+    // insensitive comparison on the canonical taxonomy strings.
+    // Source = areas_of_expertise → fallback detailed_experience.
+    if (areasFilter.length > 0) {
+      const wanted = new Set(areasFilter.map(a => a.toLowerCase()));
+      filtered = filtered.filter(candidate => {
+        const cAreas: string[] = (Array.isArray(candidate.areas_of_expertise) && candidate.areas_of_expertise.length > 0)
+          ? candidate.areas_of_expertise
+          : (Array.isArray(candidate.detailed_experience) ? candidate.detailed_experience : []);
+        return cAreas.some(a => wanted.has(String(a).toLowerCase()));
+      });
+    }
+
     setFilteredCandidates(filtered);
-  }, [candidates, searchTerm, experienceFilter, educationFilter, locationFilter, skillsFilter]);
+  }, [candidates, searchTerm, experienceFilter, educationFilter, locationFilter, skillsFilter, areasFilter]);
 
   // Fetch introduction statuses for current user — routed through service-role API to bypass RLS
   useEffect(() => {
@@ -362,6 +383,7 @@ export default function CandidateSearch() {
     setEducationFilter('');
     setLocationFilter('');
     setSkillsFilter('');
+    setAreasFilter([]);
   };
 
 
@@ -424,7 +446,7 @@ export default function CandidateSearch() {
                 <Filter className="mr-2 h-4 w-4" />
                 Filters
               </Button>
-              {(searchTerm || experienceFilter || educationFilter || locationFilter || skillsFilter) && (
+              {(searchTerm || experienceFilter || educationFilter || locationFilter || skillsFilter || areasFilter.length > 0) && (
                 <Button variant="outline" onClick={clearFilters}>
                   Clear Filters
                 </Button>
@@ -477,6 +499,83 @@ export default function CandidateSearch() {
                     value={skillsFilter}
                     onChange={(e) => setSkillsFilter(e.target.value)}
                   />
+                </div>
+                {/* Phase 3: Areas of Expertise multi-select. Trigger
+                    button shows the current count; clicking opens a
+                    grouped chip picker. ANY/OR semantics: candidate
+                    matches if their areas contain at least one of
+                    the selected tags. Taxonomy comes from the shared
+                    @/lib/areasOfExpertise module — the same source
+                    of truth the wizard picker uses. */}
+                <div className="col-span-1 sm:col-span-2 lg:col-span-3">
+                  <label className="text-sm font-medium mb-2 block">Areas of Expertise</label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setAreasPickerOpen(o => !o)}
+                    className="w-full justify-between"
+                  >
+                    {areasFilter.length === 0
+                      ? 'Pick one or more areas…'
+                      : `${areasFilter.length} selected`}
+                    {areasPickerOpen
+                      ? <ChevronUp className="w-4 h-4 ml-2" />
+                      : <ChevronDown className="w-4 h-4 ml-2" />}
+                  </Button>
+                  {areasFilter.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {areasFilter.map(tag => (
+                        <span
+                          key={tag}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#008037]/12 border border-[#008037]/30 text-[#004a1f] rounded-full text-xs font-semibold"
+                        >
+                          {tag}
+                          <button
+                            type="button"
+                            onClick={() => setAreasFilter(prev => prev.filter(t => t !== tag))}
+                            aria-label={`Remove ${tag}`}
+                            className="hover:opacity-70"
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {areasPickerOpen && (
+                    <div className="mt-3 p-3 border rounded-lg bg-white space-y-4 max-h-96 overflow-y-auto">
+                      {AREA_GROUPS.map(g => (
+                        <div key={g.group}>
+                          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">{g.group}</p>
+                          <div className="flex flex-wrap gap-2">
+                            {g.tags.map(tag => {
+                              const selected = areasFilter.includes(tag);
+                              return (
+                                <button
+                                  key={tag}
+                                  type="button"
+                                  onClick={() => setAreasFilter(prev =>
+                                    selected ? prev.filter(t => t !== tag) : [...prev, tag]
+                                  )}
+                                  className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                                    selected
+                                      ? 'bg-[#008037] border-[#008037] text-white'
+                                      : 'bg-white border-gray-300 text-gray-700 hover:border-[#008037]'
+                                  }`}
+                                  aria-pressed={selected}
+                                >
+                                  {tag}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                      <p className="text-xs text-gray-400 pt-2 border-t">
+                        {ALL_AREA_TAGS.length} total tags · Match = any selected
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

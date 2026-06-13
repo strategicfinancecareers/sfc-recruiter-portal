@@ -28,16 +28,22 @@ import { verifyBearerEmail } from './_shared/verifyBearerEmail.js';
 //                        deduped case-insensitively (keeps the first
 //                        casing seen — replaced by the canonical
 //                        casing from the taxonomy on the write).
-//   - Taxonomy gate    — each entry is matched against the canonical
-//                        taxonomy below. Unknown tags are dropped
-//                        silently with a per-key warning and reported
-//                        in droppedUnknown. The whole request does
-//                        NOT 400 on unknowns — that would break a
-//                        client that's running stale taxonomy after
-//                        we add a new tag.
-//   - 10-cap           — kept entries are clamped to the first
-//                        AREAS_MAX. Past-cap entries are reported in
-//                        truncatedPastCap so the UI can warn.
+//   - Taxonomy normalize (Phase 4 change) — entries that match the
+//                        canonical taxonomy case-insensitively are
+//                        rewritten to canonical casing. Unknown tags
+//                        are KEPT — the search-and-suggest picker
+//                        lets candidates add custom entries (e.g.
+//                        a tool the taxonomy doesn't have yet),
+//                        which become part of areas_of_expertise so
+//                        we can grow the taxonomy from real usage.
+//                        The previous "drop unknowns" behavior is
+//                        gone.
+//   - Hard limit       — server caps at AREAS_HARD_MAX (25). UI
+//                        guidance suggests 10 (a soft cap), but
+//                        candidates may legitimately need more, and
+//                        the server only stops them at the abuse
+//                        threshold. Past-cap entries are reported in
+//                        truncatedPastHardLimit so the UI can warn.
 //   - Empty array is allowed (= "clear my Areas of Expertise"; writes
 //     []).
 //
@@ -91,12 +97,18 @@ const ALL_AREA_TAGS = [
   'Data Analytics',
   'Market & Competitive Analysis',
 ];
-const TAG_SET_LOWER = new Set(ALL_AREA_TAGS.map(t => t.toLowerCase()));
 const CANONICAL_BY_LOWER = ALL_AREA_TAGS.reduce((acc, t) => {
   acc[t.toLowerCase()] = t;
   return acc;
 }, {});
-const AREAS_MAX = 10;
+// Server hard limit — stops abuse, not the candidate-visible cap.
+// The wizard surfaces a soft "10 max" guidance hint; this is the
+// absolute upper bound the DB will accept on a single write.
+const AREAS_HARD_MAX = 25;
+// Per-entry length cap — same shape as the skills-list endpoint's
+// MAX_SKILL_LENGTH; protects against an attacker stuffing a single
+// huge string and bloating the row.
+const MAX_AREA_LENGTH = 80;
 const ALLOWED_KEYS = new Set(['areasOfExpertise']);
 
 export default async function handler(req, res) {
@@ -159,36 +171,45 @@ export default async function handler(req, res) {
       console.warn('[update-candidate-areas] dropped non-whitelisted keys:', droppedKeys);
     }
 
-    // Per-entry: type, trim, drop empty, dedupe case-insensitively.
+    // Per-entry: type, trim, drop empty, drop over-length, dedupe
+    // case-insensitively. Phase 4: custom (non-taxonomy) entries are
+    // ALLOWED — they get stored as-typed (just trimmed); known
+    // taxonomy entries are rewritten to canonical casing. The
+    // "droppedUnknown" diagnostic is gone — there's no rejection
+    // path for non-taxonomy values anymore.
     const droppedTypes = [];
+    const droppedTooLong = [];
     const droppedDupes = [];
-    const droppedUnknown = [];
     const seenLower = new Set();
-    const accepted = []; // canonical-cased, in incoming order
+    const accepted = []; // canonical-cased where applicable, else as-typed
 
     for (const raw of body.areasOfExpertise) {
       if (typeof raw !== 'string') { droppedTypes.push(raw); continue; }
       const trimmed = raw.trim();
       if (!trimmed) continue;
+      if (trimmed.length > MAX_AREA_LENGTH) { droppedTooLong.push(trimmed); continue; }
       const lower = trimmed.toLowerCase();
       if (seenLower.has(lower)) { droppedDupes.push(trimmed); continue; }
-      if (!TAG_SET_LOWER.has(lower)) { droppedUnknown.push(trimmed); continue; }
       seenLower.add(lower);
-      accepted.push(CANONICAL_BY_LOWER[lower]);
+      // Canonical-case rewrite for known taxonomy tags; pass-through
+      // for custom entries (kept exactly as the candidate typed it,
+      // minus whitespace).
+      accepted.push(CANONICAL_BY_LOWER[lower] || trimmed);
     }
 
-    // 10-cap clamp.
-    const truncatedPastCap = accepted.length > AREAS_MAX ? accepted.slice(AREAS_MAX) : [];
-    if (truncatedPastCap.length > 0) accepted.length = AREAS_MAX;
+    // Server hard cap (25). UI surfaces 10 as a soft guidance hint
+    // but doesn't block — the server stops the truly abusive case.
+    const truncatedPastHardLimit = accepted.length > AREAS_HARD_MAX ? accepted.slice(AREAS_HARD_MAX) : [];
+    if (truncatedPastHardLimit.length > 0) accepted.length = AREAS_HARD_MAX;
 
-    if (droppedTypes.length || droppedDupes.length || droppedUnknown.length || truncatedPastCap.length) {
+    if (droppedTypes.length || droppedTooLong.length || droppedDupes.length || truncatedPastHardLimit.length) {
       console.warn('[update-candidate-areas] normalized payload:', {
         id: candidateId,
         accepted_count: accepted.length,
         droppedTypes_count: droppedTypes.length,
+        droppedTooLong_count: droppedTooLong.length,
         droppedDupes_count: droppedDupes.length,
-        droppedUnknown_count: droppedUnknown.length,
-        truncatedPastCap_count: truncatedPastCap.length,
+        truncatedPastHardLimit_count: truncatedPastHardLimit.length,
       });
     }
 
@@ -212,9 +233,9 @@ export default async function handler(req, res) {
       areasOfExpertise: accepted,
       ...(droppedKeys.length ? { droppedKeys } : {}),
       ...(droppedTypes.length ? { droppedTypes } : {}),
+      ...(droppedTooLong.length ? { droppedTooLong } : {}),
       ...(droppedDupes.length ? { droppedDupes } : {}),
-      ...(droppedUnknown.length ? { droppedUnknown } : {}),
-      ...(truncatedPastCap.length ? { truncatedPastCap } : {}),
+      ...(truncatedPastHardLimit.length ? { truncatedPastHardLimit } : {}),
     });
   } catch (err) {
     console.error('[update-candidate-areas] handler FAILED:', JSON.stringify({

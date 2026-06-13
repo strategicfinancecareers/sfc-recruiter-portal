@@ -23,8 +23,16 @@ import { authedFetch } from '@/integrations/supabase/authedFetch';
 import '@fontsource-variable/newsreader';
 
 import AnonymousCandidateCard from '@/components/AnonymousCandidateCard';
-import { AREA_GROUPS, AREAS_MAX, groupForPrimaryBackground } from '@/lib/areasOfExpertise';
-import { TOOL_GROUPS } from '@/lib/toolsAndTechnicalSkills';
+// Phase 4 swap-in: the search-and-suggest picker consumes the flat
+// taxonomy lists (ALL_*_TAGS) rather than the grouped structures.
+// The grouped structures + groupForPrimaryBackground helper are no
+// longer needed here (the picker has its own search-driven UX); kept
+// in @/lib/areasOfExpertise / @/lib/toolsAndTechnicalSkills for other
+// consumers (the recruiter filter panel imports AREA_GROUPS, the
+// taxonomy module's server-side validator imports CANONICAL_BY_LOWER,
+// etc.).
+import { ALL_AREA_TAGS, AREAS_MAX } from '@/lib/areasOfExpertise';
+import { ALL_TOOL_TAGS } from '@/lib/toolsAndTechnicalSkills';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -206,6 +214,15 @@ interface FormState {
   // same array to both columns so existing readers (SFC Take prompt,
   // admin notify email) keep working unmodified until then.
   areasOfExpertise: string[];
+  // Phase 4: résumé-driven suggestions for the Areas and Tools
+  // pickers. Immutable snapshots from the most-recent parse —
+  // selecting/adding/removing chips never mutates these. The picker
+  // uses them to render the "Recommended from your résumé" row.
+  // Both are autosaved (plain string[]) so a refresh after a parse
+  // still shows the recommended chips. Empty in edit mode (parse
+  // doesn't re-run on edit) → "Recommended" section just hides.
+  suggestedAreas: string[];
+  suggestedTools: string[];
   experience: string;              // years bucket: under2 / 2to5 / 5to10 / 10plus
   industries: string[];            // moved from old Step 4; → candidates.industries[]
   industriesOther: string;         // free text when 'Other' is in industries[]
@@ -246,7 +263,7 @@ const INITIAL_FORM: FormState = {
   // Tab 1
   firstName: '', lastName: '', email: '', phone: '', linkedin: '', committed: false,
   // Tab 2
-  primaryBackground: '', secondaryBackgrounds: [], detailedExperience: [], areasOfExpertise: [], experience: '',
+  primaryBackground: '', secondaryBackgrounds: [], detailedExperience: [], areasOfExpertise: [], suggestedAreas: [], suggestedTools: [], experience: '',
   industries: [], industriesOther: '',
   companyStages: [], newAreas: [],
   // Tab 3
@@ -376,230 +393,183 @@ function SkillsInput({ skills, onChange }: { skills: string[]; onChange: (s: str
   );
 }
 
-// ─── Phase 2 skills-redesign pickers ─────────────────────────────────────────
+// ─── Phase 4 skills-redesign picker (search + suggest) ──────────────────────
 
 /**
- * Areas of Expertise picker.
+ * SearchAndSuggest — reusable picker used twice on the wizard's
+ * Professional Experience tab (Areas of Expertise, Tools & Technical
+ * Skills). Replaces the Phase 2 pill-grid pickers.
  *
- * Renders the canonical taxonomy from src/lib/areasOfExpertise.ts as a
- * grouped chip grid. Every tag is always available; primaryBackground
- * only re-orders the groups so the most-relevant group appears first
- * under a "Most relevant for [Primary Background]" heading. Hard
- * server-enforced cap of AREAS_MAX (10) is mirrored in the UI: at
- * cap, unselected chips are disabled and a "10 of 10 selected" hint
- * shows; selected chips stay clickable so the candidate can swap.
+ * UX:
+ *   - "Recommended from your résumé" row: chips that came from the
+ *     résumé parse AND are still selected. Removing one drops it
+ *     from `value`.
+ *   - "Your selections" row: chips the candidate added via search,
+ *     surfaced separately so the origin (AI vs. candidate-picked)
+ *     is visually distinct. Removing one drops it from `value`.
+ *   - Search input below: as the candidate types, taxonomy matches
+ *     surface in a dropdown FIRST. If their query doesn't match any
+ *     taxonomy tag and `allowCustom` is true, a "+ Add '<typed>'"
+ *     option appears at the bottom. Selecting either adds to `value`.
+ *   - `softCap` is guidance only — the picker DOES NOT block adding
+ *     past it. Soft cap surfaces as "N / cap" with an amber color
+ *     past the limit. The server keeps a separate hard limit.
+ *
+ * Storage shape: `value` is a single flat string[]. Origin (résumé
+ * vs. manual) is derived per-render by intersecting with `suggestions`,
+ * so the parent only manages one array. Suggestions is immutable —
+ * the parent sets it once when the parse lands and the picker never
+ * mutates it.
  */
-function AreasOfExpertisePicker({
-  selected,
-  primaryBackground,
+function SearchAndSuggest({
+  value,
   onChange,
+  suggestions,
+  taxonomy,
+  allowCustom,
+  softCap,
+  searchPlaceholder,
+  recommendedLabel,
+  manualLabel,
 }: {
-  selected: string[];
-  primaryBackground: string;
+  value: string[];
   onChange: (next: string[]) => void;
+  suggestions: string[];
+  taxonomy: readonly string[];
+  allowCustom: boolean;
+  softCap?: number;
+  searchPlaceholder: string;
+  recommendedLabel: string;
+  manualLabel: string;
 }) {
-  // Most-relevant group is pulled to the top; the rest follow in
-  // declaration order. groupForPrimaryBackground returns null for
-  // unknown / empty primaryBackground → ordered groups stays
-  // identical to AREA_GROUPS.
-  const mostRelevantGroup = groupForPrimaryBackground(primaryBackground);
-  const orderedGroups = mostRelevantGroup
-    ? [
-        ...AREA_GROUPS.filter(g => g.group === mostRelevantGroup),
-        ...AREA_GROUPS.filter(g => g.group !== mostRelevantGroup),
-      ]
-    : [...AREA_GROUPS];
+  const [query, setQuery] = useState('');
+  const [highlight, setHighlight] = useState(0);
 
-  const atCap = selected.length >= AREAS_MAX;
-  const toggle = (tag: string) => {
-    if (selected.includes(tag)) onChange(selected.filter(t => t !== tag));
-    else if (!atCap) onChange([...selected, tag]);
-    // else at cap and not selected → no-op (chip is disabled below).
+  // Case-insensitive lookup helpers; derived per render, cheap.
+  const valueLower = new Set(value.map(v => v.toLowerCase()));
+  const suggestionsLower = new Set(suggestions.map(s => s.toLowerCase()));
+  const taxonomyLower = new Set(taxonomy.map(t => t.toLowerCase()));
+
+  // Split current selection by origin so we can render two visually
+  // distinct rows. fromSuggestions preserves the original suggestion
+  // casing (lookup by lowercased value); userAdded is anything else
+  // in `value`.
+  const fromSuggestions = value.filter(v => suggestionsLower.has(v.toLowerCase()));
+  const userAdded = value.filter(v => !suggestionsLower.has(v.toLowerCase()));
+
+  // Search dropdown matches. Limit to 8 so the list stays scannable.
+  const q = query.trim();
+  const qLower = q.toLowerCase();
+  const matches: string[] = q
+    ? taxonomy.filter(t => !valueLower.has(t.toLowerCase()) && t.toLowerCase().includes(qLower)).slice(0, 8)
+    : [];
+  const isExactTaxonomyMatch = q && taxonomyLower.has(qLower);
+  const isAlreadySelected = q && valueLower.has(qLower);
+  const showCustomOption = allowCustom && q.length > 0 && !isExactTaxonomyMatch && !isAlreadySelected;
+  const dropdownOptions: Array<{ kind: 'taxonomy' | 'custom'; label: string }> = [
+    ...matches.map(m => ({ kind: 'taxonomy' as const, label: m })),
+    ...(showCustomOption ? [{ kind: 'custom' as const, label: q }] : []),
+  ];
+  const dropdownOpen = q.length > 0 && dropdownOptions.length > 0;
+
+  const addTag = (tag: string) => {
+    const t = tag.trim();
+    if (!t) return;
+    if (valueLower.has(t.toLowerCase())) return;
+    onChange([...value, t]);
+    setQuery('');
+    setHighlight(0);
   };
+  const remove = (tag: string) => {
+    onChange(value.filter(v => v.toLowerCase() !== tag.toLowerCase()));
+  };
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (dropdownOpen) addTag(dropdownOptions[Math.max(0, Math.min(highlight, dropdownOptions.length - 1))].label);
+      return;
+    }
+    if (e.key === 'ArrowDown') { e.preventDefault(); setHighlight(h => Math.min(h + 1, Math.max(dropdownOptions.length - 1, 0))); return; }
+    if (e.key === 'ArrowUp')   { e.preventDefault(); setHighlight(h => Math.max(h - 1, 0)); return; }
+    if (e.key === 'Escape')    { setQuery(''); setHighlight(0); return; }
+  };
+
+  const past = softCap !== undefined && value.length > softCap;
+  const atOrPast = softCap !== undefined && value.length >= softCap;
 
   return (
     <div>
-      <Label className="text-sm font-semibold text-gray-800">
-        Which areas have you developed meaningful experience in throughout your career? <span className="text-red-500">*</span>
-        <span className="ml-2 text-xs font-normal text-gray-400">Select up to {AREAS_MAX}</span>
-      </Label>
-      <p className="text-xs text-gray-500 mt-1 leading-relaxed">
-        If you've spent your career in Investment Banking, you may select M&amp;A, Capital Markets, Financial Modeling, and Fundraising. If you're in Strategic Finance, you might select Pricing, FP&amp;A, Revenue Strategy, and Board Reporting. Both profiles are equally valuable — the goal is accuracy, not maximizing selections.
-      </p>
+      {/* Recommended row */}
+      {fromSuggestions.length > 0 && (
+        <div className="mb-4">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">{recommendedLabel}</p>
+          <div className="flex flex-wrap gap-2">
+            {fromSuggestions.map(tag => (
+              <span key={tag} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#008037]/12 border border-[#008037]/30 text-[#004a1f] rounded-full text-xs font-semibold">
+                {tag}
+                <button type="button" onClick={() => remove(tag)} aria-label={`Remove ${tag}`} className="hover:text-red-500">
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
 
-      <div className="mt-3 flex items-center gap-2 text-xs">
-        <span className={atCap ? 'font-semibold text-amber-700' : 'text-gray-500'}>
-          {selected.length} of {AREAS_MAX} selected
-        </span>
-        {selected.length > 0 && (
-          <button
-            type="button"
-            onClick={() => onChange([])}
-            className="text-gray-400 hover:text-gray-600 underline"
-          >
-            Clear
-          </button>
+      {/* User-added row */}
+      {userAdded.length > 0 && (
+        <div className="mb-4">
+          {fromSuggestions.length > 0 && (
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">{manualLabel}</p>
+          )}
+          <div className="flex flex-wrap gap-2">
+            {userAdded.map(tag => (
+              <span key={tag} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-full text-xs font-semibold">
+                {tag}
+                <button type="button" onClick={() => remove(tag)} aria-label={`Remove ${tag}`} className="hover:text-red-500">
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Search input with dropdown */}
+      <div className="relative">
+        <Input
+          value={query}
+          onChange={e => { setQuery(e.target.value); setHighlight(0); }}
+          onKeyDown={handleKeyDown}
+          placeholder={searchPlaceholder}
+          className="pr-3"
+        />
+        {dropdownOpen && (
+          <div className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+            {dropdownOptions.map((opt, idx) => (
+              <button
+                key={`${opt.kind}-${opt.label}`}
+                type="button"
+                onMouseEnter={() => setHighlight(idx)}
+                onClick={() => addTag(opt.label)}
+                className={`w-full text-left px-3 py-2 text-sm transition-colors ${
+                  idx === highlight ? 'bg-emerald-50' : 'bg-white'
+                } ${opt.kind === 'custom' ? 'border-t border-gray-100 text-emerald-700 font-semibold' : 'text-gray-800'}`}
+              >
+                {opt.kind === 'custom' ? `+ Add "${opt.label}"` : opt.label}
+              </button>
+            ))}
+          </div>
         )}
       </div>
 
-      <div className="mt-3 space-y-4">
-        {orderedGroups.map((g, idx) => {
-          const isMostRelevant = idx === 0 && mostRelevantGroup === g.group;
-          return (
-            <div key={g.group}>
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-                {g.group}
-                {isMostRelevant && (
-                  <span className="ml-2 text-[10px] font-bold text-emerald-700">MOST RELEVANT FOR YOU</span>
-                )}
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {g.tags.map(tag => {
-                  const isSelected = selected.includes(tag);
-                  const disabled = !isSelected && atCap;
-                  return (
-                    <button
-                      key={tag}
-                      type="button"
-                      onClick={() => toggle(tag)}
-                      disabled={disabled}
-                      className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
-                        isSelected
-                          ? 'bg-emerald-600 border-emerald-600 text-white'
-                          : disabled
-                            ? 'bg-gray-50 border-gray-200 text-gray-300 cursor-not-allowed'
-                            : 'bg-white border-gray-300 text-gray-700 hover:border-emerald-400'
-                      }`}
-                      aria-pressed={isSelected}
-                    >
-                      {tag}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-/**
- * Tools & Technical Skills picker.
- *
- * Two-part affordance over a single string[]:
- *  - Suggested chips grouped by TOOL_GROUPS — clicking adds (or
- *    toggles off if already selected). Same store as the free-text
- *    input below; dedupe is case-insensitive.
- *  - Free-text input for anything not in the suggestions (NetSuite,
- *    SAP, Anaplan, etc.). Press Enter to add. Same store.
- *
- * NO cap (per spec). Persistence: form.skills flows through
- * submit-candidate's upsert loop on create and
- * /api/update-candidate-skills-list on edit — both already dedupe
- * case-insensitively at the server side, so the UI can be modestly
- * forgiving with comparisons.
- */
-function ToolsAndTechnicalSkillsPicker({
-  selected,
-  onChange,
-}: {
-  selected: string[];
-  onChange: (next: string[]) => void;
-}) {
-  const [input, setInput] = useState('');
-
-  const lowerSelected = new Set(selected.map(s => s.toLowerCase()));
-  const isSelected = (tag: string) => lowerSelected.has(tag.toLowerCase());
-
-  const toggle = (tag: string) => {
-    if (isSelected(tag)) {
-      onChange(selected.filter(s => s.toLowerCase() !== tag.toLowerCase()));
-    } else {
-      onChange([...selected, tag]);
-    }
-  };
-
-  const addCustom = () => {
-    const t = input.trim();
-    if (!t) return;
-    if (!isSelected(t)) onChange([...selected, t]);
-    setInput('');
-  };
-
-  const removeOne = (tag: string) => {
-    onChange(selected.filter(s => s !== tag));
-  };
-
-  // Anything in `selected` that's NOT in any suggested group — surface
-  // as "your custom tags" so the candidate can see and remove them
-  // without scrolling through the (potentially long) suggested groups.
-  const suggestedLower = new Set(TOOL_GROUPS.flatMap(g => g.tags.map(t => t.toLowerCase())));
-  const customSelected = selected.filter(s => !suggestedLower.has(s.toLowerCase()));
-
-  return (
-    <div>
-      <Label className="text-sm font-semibold text-gray-800">
-        What tools and technical skills have you used professionally?
-        <span className="ml-2 text-xs font-normal text-gray-400">Select and/or add your own</span>
-      </Label>
-
-      <div className="mt-3 space-y-4">
-        {TOOL_GROUPS.map(g => (
-          <div key={g.group}>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">{g.group}</p>
-            <div className="flex flex-wrap gap-2">
-              {g.tags.map(tag => {
-                const sel = isSelected(tag);
-                return (
-                  <button
-                    key={tag}
-                    type="button"
-                    onClick={() => toggle(tag)}
-                    className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
-                      sel
-                        ? 'bg-emerald-600 border-emerald-600 text-white'
-                        : 'bg-white border-gray-300 text-gray-700 hover:border-emerald-400'
-                    }`}
-                    aria-pressed={sel}
-                  >
-                    {tag}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        ))}
-
-        <div>
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Add your own</p>
-          <div className="flex gap-2">
-            <Input
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCustom(); } }}
-              placeholder="e.g. NetSuite, SAP, Anaplan…"
-              className="flex-1"
-            />
-            <Button type="button" variant="outline" size="sm" onClick={addCustom} disabled={!input.trim()}>
-              <Plus className="w-4 h-4" />
-            </Button>
-          </div>
-          {customSelected.length > 0 && (
-            <div className="flex flex-wrap gap-2 mt-3">
-              {customSelected.map(tag => (
-                <span key={tag} className="inline-flex items-center gap-1 px-3 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-full text-sm">
-                  {tag}
-                  <button type="button" onClick={() => removeOne(tag)} aria-label={`Remove ${tag}`}>
-                    <X className="w-3 h-3 hover:text-red-500" />
-                  </button>
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
+      {/* Soft-cap hint */}
+      {softCap !== undefined && (
+        <p className={`text-xs mt-2 ${past ? 'text-amber-700 font-semibold' : atOrPast ? 'text-amber-600' : 'text-gray-500'}`}>
+          {value.length} of {softCap} selected
+          {past && ' — over the suggested limit, but you can add more'}
+        </p>
+      )}
     </div>
   );
 }
@@ -1745,6 +1715,25 @@ export default function CandidateApply() {
       if (parsed.bio) set('bio', parsed.bio);
       if (Array.isArray(parsed.skills) && parsed.skills.length > 0) set('skills', parsed.skills);
       if (Array.isArray(parsed.sectors) && parsed.sectors.length > 0) set('sectors', parsed.sectors);
+      // Phase 4: record résumé suggestions immutably so the Areas
+      // picker can show them under "Recommended from your résumé",
+      // and seed form.areasOfExpertise from them when it's empty
+      // (the candidate then keeps/removes via X buttons + adds more
+      // via the search). Tools picker uses parsed.skills the same
+      // way — no separate field, same data, two UI roles.
+      const sa = Array.isArray(parsed.suggestedAreas) ? parsed.suggestedAreas.filter((s: unknown) => typeof s === 'string' && (s as string).trim()) : [];
+      const st = Array.isArray(parsed.skills) ? parsed.skills.filter((s: unknown) => typeof s === 'string' && (s as string).trim()) : [];
+      set('suggestedAreas', sa);
+      set('suggestedTools', st);
+      // Seed selection only if the candidate hasn't already curated
+      // a list — never clobber existing chips on a re-parse.
+      if (sa.length > 0 && form.areasOfExpertise.length === 0) {
+        set('areasOfExpertise', sa);
+      }
+      // form.skills was already populated above by the parsed.skills
+      // branch when the previous list was empty — keep that
+      // behavior (initial seed), but if the candidate has already
+      // touched the list, don't overwrite.
     }
     set('resumeParsed', parsed);
   };
@@ -2645,34 +2634,60 @@ export default function CandidateApply() {
                 </div>
               )}
 
-              {/* Phase 2: Areas of Expertise picker — the new
-                  controlled-taxonomy field (replaces the legacy
-                  background-scoped detailedExperience grid). Available
-                  whenever primary_background is set; the picker uses
-                  primary_background only for ORDERING (most-relevant
-                  group first), not scoping — every taxonomy tag is
-                  always selectable. */}
-              {form.primaryBackground && (
-                <AreasOfExpertisePicker
-                  selected={form.areasOfExpertise}
-                  primaryBackground={form.primaryBackground}
-                  onChange={v => set('areasOfExpertise', v)}
-                />
-              )}
+              {/* Phase 4: Areas of Expertise — search-and-suggest
+                  picker (replaces the Phase 2 pill grid). Seeded from
+                  the résumé parse on Tab 2 (résumé tab); candidates
+                  refine here. Soft cap 10 is UI guidance only;
+                  server hard limit is 25. Taxonomy comes from
+                  src/lib/areasOfExpertise.ts. */}
+              <div>
+                <Label className="text-sm font-semibold text-gray-800">
+                  What areas have you developed meaningful experience in throughout your career? <span className="text-red-500">*</span>
+                </Label>
+                <p className="text-xs text-gray-500 mt-1 leading-relaxed">
+                  Select up to 10. We suggested these from your résumé — choose only what feels accurate.
+                </p>
+                <div className="mt-3">
+                  <SearchAndSuggest
+                    value={form.areasOfExpertise}
+                    onChange={v => set('areasOfExpertise', v)}
+                    suggestions={form.suggestedAreas}
+                    taxonomy={ALL_AREA_TAGS}
+                    allowCustom={true}
+                    softCap={AREAS_MAX}
+                    searchPlaceholder="Search pricing, treasury, board reporting…"
+                    recommendedLabel="Recommended from your résumé"
+                    manualLabel="Your selections"
+                  />
+                </div>
+              </div>
 
-              {/* Phase 2: Tools & Technical Skills picker — the same
-                  candidate_skills store the Review-tab SkillsInput
-                  writes to; both surfaces edit form.skills, so adding
-                  here is additive (the Review SkillsInput still
-                  works as a final-pass adjuster). No cap; suggested
-                  grouped tags + free-text custom tags. Skills are
-                  persisted via submit-candidate's upsert loop on
-                  create, and via /api/update-candidate-skills-list
-                  on edit. */}
-              <ToolsAndTechnicalSkillsPicker
-                selected={form.skills}
-                onChange={v => set('skills', v)}
-              />
+              {/* Phase 4: Tools & Technical Skills — same component,
+                  no cap, tools taxonomy. The "Pro tip" is prominent
+                  per spec to steer candidates toward hard tools/systems
+                  rather than functional concepts (which belong in
+                  Areas above). Writes form.skills — same store as
+                  the Review-tab SkillsInput. */}
+              <div>
+                <Label className="text-sm font-semibold text-gray-800">
+                  What tools and technical skills have you used professionally?
+                </Label>
+                <div className="mt-2 p-3 rounded-lg border border-emerald-200 bg-emerald-50 text-xs text-emerald-900 leading-relaxed">
+                  <span className="font-semibold">Pro tip:</span> Focus on hard tools and systems you've used — e.g. NetSuite, SQL, Tableau, HubSpot, Anaplan.
+                </div>
+                <div className="mt-3">
+                  <SearchAndSuggest
+                    value={form.skills}
+                    onChange={v => set('skills', v)}
+                    suggestions={form.suggestedTools}
+                    taxonomy={ALL_TOOL_TAGS}
+                    allowCustom={true}
+                    searchPlaceholder="Search Excel, NetSuite, Looker, Mixpanel…"
+                    recommendedLabel="Recommended from your résumé"
+                    manualLabel="Your selections"
+                  />
+                </div>
+              </div>
 
               <div>
                 <Label>Years of full-time professional experience? <span className="text-red-500">*</span></Label>

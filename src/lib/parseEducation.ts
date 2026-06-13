@@ -47,14 +47,69 @@ const DEGREE_PATTERNS: Array<{ pattern: RegExp; canonical: string }> = [
   { pattern: /^(Associate(?:'s)?)\b/i,                      canonical: 'Associate' },
 ];
 
-// Split the full education string into degree-level entries. The
-// recognized separators are ";", newline, and " and " — comma is
-// NOT used at this level because a single "Degree, Specialization"
-// line uses comma between its two halves, and confusing the two
-// would split a single entry into two bad ones.
+// Degree-prefix splitter. Recognizes a known degree abbreviation
+// occurring anywhere in the string and treats each occurrence as
+// the start of a new entry. This is what lets us split
+// "MBA Finance, BS Financial Economics" into TWO entries — the
+// comma alone is ambiguous (it's also used WITHIN a single
+// "Degree, Specialization" entry), so we use the next degree
+// prefix as the boundary instead.
+//
+// The trailing lookahead `(?=[\s.,;]|$)` accepts a trailing period
+// or punctuation without consuming it, so "B.S." and "B.Sc." both
+// match cleanly even though `\b` doesn't naturally land after the
+// dot.
+const DEGREE_PREFIX_RE = /\b(?:MBA|Ph\.?\s*D|Doctorate|J\.?\s*D|B\.?\s*Sc|B\.?\s*S|M\.?\s*Sc|M\.?\s*S|B\.?\s*A|M\.?\s*A|Bachelor(?:'s)?|Master(?:'s)?|Associate(?:'s)?)(?=[\s.,;]|$)/gi;
+
+function splitOnDegreePrefixes(chunk: string): string[] {
+  const text = chunk;
+  const positions: number[] = [];
+  let m: RegExpExecArray | null;
+  // Reset the regex's lastIndex by constructing a fresh instance
+  // each call so concurrent splits don't interfere.
+  const re = new RegExp(DEGREE_PREFIX_RE.source, 'gi');
+  while ((m = re.exec(text)) !== null) {
+    positions.push(m.index);
+    // Guard against zero-length matches (none expected, but safe).
+    if (m.index === re.lastIndex) re.lastIndex++;
+  }
+  if (positions.length === 0) return [text];
+  const out: string[] = [];
+  // Any leading content before the first match (e.g. "I have ")
+  // survives as its own entry so we never silently drop typed
+  // content.
+  if (positions[0] > 0) {
+    const pre = text.slice(0, positions[0]).replace(/[\s,;]+$|\sand$/gi, '').trim();
+    if (pre) out.push(pre);
+  }
+  for (let i = 0; i < positions.length; i++) {
+    const start = positions[i];
+    const end = i + 1 < positions.length ? positions[i + 1] : text.length;
+    // Trim the trailing comma/space/and that separates this entry
+    // from the next; the next entry starts at its degree prefix.
+    const slice = text.slice(start, end).replace(/[\s,;]+$|\sand$/gi, '').trim();
+    if (slice) out.push(slice);
+  }
+  return out;
+}
+
+// Split the full education string into degree-level entries.
+//
+// Two-pass split:
+//   1. Pre-split on explicit separators (";", newline, " and ").
+//   2. Within each chunk, run splitOnDegreePrefixes so a comma-
+//      separated list of degrees ("MBA Finance, BS Financial
+//      Economics") is split at each degree-prefix boundary.
+//
+// Comma is intentionally NOT a top-level separator — a single
+// "Degree, Specialization" entry uses comma between its two
+// halves, and treating comma as an entry boundary at the outer
+// level would break that. The degree-prefix scanner handles the
+// case where two distinct degrees are separated by a comma.
 function splitEntries(education: string): string[] {
   return education
     .split(/\s*(?:;|\n|\sand\s)\s*/i)
+    .flatMap(splitOnDegreePrefixes)
     .map(s => s.trim())
     .filter(Boolean);
 }

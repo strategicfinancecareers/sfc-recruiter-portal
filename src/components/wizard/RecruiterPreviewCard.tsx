@@ -285,7 +285,7 @@ export default function RecruiterPreviewCard({ form, step, isEditMode, readOnly,
                 aria-label="What recruiters see"
                 className="inline-flex items-center gap-1 text-[11px] font-medium text-[#004a1f] bg-[#008037]/8 border border-[#008037]/25 rounded-full px-2 py-0.5 hover:bg-[#008037]/12 transition-colors"
               >
-                This is how recruiters see your profile
+                Anonymous
                 <Info className="w-3 h-3" />
               </button>
             </PopoverTrigger>

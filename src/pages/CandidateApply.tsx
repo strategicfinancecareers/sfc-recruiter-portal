@@ -146,8 +146,13 @@ const NEW_AREAS = [
   'Fund finance / portfolio finance',
 ];
 
-// Company-stage experience (which company stages the candidate has
-// worked at). Multi-select → candidates.target_company_stages[].
+// Target company stages — PREFERENCE list (which stages the candidate
+// wants to work at next). Multi-select → candidates.target_company_stages[].
+// The picker that uses this constant lives on the Preferences step;
+// see COMPANY_STAGE_EXPERIENCE_OPTIONS below for the parallel
+// EXPERIENCE list (where they've actually worked), which lives on
+// the Experience step and writes the separate
+// candidates.company_stage_experience column.
 const COMPANY_STAGES = [
   'Pre-seed / Seed',
   'Series A',
@@ -159,6 +164,23 @@ const COMPANY_STAGES = [
   'PE-backed',
   'Bootstrapped / Founder-owned',
   'Government / Non-profit',
+];
+
+// Phase: company-stage EXPERIENCE — what the candidate has actually
+// worked at, distinct from `COMPANY_STAGES` above which currently
+// drives target_company_stages (a preference). The new field
+// company_stage_experience uses this shorter taxonomy (7 entries)
+// chosen by the product spec. Stored on form.companyStageExperience
+// and written to candidates.company_stage_experience[] on submit +
+// edit-save.
+const COMPANY_STAGE_EXPERIENCE_OPTIONS = [
+  'Pre-seed / Seed',
+  'Series A',
+  'Series B',
+  'Series C+',
+  'PE-backed',
+  'Public company (small-mid cap)',
+  'Public company (large cap / Fortune 500)',
 ];
 
 const PREFERRED_CITIES = [
@@ -256,6 +278,11 @@ interface FormState {
   industries: string[];            // moved from old Step 4; → candidates.industries[]
   industriesOther: string;         // free text when 'Other' is in industries[]
   companyStages: string[];         // NEW → candidates.target_company_stages[]
+  // What stages the candidate has WORKED at (experience), distinct
+  // from companyStages above which captures the stages they WANT to
+  // work at next. Optional — no validator gate. Persists to the
+  // new candidates.company_stage_experience text[] column.
+  companyStageExperience: string[];
   newAreas: string[];              // NEW → candidates.new_areas[]
 
   // Tab 3 — Resume Upload (resume only)
@@ -294,7 +321,7 @@ const INITIAL_FORM: FormState = {
   // Tab 2
   primaryBackground: '', secondaryBackgrounds: [], detailedExperience: [], areasOfExpertise: [], suggestedAreas: [], suggestedTools: [], experience: '',
   industries: [], industriesOther: '',
-  companyStages: [], newAreas: [],
+  companyStages: [], companyStageExperience: [], newAreas: [],
   // Tab 3
   resumeFile: null, resumeBase64: '', resumeParsed: null, parseWarning: false,
   currentRole: '', location: '', yearsExperience: '', education: '',
@@ -1335,6 +1362,7 @@ export default function CandidateApply() {
           industries: Array.isArray(c.industries) ? c.industries : [],
           industriesOther: c.industries_other || '',
           companyStages: Array.isArray(c.target_company_stages) ? c.target_company_stages : [],
+          companyStageExperience: Array.isArray((c as any).company_stage_experience) ? (c as any).company_stage_experience : [],
           newAreas: Array.isArray(c.new_areas) ? c.new_areas : [],
 
           // Resume file slots stay empty in edit mode — the existing
@@ -1537,6 +1565,7 @@ export default function CandidateApply() {
         industries: form.industries,
         industries_other: form.industriesOther || null,
         target_company_stages: form.companyStages,
+        company_stage_experience: form.companyStageExperience,
         new_areas: form.newAreas,
         // Tab 3 (resume itself read-only; parsed-resume side effects editable)
         label: form.currentRole || null,
@@ -1930,6 +1959,7 @@ export default function CandidateApply() {
           industries: form.industries,
           industriesOther: form.industriesOther || null,
           companyStages: form.companyStages,
+          companyStageExperience: form.companyStageExperience,
           newAreas: form.newAreas,
           primaryBackground: form.primaryBackground,
           secondaryBackgrounds: form.secondaryBackgrounds,
@@ -2849,12 +2879,26 @@ export default function CandidateApply() {
                   ]} />
               </div>
 
+              {/* company_stage_experience — stages the candidate has
+                  WORKED at. The legacy "Company-stage experience"
+                  picker that used to live here actually wrote to
+                  target_company_stages (a PREFERENCE, not experience)
+                  — it was mislabeled. That picker has moved to the
+                  Preferences step (step 4) and been relabeled "What
+                  company stages are you targeting?" The new picker
+                  below is the real experience field, writing to the
+                  new candidates.company_stage_experience column.
+                  Optional, no validator gate. */}
               <div>
                 <Label className="text-sm font-semibold text-gray-800">
-                  Company-stage experience
-                  <span className="ml-2 text-xs font-normal text-gray-400">Select all you've worked at</span>
+                  What company stages have you worked at?
                 </Label>
-                <ChipGrid options={COMPANY_STAGES} selected={form.companyStages} onChange={v => set('companyStages', v)} />
+                <p className="text-xs text-gray-400 mt-0.5">Select all that apply.</p>
+                <ChipGrid
+                  options={COMPANY_STAGE_EXPERIENCE_OPTIONS}
+                  selected={form.companyStageExperience}
+                  onChange={v => set('companyStageExperience', v)}
+                />
               </div>
 
               <div>
@@ -3081,20 +3125,14 @@ export default function CandidateApply() {
                     />
                   </div>
 
-                  <div>
-                    <Label>Skills</Label>
-                    {/* Editable in both create AND edit mode. On Save
-                        Changes in edit mode, the wizard PATCHes profile
-                        fields via /api/candidate-profile (whitelist
-                        still excludes `skills` because candidates has
-                        no skills column) AND posts the skill set to
-                        /api/update-candidate-skills-list, which writes
-                        the candidate_skills join table. Recruiter
-                        cards read that same join via useCandidates, so
-                        the edits propagate to /browse. */}
-                    <p className="text-xs text-gray-400 mt-0.5">Press Enter to add each skill</p>
-                    <SkillsInput skills={form.skills} onChange={v => set('skills', v)} />
-                  </div>
+                  {/* Skills input was removed from this step-2 editor:
+                      form.skills is now owned exclusively by the
+                      Experience step's search-and-suggest picker
+                      (Phase 4 / 1.5). The résumé parse still seeds
+                      form.suggestedTools via applyParsed; nothing
+                      writes form.skills here. The Experience picker
+                      remains the single edit surface so we don't
+                      duplicate the input or split state. */}
                 </div>
                 {/* End editable parsed-details block */}
               </>
@@ -3169,6 +3207,24 @@ export default function CandidateApply() {
                     );
                   })}
                 </div>
+              </div>
+
+              {/* Target company stages — preference, NOT experience.
+                  Moved here from step 3 in the Phase 1.7 dedup pass:
+                  it was previously labeled "Company-stage experience"
+                  on the Experience step but its storage
+                  (target_company_stages) is a preference signal. Now
+                  sits alongside the other preference pickers (comp,
+                  work mode, cities, target roles) with copy that
+                  matches what the column actually represents.
+                  form.companyStages → target_company_stages wiring is
+                  unchanged. Optional — no validator gate. */}
+              <div>
+                <Label>What company stages are you targeting?
+                  <span className="ml-2 text-xs font-normal text-gray-400">Select all that interest you</span>
+                </Label>
+                <ChipGrid options={COMPANY_STAGES} selected={form.companyStages}
+                  onChange={v => set('companyStages', v)} />
               </div>
 
               <div>

@@ -90,7 +90,13 @@ const CANDIDATE_GET_COLUMNS = [
   'profile_description', 'open_to_opportunities',
   'work_preference', 'work_preferences',
   'target_salary', 'preferred_cities', 'preferred_cities_other',
-  'target_roles', 'target_company_stages', 'industries', 'industries_other',
+  'target_roles', 'target_company_stages',
+  // Stages the candidate has WORKED at (experience). Distinct from
+  // target_company_stages (preference). Added with the
+  // company_stage_experience column migration; recruiter card surfaces
+  // it as its own chip row.
+  'company_stage_experience',
+  'industries', 'industries_other',
   'new_areas', 'linkedin_url', 'resume_full_url',
   'work_authorized_us', 'requires_sponsorship',
   'status',
@@ -292,6 +298,14 @@ export default async function handler(req, res) {
         'industries',
         'industries_other',
         'target_company_stages',
+        // Stages the candidate has WORKED at — paired with the new
+        // candidates.company_stage_experience text[] column. Optional
+        // field; the wizard writes [] to clear. Validation is shape-
+        // only (must be an array of strings) — the form picker
+        // supplies values from a fixed taxonomy but the column will
+        // accept any string array so the picker can evolve without a
+        // migration.
+        'company_stage_experience',
         'new_areas',
         'work_authorized_us',
         'requires_sponsorship',

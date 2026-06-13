@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
-import { Eye, MapPin, Briefcase, GraduationCap, Sparkles, ShieldCheck, CheckCircle2, Pencil } from 'lucide-react';
+import { MapPin, Briefcase, GraduationCap, Sparkles, ShieldCheck, CheckCircle2, Pencil, Info } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 // RecruiterPreviewCard — the live "what recruiters will see" surface
 // rendered in the wizard's right rail (lg+), inside a mobile Sheet
@@ -43,6 +44,9 @@ export interface PreviewFormShape {
   skills: string[];
   // Industries the candidate has worked in (collected on step 3).
   industries: string[];
+  // Stages the candidate has WORKED at (collected on step 3, paired
+  // with the new candidates.company_stage_experience column).
+  companyStageExperience: string[];
   // Job-pref signals shown on the preview
   jobSearchStatus: string;
   workPreferences: string[];
@@ -226,6 +230,7 @@ export default function RecruiterPreviewCard({ form, step, isEditMode, readOnly,
   const skills = form.skills.filter(Boolean);
   const secondaries = form.secondaryBackgrounds.filter(Boolean);
   const industries = (form.industries || []).filter(Boolean);
+  const companyStageExp = (form.companyStageExperience || []).filter(Boolean);
   const workPrefs = form.workPreferences.filter(Boolean);
 
   // Availability indicator — three tiers now that "Passively Looking"
@@ -264,10 +269,35 @@ export default function RecruiterPreviewCard({ form, step, isEditMode, readOnly,
       <div className="px-5 pt-5 pb-4 border-b border-gray-100">
         <div className="flex items-center justify-between gap-3">
           <h3 className="text-sm font-semibold text-gray-900 tracking-tight">Recruiter Preview</h3>
-          <span className="inline-flex items-center gap-1 text-[11px] font-medium text-[#004a1f] bg-[#008037]/8 border border-[#008037]/25 rounded-full px-2 py-0.5">
-            <Eye className="w-3 h-3" />
-            Visible anonymously
-          </span>
+          {/* Reworded privacy affordance: states what the preview is
+              ("how recruiters see your profile") with a small info
+              button that opens a Popover explaining the anonymity +
+              hand-off-on-accept contract in full. Uses the project's
+              existing Radix-based Popover primitive — no new
+              dependency added. Brand-green tokens for parity with
+              the rest of the card. */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                aria-label="What recruiters see"
+                className="inline-flex items-center gap-1 text-[11px] font-medium text-[#004a1f] bg-[#008037]/8 border border-[#008037]/25 rounded-full px-2 py-0.5 hover:bg-[#008037]/12 transition-colors"
+              >
+                This is how recruiters see your profile
+                <Info className="w-3 h-3" />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent
+              align="end"
+              sideOffset={6}
+              className="w-72 text-xs leading-relaxed text-gray-700 border-[#008037]/25"
+            >
+              <p className="font-semibold text-[#004a1f] mb-1.5">What recruiters see</p>
+              <p>
+                Recruiters only see this anonymized profile. Your name, email, phone, and résumé stay hidden until you accept an introduction — then the recruiter receives your résumé and contact details.
+              </p>
+            </PopoverContent>
+          </Popover>
         </div>
 
         <div className="mt-4">
@@ -478,6 +508,30 @@ export default function RecruiterPreviewCard({ form, step, isEditMode, readOnly,
                   {industries.map(i => (
                     <span key={i} className="px-2.5 py-1 bg-gray-100 border border-gray-200 text-gray-700 rounded-full text-[11px] font-medium">
                       {i}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Company Stage Experience — stages the candidate has
+                worked at. Optional field (no validator gate).
+                Neutral chips like Industries; pencil routes back to
+                step 3 where the picker lives. */}
+            {companyStageExp.length > 0 && (
+              <div>
+                <SectionLabel
+                  step={STEP_EXPERIENCE}
+                  readOnly={readOnly}
+                  onEdit={onEditSection}
+                  ariaLabel="Edit company stage experience"
+                >
+                  Company Stage Experience
+                </SectionLabel>
+                <div className="flex flex-wrap gap-1.5">
+                  {companyStageExp.map(s => (
+                    <span key={s} className="px-2.5 py-1 bg-gray-100 border border-gray-200 text-gray-700 rounded-full text-[11px] font-medium">
+                      {s}
                     </span>
                   ))}
                 </div>

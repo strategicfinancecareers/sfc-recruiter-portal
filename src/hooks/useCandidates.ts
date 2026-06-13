@@ -41,6 +41,11 @@ export interface Candidate {
   // a chip row alongside Areas of Expertise / Technical Skills —
   // recruiter-safe (it's profile-shape metadata, not PII).
   industries?: string[] | null;
+  // Company stages the candidate has WORKED at (experience). Paired
+  // with the candidates.company_stage_experience column added in the
+  // 20260612 migration. Recruiter-safe; rendered on the card as a
+  // neutral chip row near Industries.
+  company_stage_experience?: string[] | null;
   is_favorite?: boolean; // Computed in the hook from user_favorites — not selected.
   // SFC Take (Batch 2) — recruiters see these ONLY when sfc_take_published_at is non-null.
   // Filter happens at render time, not in the SELECT, so the hook can stay shared with admin views.
@@ -82,6 +87,7 @@ const RECRUITER_COLUMNS = [
   'areas_of_expertise',
   'detailed_experience',
   'industries',
+  'company_stage_experience',
   'sfc_take',
   'sfc_take_published_at',
   'sfc_role_fit',

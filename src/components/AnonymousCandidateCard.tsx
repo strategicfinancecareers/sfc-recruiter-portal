@@ -55,6 +55,11 @@ export interface AnonymousCandidateCardData {
   // between Areas of Expertise and Technical Skills (Phase 1.6
   // addition). Recruiter-safe — it's profile-shape metadata.
   industries?: string[] | null;
+  // Company stages the candidate has WORKED at (experience). Paired
+  // with the candidates.company_stage_experience column. Surfaced
+  // as a chip row alongside Industries. Recruiter-safe — same
+  // profile-shape metadata category.
+  company_stage_experience?: string[] | null;
 }
 
 interface RecruiterModeProps {
@@ -216,6 +221,23 @@ export default function AnonymousCandidateCard(props: Props) {
             <div className="flex flex-wrap gap-1.5">
               {c.industries.filter(Boolean).map(i => (
                 <span key={i} className="px-2.5 py-1 bg-gray-100 border border-gray-200 text-gray-700 rounded-full text-xs font-medium">{i}</span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Company Stage Experience — stages the candidate has
+            worked at. Distinct from any future "stages they want to
+            work at" surface. Neutral chip treatment so it reads as
+            profile context rather than competing with Areas of
+            Expertise (the brand-green primary matching signal).
+            Additive only — no other change to the recruiter card. */}
+        {Array.isArray(c.company_stage_experience) && c.company_stage_experience.filter(Boolean).length > 0 && (
+          <div>
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Company Stage Experience</h3>
+            <div className="flex flex-wrap gap-1.5">
+              {c.company_stage_experience.filter(Boolean).map(s => (
+                <span key={s} className="px-2.5 py-1 bg-gray-100 border border-gray-200 text-gray-700 rounded-full text-xs font-medium">{s}</span>
               ))}
             </div>
           </div>

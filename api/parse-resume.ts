@@ -11,6 +11,12 @@ const EMPTY_PARSE = {
   skills: [],
   bio: '',
   sectors: [],
+  // Phase 4 of the skills redesign: résumé-driven Areas of Expertise
+  // suggestions. The client seeds form.areasOfExpertise from this
+  // when empty, and shows the same set under "Recommended from your
+  // résumé". Tools suggestions reuse the existing `skills` field —
+  // same data, two UI roles, no payload duplication.
+  suggestedAreas: [],
 };
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -34,8 +40,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         model: 'claude-sonnet-4-6',
         max_tokens: 1500,
         system: `You are a resume parser for a finance recruiting platform. Extract information and return ONLY valid JSON with no markdown, no backticks, no explanation. Return exactly this structure:
-{"currentRole":"most recent job title","currentCompany":"most recent company name","location":"city, state only","yearsExperience":5,"education":"degree type and field only, no school name e.g. BS Economics","educationLevel":"Bachelors","skills":["Financial Modeling","Excel","SQL"],"bio":"2-3 sentence professional summary in third person. No names, no company names, no school names. Focus on experience level and skills only.","sectors":["Fintech","Consumer"]}
+{"currentRole":"most recent job title","currentCompany":"most recent company name","location":"city, state only","yearsExperience":5,"education":"degree type and field only, no school name e.g. BS Economics","educationLevel":"Bachelors","skills":["Excel","SQL","Tableau"],"bio":"2-3 sentence professional summary in third person. No names, no company names, no school names. Focus on experience level and skills only.","sectors":["Fintech","Consumer"],"suggestedAreas":["M&A","Financial Modeling","Fundraising","Capital Markets","Investor Relations"]}
 educationLevel must be one of: Bachelors, Masters, MBA, PhD, Other
+skills = concrete tools and technical skills the candidate has used (Excel, SQL, Tableau, NetSuite, HubSpot, ChatGPT, Anaplan, etc.) — NOT functional areas. Up to ~10 entries.
+suggestedAreas = functional finance Areas of Expertise the candidate has meaningfully worked in (M&A, FP&A, Capital Markets, Pricing & Packaging, Treasury, Strategic Planning, Investor Relations, Corporate Development, Financial Modeling, etc.) — the strategic/conceptual side, distinct from tools. Up to ~10 entries; prefer commonly-used finance terminology.
 Return ONLY the JSON object, nothing else.`,
         messages: [{
           role: 'user',
@@ -102,6 +110,9 @@ Return ONLY the JSON object, nothing else.`,
       skills: Array.isArray(parsed.skills) ? parsed.skills : [],
       bio: parsed.bio || '',
       sectors: Array.isArray(parsed.sectors) ? parsed.sectors : [],
+      // Phase 4: Areas of Expertise suggestions seeded into the
+      // wizard's search-and-suggest picker on Tab 3.
+      suggestedAreas: Array.isArray(parsed.suggestedAreas) ? parsed.suggestedAreas : [],
     });
 
   } catch (error: any) {

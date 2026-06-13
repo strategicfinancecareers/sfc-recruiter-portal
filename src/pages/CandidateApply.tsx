@@ -48,6 +48,7 @@ import RecruiterPreviewCard, { profileCompletion } from '@/components/wizard/Rec
 // etc.).
 import { ALL_AREA_TAGS, AREAS_MAX } from '@/lib/areasOfExpertise';
 import { ALL_TOOL_TAGS } from '@/lib/toolsAndTechnicalSkills';
+import { parseDegrees, joinDegrees, type DegreeRow } from '@/lib/parseEducation';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -414,6 +415,127 @@ function CheckboxGrid({ options, selected, onChange }: {
           {opt}
         </label>
       ))}
+    </div>
+  );
+}
+
+// ─── Education editor (per-degree rows over the single form.education string) ──
+//
+// Phase 2a clarity fix: the previous single-input "Education (degree
+// + field)" made two degrees look like a text glitch (e.g.
+// "MBA Finance; BS Financial Economics" came through as one long
+// blob). We now render one row per degree with the degree + the
+// specialization split into two visible inputs, plus an "+ Add
+// another degree" button and per-row remove.
+//
+// CRITICAL: the underlying FormState.education stays a SINGLE STRING.
+// This component is a UI representation over that string — we parse
+// it on hydrate (so prefilled data shows as structured rows), and on
+// every edit we join the rows back into the same
+// "Degree Specialization; Degree Specialization" format the storage
+// already expects. Submit / edit-save / dual-write flow are entirely
+// unchanged.
+//
+// Local row state lives here (not on FormState) so the user can keep
+// an empty "second degree" row open without it polluting
+// form.education. When the user types into the row we join + push;
+// when form.education changes externally (résumé parse, edit
+// prefill), the effect below reparses to refresh the rows.
+function EducationRowsEditor({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (next: string) => void;
+}) {
+  const initialRows = useMemo(() => {
+    const parsed = parseDegrees(value);
+    // Always keep at least one row visible so the editor never
+    // renders empty.
+    return parsed.length > 0 ? parsed : [{ degree: '', specialization: '' }];
+  }, []);  // eslint-disable-line react-hooks/exhaustive-deps
+  const [rows, setRows] = useState<DegreeRow[]>(initialRows);
+  // Track the string we last wrote so a self-induced value change
+  // doesn't reparse and clobber the empty trailing row.
+  const lastEmittedRef = useRef<string>(joinDegrees(initialRows));
+
+  // External value sync: when a résumé parse / edit prefill / page
+  // mount feeds in a new `value` that DIDN'T come from this
+  // editor's own onChange, reparse to refresh the rows.
+  useEffect(() => {
+    if (value === lastEmittedRef.current) return;
+    const parsed = parseDegrees(value);
+    setRows(parsed.length > 0 ? parsed : [{ degree: '', specialization: '' }]);
+    lastEmittedRef.current = value;
+  }, [value]);
+
+  const commit = (next: DegreeRow[]) => {
+    setRows(next);
+    const joined = joinDegrees(next);
+    lastEmittedRef.current = joined;
+    onChange(joined);
+  };
+  const updateRow = (i: number, patch: Partial<DegreeRow>) => {
+    commit(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+  };
+  const addRow = () => {
+    // Don't commit yet — an empty row contributes nothing to the
+    // joined string. The first keystroke in the new row triggers
+    // commit, which is when form.education actually grows.
+    setRows([...rows, { degree: '', specialization: '' }]);
+  };
+  const removeRow = (i: number) => {
+    const next = rows.filter((_, j) => j !== i);
+    // Guarantee at least one row stays visible.
+    commit(next.length > 0 ? next : [{ degree: '', specialization: '' }]);
+  };
+
+  return (
+    <div className="space-y-3">
+      {rows.map((row, i) => (
+        <div key={i} className="flex items-end gap-2">
+          <div className="flex-1 min-w-0">
+            {i === 0 && (
+              <Label className="text-xs font-medium text-gray-500">Degree</Label>
+            )}
+            <Input
+              value={row.degree}
+              onChange={e => updateRow(i, { degree: e.target.value })}
+              placeholder="e.g. MBA"
+              className={i === 0 ? 'mt-1' : ''}
+            />
+          </div>
+          <div className="flex-[2] min-w-0">
+            {i === 0 && (
+              <Label className="text-xs font-medium text-gray-500">Specialization</Label>
+            )}
+            <Input
+              value={row.specialization}
+              onChange={e => updateRow(i, { specialization: e.target.value })}
+              placeholder="e.g. Finance"
+              className={i === 0 ? 'mt-1' : ''}
+            />
+          </div>
+          {rows.length > 1 && (
+            <button
+              type="button"
+              onClick={() => removeRow(i)}
+              aria-label={`Remove degree ${i + 1}`}
+              className="shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-md text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+      ))}
+      <button
+        type="button"
+        onClick={addRow}
+        className="inline-flex items-center gap-1 text-xs font-medium text-[#006a2d] hover:text-[#004a1f] mt-1"
+      >
+        <Plus className="w-3.5 h-3.5" />
+        Add another degree
+      </button>
     </div>
   );
 }
@@ -3091,12 +3213,14 @@ export default function CandidateApply() {
                   </div>
 
                   <div>
-                    <Label>Education (degree + field)</Label>
-                    <Input value={form.education} onChange={e => set('education', e.target.value)}
-                      placeholder="e.g. MBA Finance; BS Financial Economics" className="mt-2" />
-                    <p className="text-xs text-gray-400 mt-1">
-                      Include each degree on its own — both will show on your recruiter card.
+                    <Label>Education</Label>
+                    <p className="text-xs text-gray-400 mt-0.5 mb-2">
+                      One row per degree. Add another to include both — both will show on your recruiter card.
                     </p>
+                    <EducationRowsEditor
+                      value={form.education}
+                      onChange={next => set('education', next)}
+                    />
                   </div>
 
                   <div>

@@ -34,8 +34,9 @@ export interface PreviewFormShape {
   // Skills surfaces
   areasOfExpertise: string[];
   skills: string[];
-  // Job-pref signal
+  // Job-pref signals shown on the preview
   jobSearchStatus: string;
+  workPreferences: string[];
   // Auth / gates surfaced for completion %
   firstName: string;
   lastName: string;
@@ -162,7 +163,20 @@ export default function RecruiterPreviewCard({ form, step, isEditMode }: Props) 
   const areas = form.areasOfExpertise.filter(Boolean);
   const skills = form.skills.filter(Boolean);
   const secondaries = form.secondaryBackgrounds.filter(Boolean);
-  const openToOpps = form.jobSearchStatus === 'Actively Looking';
+  const workPrefs = form.workPreferences.filter(Boolean);
+
+  // Availability indicator — three tiers now that "Passively Looking"
+  // is supported on the form. Recruiters still see "open" for both
+  // Actively and Passively (the DB bool stays the same), but the
+  // preview surfaces the candidate's chosen nuance so they can see
+  // exactly how their selection lands. "Not Active" hides the
+  // indicator entirely — same as the previous behavior.
+  const availability: { tone: 'strong' | 'soft'; label: string } | null =
+    form.jobSearchStatus === 'Actively Looking'
+      ? { tone: 'strong', label: 'Open to opportunities' }
+      : form.jobSearchStatus === 'Passively Looking'
+        ? { tone: 'soft', label: 'Open to the right opportunity' }
+        : null;
 
   // Empty state for early-step previews. Auto-removes once
   // completion crosses 30% (~ end of step 1 + a resume parse).
@@ -233,11 +247,18 @@ export default function RecruiterPreviewCard({ form, step, isEditMode }: Props) 
                 </div>
               </div>
 
-              {openToOpps && (
-                <span className="mt-3 inline-flex items-center gap-1 text-[11px] font-semibold text-[#004a1f] bg-[#008037]/12 border border-[#008037]/30 rounded-full px-2 py-0.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#008037]" />
-                  Open to opportunities
-                </span>
+              {availability && (
+                availability.tone === 'strong' ? (
+                  <span className="mt-3 inline-flex items-center gap-1 text-[11px] font-semibold text-[#004a1f] bg-[#008037]/12 border border-[#008037]/30 rounded-full px-2 py-0.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#008037]" />
+                    {availability.label}
+                  </span>
+                ) : (
+                  <span className="mt-3 inline-flex items-center gap-1 text-[11px] font-medium text-[#005a26] bg-[#008037]/5 border border-[#008037]/20 rounded-full px-2 py-0.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#008037]/50" />
+                    {availability.label}
+                  </span>
+                )
               )}
             </div>
 
@@ -251,16 +272,27 @@ export default function RecruiterPreviewCard({ form, step, isEditMode }: Props) 
               </div>
             )}
 
-            {/* Background chips */}
-            {(form.primaryBackground || secondaries.length > 0) && (
+            {/* Primary Background — the headline experience category.
+                Solid gray-900 chip mirrors how the wizard radio renders
+                the candidate's primary selection. */}
+            {form.primaryBackground && (
               <div>
-                <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-2">Background</p>
+                <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-2">Primary Background</p>
                 <div className="flex flex-wrap gap-1.5">
-                  {form.primaryBackground && (
-                    <span className="px-2.5 py-1 bg-gray-900 text-white rounded-full text-[11px] font-medium">
-                      {form.primaryBackground}
-                    </span>
-                  )}
+                  <span className="px-2.5 py-1 bg-gray-900 text-white rounded-full text-[11px] font-medium">
+                    {form.primaryBackground}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Additional Experience — secondary backgrounds rendered
+                as neutral chips so they read as "also has done" rather
+                than competing visually with the primary signal. */}
+            {secondaries.length > 0 && (
+              <div>
+                <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-2">Additional Experience</p>
+                <div className="flex flex-wrap gap-1.5">
                   {secondaries.map(s => (
                     <span key={s} className="px-2.5 py-1 bg-gray-100 border border-gray-200 text-gray-700 rounded-full text-[11px] font-medium">
                       {s}
@@ -294,6 +326,25 @@ export default function RecruiterPreviewCard({ form, step, isEditMode }: Props) 
                   {skills.map(s => (
                     <span key={s} className="px-2.5 py-1 bg-[#008037]/5 border border-[#008037]/25 text-[#005a26] rounded-full text-[11px] font-medium">
                       {s}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Work Preference — Remote / Hybrid / Onsite chips from
+                form.workPreferences (collected on the Preferences
+                step). Neutral chip treatment because the preference
+                set is recruiter-filter context, not a primary
+                matching signal. Only renders when at least one is
+                picked. */}
+            {workPrefs.length > 0 && (
+              <div>
+                <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-2">Work Preference</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {workPrefs.map(w => (
+                    <span key={w} className="px-2.5 py-1 bg-gray-50 border border-gray-200 text-gray-700 rounded-full text-[11px] font-medium">
+                      {w}
                     </span>
                   ))}
                 </div>

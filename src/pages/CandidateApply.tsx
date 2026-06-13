@@ -5,8 +5,11 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog';
+import {
   CheckCircle2, Upload, Loader2, ChevronRight, ChevronLeft,
-  X, Plus, RefreshCw, Mail, FileText,
+  X, Plus, RefreshCw, Mail, FileText, Sparkles, Check,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -393,33 +396,37 @@ function SkillsInput({ skills, onChange }: { skills: string[]; onChange: (s: str
   );
 }
 
-// ─── Phase 4 skills-redesign picker (search + suggest) ──────────────────────
+// ─── Phase 4 skills picker (search + résumé-suggestions popup) ──────────────
 
 /**
  * SearchAndSuggest — reusable picker used twice on the wizard's
  * Professional Experience tab (Areas of Expertise, Tools & Technical
- * Skills). Replaces the Phase 2 pill-grid pickers.
+ * Skills).
  *
- * UX:
- *   - "Recommended from your résumé" row: chips that came from the
- *     résumé parse AND are still selected. Removing one drops it
- *     from `value`.
- *   - "Your selections" row: chips the candidate added via search,
- *     surfaced separately so the origin (AI vs. candidate-picked)
- *     is visually distinct. Removing one drops it from `value`.
- *   - Search input below: as the candidate types, taxonomy matches
- *     surface in a dropdown FIRST. If their query doesn't match any
- *     taxonomy tag and `allowCustom` is true, a "+ Add '<typed>'"
- *     option appears at the bottom. Selecting either adds to `value`.
- *   - `softCap` is guidance only — the picker DOES NOT block adding
- *     past it. Soft cap surfaces as "N / cap" with an amber color
- *     past the limit. The server keeps a separate hard limit.
+ * Layout:
+ *   1. Solid selected-chip row — the single source of truth for what
+ *      ends up on the profile. Each chip has an × to remove. No
+ *      visual distinction between AI-suggested and user-added —
+ *      once selected, everything is just "selected."
+ *   2. Search input with a type-ahead dropdown: taxonomy matches
+ *      first (top 8 by declaration order), then a "+ Add '<typed>'"
+ *      option at the bottom when allowCustom is true and the typed
+ *      query isn't already in the taxonomy or selected list.
+ *   3. "See résumé suggestions" button — ONLY rendered when
+ *      `suggestions.length > 0`. Hidden in edit mode (parse doesn't
+ *      run on edit; suggestions stays []), hidden when parse failed
+ *      or returned nothing for this field.
+ *   4. Modal popup (shadcn Dialog) opened by that button. Lists
+ *      `suggestions` as ghost/outline + chips. Tapping one adds to
+ *      `value`. Already-added suggestions render with a Check icon
+ *      + solid styling + disabled — preventing double-add.
  *
- * Storage shape: `value` is a single flat string[]. Origin (résumé
- * vs. manual) is derived per-render by intersecting with `suggestions`,
- * so the parent only manages one array. Suggestions is immutable —
- * the parent sets it once when the parse lands and the picker never
- * mutates it.
+ * `softCap` is GUIDANCE ONLY — the picker never blocks adding past
+ * it. The hint surfaces as amber once past the cap.
+ *
+ * Storage: `value` is the single flat string[]; `suggestions` is the
+ * immutable snapshot from the most-recent parse (set by parent into
+ * form.suggestedAreas / form.suggestedTools and passed in here).
  */
 function SearchAndSuggest({
   value,
@@ -429,8 +436,9 @@ function SearchAndSuggest({
   allowCustom,
   softCap,
   searchPlaceholder,
-  recommendedLabel,
-  manualLabel,
+  suggestionsButtonLabel,
+  suggestionsTitle,
+  suggestionsSubtitle,
 }: {
   value: string[];
   onChange: (next: string[]) => void;
@@ -439,25 +447,18 @@ function SearchAndSuggest({
   allowCustom: boolean;
   softCap?: number;
   searchPlaceholder: string;
-  recommendedLabel: string;
-  manualLabel: string;
+  suggestionsButtonLabel: string;
+  suggestionsTitle: string;
+  suggestionsSubtitle: string;
 }) {
   const [query, setQuery] = useState('');
   const [highlight, setHighlight] = useState(0);
+  const [popupOpen, setPopupOpen] = useState(false);
 
-  // Case-insensitive lookup helpers; derived per render, cheap.
   const valueLower = new Set(value.map(v => v.toLowerCase()));
-  const suggestionsLower = new Set(suggestions.map(s => s.toLowerCase()));
   const taxonomyLower = new Set(taxonomy.map(t => t.toLowerCase()));
 
-  // Split current selection by origin so we can render two visually
-  // distinct rows. fromSuggestions preserves the original suggestion
-  // casing (lookup by lowercased value); userAdded is anything else
-  // in `value`.
-  const fromSuggestions = value.filter(v => suggestionsLower.has(v.toLowerCase()));
-  const userAdded = value.filter(v => !suggestionsLower.has(v.toLowerCase()));
-
-  // Search dropdown matches. Limit to 8 so the list stays scannable.
+  // Search dropdown matches.
   const q = query.trim();
   const qLower = q.toLowerCase();
   const matches: string[] = q
@@ -496,46 +497,36 @@ function SearchAndSuggest({
 
   const past = softCap !== undefined && value.length > softCap;
   const atOrPast = softCap !== undefined && value.length >= softCap;
+  const hasSuggestions = suggestions.length > 0;
 
   return (
     <div>
-      {/* Recommended row */}
-      {fromSuggestions.length > 0 && (
-        <div className="mb-4">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">{recommendedLabel}</p>
-          <div className="flex flex-wrap gap-2">
-            {fromSuggestions.map(tag => (
-              <span key={tag} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#008037]/12 border border-[#008037]/30 text-[#004a1f] rounded-full text-xs font-semibold">
-                {tag}
-                <button type="button" onClick={() => remove(tag)} aria-label={`Remove ${tag}`} className="hover:text-red-500">
-                  <X className="w-3 h-3" />
-                </button>
-              </span>
-            ))}
-          </div>
+      {/* Selected chips — the canonical list. Solid brand-green so the
+          candidate sees exactly what's on their profile at a glance. */}
+      {value.length > 0 ? (
+        <div className="flex flex-wrap gap-2 mb-3">
+          {value.map(tag => (
+            <span
+              key={tag}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#008037] text-white rounded-full text-xs font-semibold"
+            >
+              {tag}
+              <button
+                type="button"
+                onClick={() => remove(tag)}
+                aria-label={`Remove ${tag}`}
+                className="hover:text-white/70"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          ))}
         </div>
+      ) : (
+        <p className="text-xs text-gray-400 mb-3 italic">Nothing selected yet — search below or browse résumé suggestions.</p>
       )}
 
-      {/* User-added row */}
-      {userAdded.length > 0 && (
-        <div className="mb-4">
-          {fromSuggestions.length > 0 && (
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">{manualLabel}</p>
-          )}
-          <div className="flex flex-wrap gap-2">
-            {userAdded.map(tag => (
-              <span key={tag} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-full text-xs font-semibold">
-                {tag}
-                <button type="button" onClick={() => remove(tag)} aria-label={`Remove ${tag}`} className="hover:text-red-500">
-                  <X className="w-3 h-3" />
-                </button>
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Search input with dropdown */}
+      {/* Search input + type-ahead dropdown */}
       <div className="relative">
         <Input
           value={query}
@@ -563,16 +554,75 @@ function SearchAndSuggest({
         )}
       </div>
 
-      {/* Soft-cap hint */}
-      {softCap !== undefined && (
-        <p className={`text-xs mt-2 ${past ? 'text-amber-700 font-semibold' : atOrPast ? 'text-amber-600' : 'text-gray-500'}`}>
-          {value.length} of {softCap} selected
-          {past && ' — over the suggested limit, but you can add more'}
-        </p>
+      {/* Bottom row: soft-cap hint + résumé-suggestions button. The
+          button is hidden when there are no suggestions for this
+          field (parse failed, returned empty, or edit mode where
+          parse doesn't run). */}
+      <div className="mt-2 flex items-center justify-between gap-3 flex-wrap">
+        {softCap !== undefined ? (
+          <p className={`text-xs ${past ? 'text-amber-700 font-semibold' : atOrPast ? 'text-amber-600' : 'text-gray-500'}`}>
+            {value.length} of {softCap} selected
+            {past && ' — over the suggested limit, but you can add more'}
+          </p>
+        ) : (
+          <span /> /* spacer so the suggestions button stays right-aligned */
+        )}
+        {hasSuggestions && (
+          <button
+            type="button"
+            onClick={() => setPopupOpen(true)}
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 hover:text-emerald-800 hover:underline"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            {suggestionsButtonLabel}
+            <span className="text-gray-400 font-normal">({suggestions.length})</span>
+          </button>
+        )}
+      </div>
+
+      {/* Suggestions popup. Only renders when hasSuggestions — we
+          mount the Dialog conditionally so an edit-mode entry never
+          attaches a Dialog node it can't open. */}
+      {hasSuggestions && (
+        <Dialog open={popupOpen} onOpenChange={setPopupOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>{suggestionsTitle}</DialogTitle>
+              <DialogDescription>{suggestionsSubtitle}</DialogDescription>
+            </DialogHeader>
+            <div className="flex flex-wrap gap-2 py-2">
+              {suggestions.map(tag => {
+                const alreadyAdded = valueLower.has(tag.toLowerCase());
+                return (
+                  <button
+                    key={tag}
+                    type="button"
+                    disabled={alreadyAdded}
+                    onClick={() => addTag(tag)}
+                    className={
+                      alreadyAdded
+                        ? 'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-[#008037]/12 border border-[#008037]/30 text-[#004a1f] cursor-default'
+                        : 'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-white border-2 border-dashed border-gray-300 text-gray-700 hover:border-[#008037] hover:text-[#008037] transition-colors'
+                    }
+                  >
+                    {alreadyAdded ? <Check className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
+                    {tag}
+                  </button>
+                );
+              })}
+            </div>
+            <DialogFooter>
+              <Button type="button" onClick={() => setPopupOpen(false)}>
+                Done
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );
 }
+
 
 // ─── Landing sub-components ───────────────────────────────────────────────────
 
@@ -1713,27 +1763,20 @@ export default function CandidateApply() {
       if (parsed.education) set('education', parsed.education);
       if (parsed.educationLevel) set('educationLevel', parsed.educationLevel);
       if (parsed.bio) set('bio', parsed.bio);
-      if (Array.isArray(parsed.skills) && parsed.skills.length > 0) set('skills', parsed.skills);
       if (Array.isArray(parsed.sectors) && parsed.sectors.length > 0) set('sectors', parsed.sectors);
-      // Phase 4: record résumé suggestions immutably so the Areas
-      // picker can show them under "Recommended from your résumé",
-      // and seed form.areasOfExpertise from them when it's empty
-      // (the candidate then keeps/removes via X buttons + adds more
-      // via the search). Tools picker uses parsed.skills the same
-      // way — no separate field, same data, two UI roles.
+      // Phase 4 revision: record résumé suggestions immutably for
+      // the popup-driven UI. NO auto-seeding of form.areasOfExpertise
+      // or form.skills — suggestions remain unselected until the
+      // candidate explicitly taps them from the "See résumé
+      // suggestions" popup (or adds via search). Previously the
+      // parse auto-filled the selected list; that pre-selection is
+      // gone so candidates explicitly choose what fits, matching
+      // the "Tap the ones that fit — we pulled these from your
+      // résumé" framing.
       const sa = Array.isArray(parsed.suggestedAreas) ? parsed.suggestedAreas.filter((s: unknown) => typeof s === 'string' && (s as string).trim()) : [];
       const st = Array.isArray(parsed.skills) ? parsed.skills.filter((s: unknown) => typeof s === 'string' && (s as string).trim()) : [];
       set('suggestedAreas', sa);
       set('suggestedTools', st);
-      // Seed selection only if the candidate hasn't already curated
-      // a list — never clobber existing chips on a re-parse.
-      if (sa.length > 0 && form.areasOfExpertise.length === 0) {
-        set('areasOfExpertise', sa);
-      }
-      // form.skills was already populated above by the parsed.skills
-      // branch when the previous list was empty — keep that
-      // behavior (initial seed), but if the candidate has already
-      // touched the list, don't overwrite.
     }
     set('resumeParsed', parsed);
   };
@@ -2645,7 +2688,7 @@ export default function CandidateApply() {
                   What areas have you developed meaningful experience in throughout your career? <span className="text-red-500">*</span>
                 </Label>
                 <p className="text-xs text-gray-500 mt-1 leading-relaxed">
-                  Select up to 10. We suggested these from your résumé — choose only what feels accurate.
+                  Select up to 10. Browse résumé suggestions or search the catalogue — choose only what feels accurate.
                 </p>
                 <div className="mt-3">
                   <SearchAndSuggest
@@ -2656,8 +2699,9 @@ export default function CandidateApply() {
                     allowCustom={true}
                     softCap={AREAS_MAX}
                     searchPlaceholder="Search pricing, treasury, board reporting…"
-                    recommendedLabel="Recommended from your résumé"
-                    manualLabel="Your selections"
+                    suggestionsButtonLabel="See résumé suggestions"
+                    suggestionsTitle="Areas we found in your résumé"
+                    suggestionsSubtitle="Tap the ones that fit — we pulled these from your résumé."
                   />
                 </div>
               </div>
@@ -2683,8 +2727,9 @@ export default function CandidateApply() {
                     taxonomy={ALL_TOOL_TAGS}
                     allowCustom={true}
                     searchPlaceholder="Search Excel, NetSuite, Looker, Mixpanel…"
-                    recommendedLabel="Recommended from your résumé"
-                    manualLabel="Your selections"
+                    suggestionsButtonLabel="See résumé suggestions"
+                    suggestionsTitle="Tools we found in your résumé"
+                    suggestionsSubtitle="Tap the ones that fit — we pulled these from your résumé."
                   />
                 </div>
               </div>

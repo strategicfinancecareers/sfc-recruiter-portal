@@ -152,7 +152,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       highest_education_level: educationLevel || null,
       label: safeRole,
       profile_description: profileDescription || null,
-      open_to_opportunities: true,
+      // Recruiter-side "is this person open?" filter signal. Mirrors
+      // the edit-save mapping in CandidateApply.tsx:
+      //   Actively Looking  → true   (strong open)
+      //   Passively Looking → true   (still open, softer signal)
+      //   Not Active        → false
+      //   (missing/unknown) → true   (legacy default — preserves the
+      //                               prior submit behavior where the
+      //                               column was hardcoded true; only
+      //                               an explicit "Not Active" flips
+      //                               it false, so no existing flow
+      //                               that didn't pick a value loses
+      //                               visibility)
+      open_to_opportunities: jobSearchStatus !== 'Not Active',
       // Storage path (not a URL) — bucket 'resumes' is private.
       // Consumers must generate a signed URL via /api/get-resume-url before use.
       resume_full_url: resumePath,

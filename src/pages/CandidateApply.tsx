@@ -180,12 +180,26 @@ const COMP_OPTIONS = [
   { value: '300k-plus', label: '$300k+' },
 ];
 
+// Three-tier availability. Stored as the string literal on
+// candidates.profile_description (as "Availability: <value>.") and
+// mapped to the boolean open_to_opportunities column on save:
+//   Actively Looking  → open_to_opportunities=true  (strong signal)
+//   Passively Looking → open_to_opportunities=true  (still open, softer)
+//   Not Active        → open_to_opportunities=false (hidden from "open" filters)
+// The preview surfaces the nuance directly from the string; recruiters
+// who filter by "open" still see Passively-Looking candidates.
 const AVAILABILITY_OPTIONS = [
   {
     value: 'Actively Looking',
     emoji: '🟢',
     label: 'Actively Looking',
     desc: "I'm open to new opportunities right now",
+  },
+  {
+    value: 'Passively Looking',
+    emoji: '🟡',
+    label: 'Passively Looking',
+    desc: "I'm not actively searching but open to the right role",
   },
   {
     value: 'Not Active',
@@ -1259,13 +1273,36 @@ export default function CandidateApply() {
           : yrs < 10 ? '5to10'
           : '10plus';
 
-        // jobSearchStatus is stored as open_to_opportunities (bool) —
-        // map back to the wizard's string values.
-        const jobSearchStatus = c.open_to_opportunities === true
-          ? 'Actively Looking'
-          : c.open_to_opportunities === false
-            ? 'Not Active'
-            : '';
+        // jobSearchStatus is stored two ways: the precise string ends
+        // up in profile_description as an appended "Availability:
+        // <value>." paragraph (lossless for all three tiers); the
+        // open_to_opportunities boolean column is the recruiter-side
+        // filter signal (true for both Actively + Passively, false
+        // for Not Active). We try the string first so a candidate
+        // who picked "Passively Looking" gets that exact tier back
+        // on edit; if the note isn't present (older candidate, or
+        // the value was somehow stripped), we fall back to the bool
+        // — which can only distinguish open vs not-open and so
+        // defaults to 'Actively Looking' when true.
+        // Two prefix formats exist in the wild — edit-save writes
+        // "Availability: <value>." on its own paragraph; the initial
+        // submit writes "Job search status: <value>." joined with
+        // sibling notes by a single space on one paragraph
+        // ("Job search status: X. Target comp: Y. ...").
+        // The capture stops at the first '.' so the rest of the
+        // sentence chain doesn't bleed in.
+        const availabilityNoteMatch = String(c.profile_description || '')
+          .match(/(?:Availability|Job search status):\s*([^.\n]+?)\./);
+        const noteValue = availabilityNoteMatch ? availabilityNoteMatch[1].trim() : '';
+        const KNOWN_AVAILABILITY = new Set(['Actively Looking', 'Passively Looking', 'Not Active']);
+        const jobSearchStatus =
+          noteValue && KNOWN_AVAILABILITY.has(noteValue)
+            ? noteValue
+            : c.open_to_opportunities === true
+              ? 'Actively Looking'
+              : c.open_to_opportunities === false
+                ? 'Not Active'
+                : '';
 
         setEditCandidateId(c.id);
         // Filename from the resume storage path; the file itself isn't
@@ -1512,7 +1549,14 @@ export default function CandidateApply() {
         profile_description: profileDescription || null,
         // Tab 4
         target_salary: form.targetComp || null,
-        open_to_opportunities: form.jobSearchStatus === 'Actively Looking',
+        // open_to_opportunities is the recruiter-side "is this person
+        // open?" filter. Both Actively + Passively map to true; only
+        // Not Active maps to false. The precise tier round-trips
+        // through the "Availability: <value>." line we re-append to
+        // profile_description below.
+        open_to_opportunities:
+          form.jobSearchStatus === 'Actively Looking' ||
+          form.jobSearchStatus === 'Passively Looking',
         work_preferences: form.workPreferences,
         // Deprecated singular mirror — keep populated like submit-candidate does.
         work_preference: form.workPreferences[0] || null,
@@ -2576,8 +2620,19 @@ export default function CandidateApply() {
           container changed. Every load-bearing piece (FormState,
           validators, autosave, edit-prefill, deep-links, the
           disqualification guard, handleEditSave/handleSubmit) lives
-          outside this JSX and is untouched. */}
-      <div className="max-w-7xl mx-auto px-6 md:px-8 py-10 lg:grid lg:grid-cols-[minmax(0,1fr)_360px] lg:gap-10">
+          outside this JSX and is untouched.
+
+          STEP 6 EXCEPTION (Phase 1.5): on the Review tab the right
+          rail is hidden and the preview moves to center as the
+          focal editable element (the editor block lives below it
+          inside the form column). The grid collapses to a single
+          column on this step so the centered preview isn't pinned
+          to the left track. */}
+      <div className={
+        step === 6
+          ? 'max-w-7xl mx-auto px-6 md:px-8 py-10'
+          : 'max-w-7xl mx-auto px-6 md:px-8 py-10 lg:grid lg:grid-cols-[minmax(0,1fr)_360px] lg:gap-10'
+      }>
 
         {/* ── Left column: the form ─────────────────────────────────────
             min-w-0 protects the existing inner max-w-xl wrappers from
@@ -2889,30 +2944,46 @@ export default function CandidateApply() {
             )}
 
             {form.resumeParsed && (
-              <div className={`flex items-center gap-3 p-4 border rounded-lg ${
-                form.parseWarning ? 'bg-amber-50 border-amber-200' : 'bg-emerald-50 border-emerald-200'
-              }`}>
-                {form.parseWarning
-                  ? <span className="text-amber-500 shrink-0">⚠️</span>
-                  : <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-                }
-                <div>
-                  <p className={`text-sm font-semibold ${form.parseWarning ? 'text-amber-800' : 'text-emerald-800'}`}>
-                    {form.parseWarning ? 'Resume uploaded — fill details on the Review tab' : 'Resume parsed successfully!'}
-                  </p>
-                  <p className={`text-xs ${form.parseWarning ? 'text-amber-600' : 'text-emerald-600'}`}>
-                    {form.resumeFile?.name}
-                  </p>
+              <>
+                <div className={`flex items-center gap-3 p-4 border rounded-lg ${
+                  form.parseWarning ? 'bg-amber-50 border-amber-200' : 'bg-emerald-50 border-emerald-200'
+                }`}>
+                  {form.parseWarning
+                    ? <span className="text-amber-500 shrink-0">⚠️</span>
+                    : <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                  }
+                  <div>
+                    <p className={`text-sm font-semibold ${form.parseWarning ? 'text-amber-800' : 'text-emerald-800'}`}>
+                      {form.parseWarning ? 'Resume uploaded — fill details on the Review tab' : 'Resume parsed successfully!'}
+                    </p>
+                    <p className={`text-xs ${form.parseWarning ? 'text-amber-600' : 'text-emerald-600'}`}>
+                      {form.resumeFile?.name}
+                    </p>
+                  </div>
+                  <button className="ml-auto text-xs text-gray-400 hover:text-gray-600 underline"
+                    onClick={() => {
+                      set('resumeParsed', null); set('resumeFile', null);
+                      set('resumeBase64', ''); set('parseWarning', false);
+                      if (fileInputRef.current) fileInputRef.current.value = '';
+                    }}>
+                    Change
+                  </button>
                 </div>
-                <button className="ml-auto text-xs text-gray-400 hover:text-gray-600 underline"
-                  onClick={() => {
-                    set('resumeParsed', null); set('resumeFile', null);
-                    set('resumeBase64', ''); set('parseWarning', false);
-                    if (fileInputRef.current) fileInputRef.current.value = '';
-                  }}>
-                  Change
-                </button>
-              </div>
+
+                {/* Reassurance: candidates were unclear whether the AI
+                    extract is final. It isn't — they review and edit
+                    every parsed field on the Review tab. Surfaced
+                    inline (not buried) so they aren't confused by
+                    auto-filled state on subsequent steps. */}
+                {!form.parseWarning && (
+                  <div className="mt-3 flex items-start gap-2 p-3 border border-[#008037]/25 bg-[#008037]/5 rounded-lg">
+                    <Sparkles className="w-4 h-4 text-[#006a2d] shrink-0 mt-0.5" />
+                    <p className="text-xs text-[#004a1f] leading-relaxed">
+                      We've pulled details from your résumé — you can review and adjust everything in the next steps.
+                    </p>
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}
@@ -2926,7 +2997,10 @@ export default function CandidateApply() {
             <div className="space-y-6">
               <div>
                 <Label>What's your current availability? <span className="text-red-500">*</span></Label>
-                <div className="grid grid-cols-2 gap-3 mt-3">
+                {/* 3-up grid for the three availability tiers. Stacks
+                    on narrow viewports so each option keeps room for
+                    its description copy. */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3">
                   {AVAILABILITY_OPTIONS.map(opt => (
                     <button
                       key={opt.value}
@@ -3081,21 +3155,37 @@ export default function CandidateApply() {
         )}
 
         {/* ── Tab 6: Review your profile ─────────────────────────────── */}
+        {/* Phase 1.5 layout: the right-rail preview hides (above) and
+            the same RecruiterPreviewCard renders centered at the top
+            of the form column as the focal element, followed by the
+            editable profile-details block. Live-bound to the same
+            form state, so edits in the block animate the preview in
+            real time. Graceful fade-in via tailwindcss-animate's
+            animate-in fade-in (no animation library was added —
+            tailwindcss-animate is already a project dependency for
+            shadcn). The preview slides to its new home on the very
+            first paint of step 6 only; a true cross-step slide would
+            require coordinated layout animation, which we degrade to
+            a clean fade instead of shipping jank. */}
         {step === 6 && (
-          <div>
+          <div className="max-w-3xl mx-auto">
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Review your profile</h2>
             <p className="text-gray-500 mb-6 text-sm">
               This is exactly what recruiters will see (your real name, contact info, and resume stay hidden until you accept an introduction).
-              Edit any parsed details below if anything looks wrong.
+              Edit any parsed details below — the preview updates as you type.
             </p>
 
-            {/* Stacked layout: editor on top (full width within the
-                form's max-w-5xl container; its inner inputs use their
-                own 2-col grid where sensible), recruiter-view card
-                below at full width so it has room for its proper
-                multi-column dossier layout (left summary/expertise +
-                right Candidate Snapshot rail) instead of being
-                squashed into a narrow column. */}
+            {/* Centered live preview — the focal element on this step.
+                Reads the same form state as the right-rail preview on
+                steps 1-5, so the candidate sees identical data with
+                the centered framing the Review step warrants. The
+                fade-in only plays on mount of step 6 (React re-mounts
+                the conditional subtree on step change), so it doesn't
+                replay on every keystroke. */}
+            <div className="mb-6 animate-in fade-in duration-500">
+              <RecruiterPreviewCard form={form} step={step} isEditMode={isEditMode} />
+            </div>
+
             <div className="space-y-6">
 
               <div className="space-y-5 border border-gray-200 rounded-xl p-5 bg-gray-50">
@@ -3197,15 +3287,8 @@ export default function CandidateApply() {
               </div>
               {/* End editor block */}
 
-              {/* Recruiter-view preview embed REMOVED in the wizard
-                  two-column redesign (Phase 1). The persistent right-
-                  rail RecruiterPreviewCard (and the mobile Sheet at
-                  < lg) replaces it: the preview is now visible from
-                  every step, so duplicating it inside the Review tab
-                  would be redundant. The Review tab keeps its editor
-                  block + Submit / Save CTA. */}
             </div>
-            {/* End stacked layout */}
+            {/* End editor block + stacked layout */}
 
             <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800 mt-6">
               <strong>Note:</strong> Your profile will be reviewed by our team before going live.
@@ -3246,15 +3329,20 @@ export default function CandidateApply() {
         {/* ── Right column: persistent live recruiter preview ───────────
             Hidden below lg — that breakpoint is served by the mobile
             Sheet (below). At lg+ the card sticks to the top so it
-            stays in view as the candidate scrolls long steps (the
-            Review tab in particular). Reads form directly; React
-            rerenders the card on every set() / setForm() call so
-            "live binding" is automatic. */}
-        <aside className="hidden lg:block">
-          <div className="sticky top-6">
-            <RecruiterPreviewCard form={form} step={step} isEditMode={isEditMode} />
-          </div>
-        </aside>
+            stays in view as the candidate scrolls long steps. Reads
+            form directly; React rerenders the card on every set() /
+            setForm() call so "live binding" is automatic.
+
+            Suppressed entirely on step 6 (Review): on that tab the
+            preview moves to center as the focal editable element,
+            making a sticky duplicate in the rail redundant. */}
+        {step !== 6 && (
+          <aside className="hidden lg:block">
+            <div className="sticky top-6">
+              <RecruiterPreviewCard form={form} step={step} isEditMode={isEditMode} />
+            </div>
+          </aside>
+        )}
       </div>
 
       {/* ── Mobile preview trigger + Sheet ─────────────────────────────

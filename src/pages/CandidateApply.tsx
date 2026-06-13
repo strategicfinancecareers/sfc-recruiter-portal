@@ -2782,8 +2782,14 @@ export default function CandidateApply() {
           to the left track. */}
       <div className={
         step === 6
+          // Review step stays centered with no rail — keep
+          // max-w-7xl so the single-column copy doesn't run too wide.
           ? 'max-w-7xl mx-auto px-6 md:px-8 py-10'
-          : 'max-w-7xl mx-auto px-6 md:px-8 py-10 lg:grid lg:grid-cols-[minmax(0,1fr)_360px] lg:gap-10'
+          // Steps 1-5: content row widened from max-w-7xl → ~1400px
+          // and the right preview rail from 360 → 420px so the
+          // preview card breathes on wide monitors and both columns
+          // get more usable space (less empty side margin).
+          : 'max-w-[1400px] mx-auto px-6 md:px-8 py-10 lg:grid lg:grid-cols-[minmax(0,1fr)_420px] lg:gap-10'
       }>
 
         {/* ── Left column: the form ─────────────────────────────────────

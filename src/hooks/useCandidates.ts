@@ -28,6 +28,14 @@ export interface Candidate {
   secondary_backgrounds?: string[];
   open_to_opportunities?: boolean;
   skills: Array<{ id: string; skill: string }>;
+  // Phase 3 of the skills redesign. areas_of_expertise is the new
+  // controlled-taxonomy primary matching signal. detailed_experience
+  // is its predecessor, kept as the fallback for the 11 existing
+  // candidates who have NULL areas_of_expertise until they re-edit.
+  // The recruiter card + filter read areas_of_expertise first and
+  // fall back to detailed_experience client-side.
+  areas_of_expertise?: string[] | null;
+  detailed_experience?: string[] | null;
   is_favorite?: boolean; // Computed in the hook from user_favorites — not selected.
   // SFC Take (Batch 2) — recruiters see these ONLY when sfc_take_published_at is non-null.
   // Filter happens at render time, not in the SELECT, so the hook can stay shared with admin views.
@@ -59,6 +67,14 @@ const RECRUITER_COLUMNS = [
   'primary_background',
   'secondary_backgrounds',
   'open_to_opportunities',
+  // Phase 3: Areas of Expertise (primary matching signal) + its
+  // legacy predecessor for the client-side fallback. Both are
+  // recruiter-safe — they're the same content surfaced as chips on
+  // the card, and detailed_experience is being deprecated rather
+  // than re-categorized as sensitive. Drop detailed_experience in
+  // Phase 5 once it's fully retired.
+  'areas_of_expertise',
+  'detailed_experience',
   'sfc_take',
   'sfc_take_published_at',
   'sfc_role_fit',

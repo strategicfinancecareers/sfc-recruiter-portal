@@ -372,7 +372,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const sectorList = industriesArr.length > 0
       ? (industriesArr.join(', ') + (industriesOther ? ` (Other: ${industriesOther})` : ''))
       : 'Not specified';
-    const detailedList = Array.isArray(detailedExperience) && detailedExperience.length > 0 ? detailedExperience.join(', ') : 'Not specified';
+    // Phase 3 reader: prefer the new controlled-taxonomy field, fall
+    // back to detailedExperience for any legacy client that hasn't
+    // sent areasOfExpertise yet. The dual-write logic above is
+    // untouched — only this email-body reader changed.
+    const areasForEmailArr: string[] = (Array.isArray(areasOfExpertise) && areasOfExpertise.length > 0)
+      ? areasOfExpertise
+      : (Array.isArray(detailedExperience) ? detailedExperience : []);
+    const areasForEmailStr = areasForEmailArr.length > 0 ? areasForEmailArr.join(', ') : 'Not specified';
     const secondaryList = Array.isArray(secondaryBackgrounds) && secondaryBackgrounds.length > 0 ? secondaryBackgrounds.join(', ') : '—';
     const roleList = Array.isArray(targetRoles) && targetRoles.length > 0 ? targetRoles.join(', ') : 'Not specified';
     const citiesList = Array.isArray(preferredCities) && preferredCities.length > 0
@@ -397,7 +404,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       + '<tr><td style="padding:8px 0;border-bottom:1px solid #eee;color:#888">Education</td><td style="padding:8px 0;border-bottom:1px solid #eee">' + (education || '—') + '</td></tr>'
       + '<tr><td style="padding:8px 0;border-bottom:1px solid #eee;color:#888">Primary Background</td><td style="padding:8px 0;border-bottom:1px solid #eee">' + (primaryBackground || '—') + '</td></tr>'
       + '<tr><td style="padding:8px 0;border-bottom:1px solid #eee;color:#888">Secondary</td><td style="padding:8px 0;border-bottom:1px solid #eee">' + secondaryList + '</td></tr>'
-      + '<tr><td style="padding:8px 0;border-bottom:1px solid #eee;color:#888">Specialisms</td><td style="padding:8px 0;border-bottom:1px solid #eee">' + detailedList + '</td></tr>'
+      + '<tr><td style="padding:8px 0;border-bottom:1px solid #eee;color:#888">Areas of Expertise</td><td style="padding:8px 0;border-bottom:1px solid #eee">' + areasForEmailStr + '</td></tr>'
       + '<tr><td style="padding:8px 0;border-bottom:1px solid #eee;color:#888">Job Status</td><td style="padding:8px 0;border-bottom:1px solid #eee">' + (jobSearchStatus || '—') + '</td></tr>'
       + '<tr><td style="padding:8px 0;border-bottom:1px solid #eee;color:#888">Target Comp</td><td style="padding:8px 0;border-bottom:1px solid #eee">' + (targetComp || '—') + '</td></tr>'
       + '<tr><td style="padding:8px 0;border-bottom:1px solid #eee;color:#888">Work Preference</td><td style="padding:8px 0;border-bottom:1px solid #eee">' + workPrefList + '</td></tr>'

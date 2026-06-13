@@ -40,6 +40,17 @@ export interface AnonymousCandidateCardData {
   open_to_opportunities?: boolean | null;
   // Skills come in the same shape as the recruiter Candidate interface
   skills: Array<{ id?: string | number; skill: string }>;
+  // Phase 3 of the skills redesign. New controlled-taxonomy field
+  // (the primary recruiter-matching signal). Renders above the
+  // Technical Skills section as brand-green chips. Fallback chain
+  // when areas_of_expertise is null/empty:
+  //   areas_of_expertise → detailed_experience → render nothing
+  // detailed_experience is kept as the fallback for the 11 existing
+  // candidates who have NULL areas_of_expertise until they re-edit.
+  // Both fields stay populated via the Phase 2 dual-write so this
+  // fallback is bulletproof; Phase 5 drops detailed_experience.
+  areas_of_expertise?: string[] | null;
+  detailed_experience?: string[] | null;
 }
 
 interface RecruiterModeProps {
@@ -79,6 +90,14 @@ export default function AnonymousCandidateCard(props: Props) {
   // recruiter card and the candidate dashboard show every skill the
   // candidate typed in one flat list.
   const allSkills = (c.skills || []).map(s => s.skill).filter(Boolean);
+
+  // Phase 3: Areas of Expertise (primary matching signal). Reads
+  // areas_of_expertise first; falls back to detailed_experience so
+  // pre-Phase-2 candidates still display until their first re-edit.
+  const areasSource: string[] = (Array.isArray(c.areas_of_expertise) && c.areas_of_expertise.length > 0)
+    ? c.areas_of_expertise
+    : (Array.isArray(c.detailed_experience) ? c.detailed_experience : []);
+  const areas = areasSource.filter(Boolean);
 
   // Executive chips (verbatim from source)
   const chips: string[] = [];
@@ -158,6 +177,25 @@ export default function AnonymousCandidateCard(props: Props) {
                 {showFullBio ? <><ChevronUp className="w-3 h-3" /> Show less</> : <><ChevronDown className="w-3 h-3" /> Show more</>}
               </button>
             )}
+          </div>
+        )}
+
+        {/* Phase 3: Areas of Expertise — the primary matching signal,
+            shown above Technical Skills with brand-green chip
+            treatment to distinguish it from the neutral skills below.
+            Renders in both recruiter mode AND preview mode (the
+            candidate's own "Recruiter View" tab shows the same
+            thing). Hidden when both areas_of_expertise and
+            detailed_experience are empty (e.g. a hypothetical
+            future candidate with neither field set). */}
+        {areas.length > 0 && (
+          <div>
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Areas of Expertise</h3>
+            <div className="flex flex-wrap gap-1.5">
+              {areas.map(a => (
+                <span key={a} className="px-2.5 py-1 bg-[#008037]/12 border border-[#008037]/30 text-[#004a1f] rounded-full text-xs font-semibold">{a}</span>
+              ))}
+            </div>
           </div>
         )}
 

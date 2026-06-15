@@ -79,19 +79,39 @@ const BUCKET_TO_YRS: Record<string, number> = {
 
 // ── profile completion % ────────────────────────────────────────────
 //
-// Pure derived from form. Weights chosen per inspection §5 so that
-// (a) reaching the last step gates ≥ 80%; (b) the last 20% comes
-// from richer profile signals that map directly to recruiter card
-// content; (c) it can never report 100% on something that wouldn't
-// ship (each gated chunk maps to a canProceedStepN validator).
+// Pure derived from form. Fix #6 weights — every gated section
+// (steps 1-5 validators) plus the bio (the one quality signal that
+// always renders on the recruiter card) sums to exactly 100. The
+// previous weights folded in five non-gated "quality" bits
+// (secondaryBackgrounds, targetRoles, preferredCities, skills≥3,
+// bio) that punished candidates for skipping optional fields and
+// capped the bar around ~96% on a fully-filled gated profile.
 //
-//   Contact gates           15%
-//   Resume parsed           15%
-//   Professional Experience 25%   (primaryBackground + areas[≥1] + experience bucket)
-//   Job preferences         15%
-//   Work auth               10%
-//   Quality (5×4%)          20%   (bio, skills≥3, secondaryBackgrounds≥1,
-//                                  targetRoles≥1, preferredCities≥1)
+//   Contact gates           15%   (6 bits — firstName, lastName, email,
+//                                  phone≥7 chars, linkedin, committed)
+//   Résumé parsed           15%   (binary)
+//   Professional Experience 25%   (3 bits — primaryBackground,
+//                                  areasOfExpertise≥1, experience bucket)
+//   Job preferences         20%   (3 bits — jobSearchStatus,
+//                                  targetComp, workPreferences≥1)
+//   Work auth               10%   (2 bits — workAuthorizedUs answered,
+//                                  requiresSponsorship answered)
+//   Bio present             15%   (binary — bio non-empty)
+//   ──────────────────────────
+//   Sum                    100%
+//
+// Walk-through: every gated bit true + bio present
+//   contact 6/6 × 15 = 15
+//   résumé  binary   = 15
+//   exp     3/3 × 25 = 25
+//   prefs   3/3 × 20 = 20
+//   auth    2/2 × 10 = 10
+//   bio     binary   = 15
+//   ──────────────────
+//   total            = 100 → Math.round(100) = 100 ✓
+//
+// Reaching the last step gates exactly 85% (gated only, no bio);
+// adding a bio takes it to 100.
 //
 // Returns a 0-100 integer.
 export function profileCompletion(form: PreviewFormShape): number {
@@ -110,9 +130,9 @@ export function profileCompletion(form: PreviewFormShape): number {
   ];
   pct += (contactBits.filter(Boolean).length / contactBits.length) * 15;
 
-  // Resume parsed (15%) — binary; either we have a parsed resume
-  // (create flow) or we don't. Edit mode keeps an existing resume on
-  // the row but the preview doesn't know about that here — the
+  // Résumé parsed (15%) — binary; either we have a parsed résumé
+  // (create flow) or we don't. Edit mode keeps an existing résumé
+  // on the row but the preview doesn't know about that here — the
   // wizard's canProceedStep2 covers the edit-mode equivalent, the
   // preview just shows what's in form-state.
   if (form.resumeParsed !== null) pct += 15;
@@ -125,13 +145,14 @@ export function profileCompletion(form: PreviewFormShape): number {
   ];
   pct += (expBits.filter(Boolean).length / expBits.length) * 25;
 
-  // Job preferences (15%).
+  // Job preferences (20% — bumped from 15% in fix #6 so the gated
+  // sections + bio total to exactly 100%).
   const prefBits = [
     !!form.jobSearchStatus,
     !!form.targetComp,
     form.workPreferences.length > 0,
   ];
-  pct += (prefBits.filter(Boolean).length / prefBits.length) * 15;
+  pct += (prefBits.filter(Boolean).length / prefBits.length) * 20;
 
   // Work auth (10%).
   const authBits = [
@@ -140,15 +161,13 @@ export function profileCompletion(form: PreviewFormShape): number {
   ];
   pct += (authBits.filter(Boolean).length / authBits.length) * 10;
 
-  // Quality (20%) — non-gated, recruiter-card-facing depth.
-  const qualBits = [
-    form.bio.trim().length > 0,
-    form.skills.length >= 3,
-    form.secondaryBackgrounds.length >= 1,
-    form.targetRoles.length >= 1,
-    form.preferredCities.length >= 1,
-  ];
-  pct += (qualBits.filter(Boolean).length / qualBits.length) * 20;
+  // Bio present (15%) — the single non-gated quality signal that
+  // matters on the recruiter card (rendered as Profile summary).
+  // Other quality fields (secondaryBackgrounds, targetRoles,
+  // preferredCities, skills>=3) are nice-to-have but optional —
+  // counting them was what kept the bar from reaching 100% on a
+  // genuinely complete profile.
+  if (form.bio.trim().length > 0) pct += 15;
 
   return Math.max(0, Math.min(100, Math.round(pct)));
 }
@@ -234,18 +253,21 @@ export default function RecruiterPreviewCard({ form, step, isEditMode, readOnly,
   const companyStageExp = (form.companyStageExperience || []).filter(Boolean);
   const workPrefs = form.workPreferences.filter(Boolean);
 
-  // Availability indicator — three tiers now that "Passively Looking"
-  // is supported on the form. Recruiters still see "open" for both
-  // Actively and Passively (the DB bool stays the same), but the
-  // preview surfaces the candidate's chosen nuance so they can see
-  // exactly how their selection lands. "Not Active" hides the
-  // indicator entirely — same as the previous behavior.
-  const availability: { tone: 'strong' | 'soft'; label: string } | null =
+  // Availability indicator — three tiers, all now visible (fix #5).
+  // The recruiter-side open_to_opportunities boolean continues to be
+  // true / true / false for Actively / Passively / Not Active
+  // respectively; only the visible preview nuance changes.
+  //   strong → solid brand-green dot + "Open to opportunities"
+  //   soft   → half-alpha brand-green dot + "Open to the right opportunity"
+  //   no     → red dot + "Not actively looking"
+  const availability: { tone: 'strong' | 'soft' | 'no'; label: string } | null =
     form.jobSearchStatus === 'Actively Looking'
       ? { tone: 'strong', label: 'Open to opportunities' }
       : form.jobSearchStatus === 'Passively Looking'
         ? { tone: 'soft', label: 'Open to the right opportunity' }
-        : null;
+        : form.jobSearchStatus === 'Not Active'
+          ? { tone: 'no', label: 'Not actively looking' }
+          : null;
 
   // Empty state for early-step previews. Auto-removes once
   // completion crosses 30% (~ end of step 1 + a resume parse).
@@ -400,9 +422,17 @@ export default function RecruiterPreviewCard({ form, step, isEditMode, readOnly,
                       <span className="w-1.5 h-1.5 rounded-full bg-[#008037]" />
                       {availability.label}
                     </span>
-                  ) : (
+                  ) : availability.tone === 'soft' ? (
                     <span className="inline-flex items-center gap-1 text-[11px] font-medium text-[#005a26] bg-[#008037]/5 border border-[#008037]/20 rounded-full px-2 py-0.5">
                       <span className="w-1.5 h-1.5 rounded-full bg-[#008037]/50" />
+                      {availability.label}
+                    </span>
+                  ) : (
+                    // 'no' tone — red dot indicator (fix #5). Same
+                    // chip vocabulary as the green ones so the three
+                    // states read as a single state machine.
+                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-red-700 bg-red-50 border border-red-200 rounded-full px-2 py-0.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
                       {availability.label}
                     </span>
                   )}

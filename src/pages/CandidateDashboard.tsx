@@ -987,9 +987,9 @@ function IntroductionsTab({
             onClick={e => e.stopPropagation()}
             style={{ boxShadow: '0 8px 32px rgba(0,0,0,.18)' }}
           >
-            <h3 className="text-lg font-semibold mb-1" style={{ color: INK }}>Choose a resume to send</h3>
+            <h3 className="text-lg font-semibold mb-1" style={{ color: INK }}>Choose a résumé to send</h3>
             <p className="text-xs mb-4" style={{ color: 'rgba(14,14,13,.6)' }}>
-              The recruiter will receive the resume you pick. You can change your default any time from the Resume tab.
+              The recruiter will receive the résumé you pick. You can change your default any time from the Résumé tab.
             </p>
             <div className="space-y-2">
               {resumes.map(r => (
@@ -1166,7 +1166,7 @@ function ResumeTab({ candidate, onRefresh }: { candidate: CandidateRow; onRefres
       return;
     }
     if (uploadFile.size > MAX_RESUME_MB * 1024 * 1024) {
-      setError(`Resume too large (${(uploadFile.size / 1024 / 1024).toFixed(1)} MB; max ${MAX_RESUME_MB} MB).`);
+      setError(`Résumé too large (${(uploadFile.size / 1024 / 1024).toFixed(1)} MB; max ${MAX_RESUME_MB} MB).`);
       return;
     }
     setBusyAction('upload');
@@ -1218,7 +1218,7 @@ function ResumeTab({ candidate, onRefresh }: { candidate: CandidateRow; onRefres
       return;
     }
     if (replaceFile.size > MAX_RESUME_MB * 1024 * 1024) {
-      setError(`Resume too large (${(replaceFile.size / 1024 / 1024).toFixed(1)} MB; max ${MAX_RESUME_MB} MB).`);
+      setError(`Résumé too large (${(replaceFile.size / 1024 / 1024).toFixed(1)} MB; max ${MAX_RESUME_MB} MB).`);
       return;
     }
     setBusyAction(`replace:${replaceTarget.id}`);
@@ -1264,7 +1264,7 @@ function ResumeTab({ candidate, onRefresh }: { candidate: CandidateRow; onRefres
   // ── Render ──────────────────────────────────────────────────────
   return (
     <Card
-      title="Resumes"
+      title="Résumés"
       action={
         !atCap ? (
           <button
@@ -1291,7 +1291,7 @@ function ResumeTab({ candidate, onRefresh }: { candidate: CandidateRow; onRefres
       {resumes.length === 0 && (
         <div className="space-y-3">
           <p className="text-sm" style={{ color: 'rgba(14,14,13,.7)' }}>
-            You don't have a resume on file yet. Recruiters can request introductions but will see "no resume available" until you upload one.
+            You don't have a résumé on file yet. Recruiters can request introductions but will see "no résumé available" until you upload one.
           </p>
           <button
             type="button"
@@ -1301,7 +1301,7 @@ function ResumeTab({ candidate, onRefresh }: { candidate: CandidateRow; onRefres
             onMouseEnter={e => (e.currentTarget.style.background = BRAND_HOVER)}
             onMouseLeave={e => (e.currentTarget.style.background = BRAND)}
           >
-            <Upload className="w-3.5 h-3.5" /> Upload your first resume
+            <Upload className="w-3.5 h-3.5" /> Upload your first résumé
           </button>
         </div>
       )}
@@ -1396,14 +1396,14 @@ function ResumeTab({ candidate, onRefresh }: { candidate: CandidateRow; onRefres
       {showUpload && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: 'rgba(14,14,13,.45)' }} onClick={() => setShowUpload(false)}>
           <div className="bg-white rounded-2xl p-6 max-w-md w-full" onClick={e => e.stopPropagation()} style={{ boxShadow: '0 8px 32px rgba(0,0,0,.18)' }}>
-            <h3 className="text-lg font-semibold mb-1" style={{ color: INK }}>Upload another resume</h3>
-            <p className="text-xs mb-4" style={{ color: 'rgba(14,14,13,.6)' }}>Add a second resume. You'll pick which one to send when you accept each introduction.</p>
+            <h3 className="text-lg font-semibold mb-1" style={{ color: INK }}>Upload another résumé</h3>
+            <p className="text-xs mb-4" style={{ color: 'rgba(14,14,13,.6)' }}>Add a second résumé. You'll pick which one to send when you accept each introduction.</p>
             <label className="block text-xs font-semibold mb-1" style={{ color: 'rgba(14,14,13,.7)' }}>Label</label>
             <input
               type="text"
               value={uploadLabel}
               onChange={e => setUploadLabel(e.target.value)}
-              placeholder="e.g. Strategy resume"
+              placeholder="e.g. Strategy résumé"
               maxLength={40}
               className="w-full px-3 py-2 border rounded-lg text-sm mb-3"
               style={{ borderColor: 'rgba(14,14,13,.2)' }}
@@ -1456,7 +1456,7 @@ function ResumeTab({ candidate, onRefresh }: { candidate: CandidateRow; onRefres
                       className="mt-0.5"
                     />
                     <span>
-                      Also re-parse my profile from this resume?
+                      Also re-parse my profile from this résumé?
                       <span className="block mt-0.5" style={{ color: 'rgba(14,14,13,.5)' }}>
                         We'll suggest updates to your role, education, skills and bio. Nothing is changed until you confirm.
                       </span>
@@ -1480,7 +1480,7 @@ function ResumeTab({ candidate, onRefresh }: { candidate: CandidateRow; onRefres
             {reparseSuggestions && (
               <div className="space-y-3">
                 <p className="text-xs" style={{ color: 'rgba(14,14,13,.7)' }}>
-                  Your resume was replaced. Suggested profile updates from the new file:
+                  Your résumé was replaced. Suggested profile updates from the new file:
                 </p>
                 <div className="text-xs space-y-1.5 p-3 rounded-lg" style={{ background: 'rgba(0,128,55,.04)', border: '1px solid rgba(0,128,55,.2)' }}>
                   {reparseSuggestions.currentRole && <p><strong>Current role:</strong> {reparseSuggestions.currentRole}</p>}
@@ -1518,9 +1518,9 @@ function ResumeTab({ candidate, onRefresh }: { candidate: CandidateRow; onRefres
             <h3 className="text-lg font-semibold mb-1" style={{ color: INK }}>Delete "{confirmDelete.label}"?</h3>
             <p className="text-xs mb-4" style={{ color: 'rgba(14,14,13,.65)' }}>
               {resumes.length === 1
-                ? 'This is your last resume. Recruiters will see "no resume available" on any new introduction you accept until you upload another.'
+                ? 'This is your last résumé. Recruiters will see "no résumé available" on any new introduction you accept until you upload another.'
                 : confirmDelete.is_default
-                  ? "This is currently your default. We'll promote your other resume to default and recruiters will receive it on new introductions."
+                  ? "This is currently your default. We'll promote your other résumé to default and recruiters will receive it on new introductions."
                   : 'This file will be removed permanently.'}
             </p>
             <div className="flex gap-2 justify-end">

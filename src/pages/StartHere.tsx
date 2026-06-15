@@ -36,14 +36,14 @@ const howItWorksSteps = [
 const PLAN_FEATURES_MONTHLY = [
   'Unlimited introduction requests',
   'Candidate responses within 24hrs',
-  'Full contact details + résumé on acceptance',
+  'Full contact details + resume on acceptance',
   'Cancel anytime',
 ];
 
 const PLAN_FEATURES_ANNUAL = [
   'Unlimited introduction requests',
   'Candidate responses within 24hrs',
-  'Full contact details + résumé on acceptance',
+  'Full contact details + resume on acceptance',
   'Priority candidate matching',
   'Dedicated account support',
 ];

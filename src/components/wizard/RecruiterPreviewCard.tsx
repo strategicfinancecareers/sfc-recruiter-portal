@@ -89,7 +89,7 @@ const BUCKET_TO_YRS: Record<string, number> = {
 //
 //   Contact gates           15%   (6 bits — firstName, lastName, email,
 //                                  phone≥7 chars, linkedin, committed)
-//   Résumé parsed           15%   (binary)
+//   Resume parsed           15%   (binary)
 //   Professional Experience 25%   (3 bits — primaryBackground,
 //                                  areasOfExpertise≥1, experience bucket)
 //   Job preferences         20%   (3 bits — jobSearchStatus,
@@ -102,7 +102,7 @@ const BUCKET_TO_YRS: Record<string, number> = {
 //
 // Walk-through: every gated bit true + bio present
 //   contact 6/6 × 15 = 15
-//   résumé  binary   = 15
+//   resume  binary   = 15
 //   exp     3/3 × 25 = 25
 //   prefs   3/3 × 20 = 20
 //   auth    2/2 × 10 = 10
@@ -130,8 +130,8 @@ export function profileCompletion(form: PreviewFormShape): number {
   ];
   pct += (contactBits.filter(Boolean).length / contactBits.length) * 15;
 
-  // Résumé parsed (15%) — binary; either we have a parsed résumé
-  // (create flow) or we don't. Edit mode keeps an existing résumé
+  // Resume parsed (15%) — binary; either we have a parsed resume
+  // (create flow) or we don't. Edit mode keeps an existing resume
   // on the row but the preview doesn't know about that here — the
   // wizard's canProceedStep2 covers the edit-mode equivalent, the
   // preview just shows what's in form-state.
@@ -278,7 +278,7 @@ export default function RecruiterPreviewCard({ form, step, isEditMode, readOnly,
 
   // Step ownership map for the pencil affordances. The role caption,
   // profile summary, and technical skills sections are populated by
-  // the résumé parse on step 2 — that's where their editors now
+  // the resume parse on step 2 — that's where their editors now
   // live, so clicking the pencil returns the candidate to step 2.
   // Backgrounds + areas + industries live on step 3. Availability +
   // work preference live on step 4.
@@ -318,7 +318,7 @@ export default function RecruiterPreviewCard({ form, step, isEditMode, readOnly,
             >
               <p className="font-semibold text-[#004a1f] mb-1.5">What recruiters see</p>
               <p>
-                Recruiters only see this anonymized profile. Your name, email, phone, and résumé stay hidden until you accept an introduction — then the recruiter receives your résumé and contact details.
+                Recruiters only see this anonymized profile. Your name, email, phone, and resume stay hidden until you accept an introduction — then the recruiter receives your resume and contact details.
               </p>
             </PopoverContent>
           </Popover>
@@ -586,7 +586,7 @@ export default function RecruiterPreviewCard({ form, step, isEditMode, readOnly,
               </div>
             )}
 
-            {/* Tools / Technical Skills. Edited on the résumé step
+            {/* Tools / Technical Skills. Edited on the resume step
                 (post-parse) in the new layout, so the pencil routes
                 back to step 2 — same as the role/headline/summary. */}
             {skills.length > 0 && (

@@ -266,10 +266,10 @@ interface FormState {
   // same array to both columns so existing readers (SFC Take prompt,
   // admin notify email) keep working unmodified until then.
   areasOfExpertise: string[];
-  // Phase 4: résumé-driven suggestions for the Areas and Tools
+  // Phase 4: resume-driven suggestions for the Areas and Tools
   // pickers. Immutable snapshots from the most-recent parse —
   // selecting/adding/removing chips never mutates these. The picker
-  // uses them to render the "Recommended from your résumé" row.
+  // uses them to render the "Recommended from your resume" row.
   // Both are autosaved (plain string[]) so a refresh after a parse
   // still shows the recommended chips. Empty in edit mode (parse
   // doesn't re-run on edit) → "Recommended" section just hides.
@@ -439,7 +439,7 @@ function CheckboxGrid({ options, selected, onChange }: {
 // Local row state lives here (not on FormState) so the user can keep
 // an empty "second degree" row open without it polluting
 // form.education. When the user types into the row we join + push;
-// when form.education changes externally (résumé parse, edit
+// when form.education changes externally (resume parse, edit
 // prefill), the effect below reparses to refresh the rows.
 function EducationRowsEditor({
   value,
@@ -459,7 +459,7 @@ function EducationRowsEditor({
   // doesn't reparse and clobber the empty trailing row.
   const lastEmittedRef = useRef<string>(joinDegrees(initialRows));
 
-  // External value sync: when a résumé parse / edit prefill / page
+  // External value sync: when a resume parse / edit prefill / page
   // mount feeds in a new `value` that DIDN'T come from this
   // editor's own onChange, reparse to refresh the rows.
   useEffect(() => {
@@ -571,7 +571,7 @@ function SkillsInput({ skills, onChange }: { skills: string[]; onChange: (s: str
   );
 }
 
-// ─── Phase 4 skills picker (search + résumé-suggestions popup) ──────────────
+// ─── Phase 4 skills picker (search + resume-suggestions popup) ──────────────
 
 /**
  * SearchAndSuggest — reusable picker used twice on the wizard's
@@ -587,7 +587,7 @@ function SkillsInput({ skills, onChange }: { skills: string[]; onChange: (s: str
  *      first (top 8 by declaration order), then a "+ Add '<typed>'"
  *      option at the bottom when allowCustom is true and the typed
  *      query isn't already in the taxonomy or selected list.
- *   3. "See résumé suggestions" button — ONLY rendered when
+ *   3. "See resume suggestions" button — ONLY rendered when
  *      `suggestions.length > 0`. Hidden in edit mode (parse doesn't
  *      run on edit; suggestions stays []), hidden when parse failed
  *      or returned nothing for this field.
@@ -698,7 +698,7 @@ function SearchAndSuggest({
           ))}
         </div>
       ) : (
-        <p className="text-xs text-gray-400 mb-3 italic">Nothing selected yet — search below or browse résumé suggestions.</p>
+        <p className="text-xs text-gray-400 mb-3 italic">Nothing selected yet — search below or browse resume suggestions.</p>
       )}
 
       {/* Search input + type-ahead dropdown */}
@@ -729,7 +729,7 @@ function SearchAndSuggest({
         )}
       </div>
 
-      {/* Bottom row: soft-cap hint + résumé-suggestions button. The
+      {/* Bottom row: soft-cap hint + resume-suggestions button. The
           button is hidden when there are no suggestions for this
           field (parse failed, returned empty, or edit mode where
           parse doesn't run). */}
@@ -1043,7 +1043,7 @@ function LandingSection({ onStart, onSignIn }: { onStart: () => void; onSignIn: 
             <div style={{ position: 'absolute', left: 14, top: 14, bottom: 14, width: 1, background: '#E5E7EB' }} />
 
             {[
-              { n: '1', title: 'Create your anonymous profile', body: 'Upload your résumé. Our AI extracts your experience, skills, and background — no manual entry.', delay: 0 },
+              { n: '1', title: 'Create your anonymous profile', body: 'Upload your resume. Our AI extracts your experience, skills, and background — no manual entry.', delay: 0 },
               { n: '2', title: 'Get discovered by top companies', body: 'Recruiters browse anonymous profiles. They see your role, experience, and skills — never your identity.', delay: 100 },
               { n: '3', title: 'Receive curated introduction requests', body: 'When a company is interested, you get a direct message. One tap to accept or decline.', delay: 200 },
               { n: '4', title: 'Connect on your terms', body: 'Only if you accept does your contact information get shared. You stay in full control throughout.', delay: 300 },
@@ -1860,7 +1860,7 @@ export default function CandidateApply() {
 
   // ── Sync experience bucket from parsed/typed years ───────────────────────
   // Fix #3 on the e00b035 base: the years-of-experience radio on
-  // step 3 is gone. Years now flows in from the résumé parse
+  // step 3 is gone. Years now flows in from the resume parse
   // (applyParsed → form.yearsExperience) or from the candidate-
   // editable years input that already exists in the step-2 parsed-
   // details editor block. This effect derives form.experience (the
@@ -2008,15 +2008,15 @@ export default function CandidateApply() {
       if (parsed.educationLevel) set('educationLevel', parsed.educationLevel);
       if (parsed.bio) set('bio', parsed.bio);
       if (Array.isArray(parsed.sectors) && parsed.sectors.length > 0) set('sectors', parsed.sectors);
-      // Phase 4 revision: record résumé suggestions immutably for
+      // Phase 4 revision: record resume suggestions immutably for
       // the popup-driven UI. NO auto-seeding of form.areasOfExpertise
       // or form.skills — suggestions remain unselected until the
-      // candidate explicitly taps them from the "See résumé
+      // candidate explicitly taps them from the "See resume
       // suggestions" popup (or adds via search). Previously the
       // parse auto-filled the selected list; that pre-selection is
       // gone so candidates explicitly choose what fits, matching
       // the "Tap the ones that fit — we pulled these from your
-      // résumé" framing.
+      // resume" framing.
       const sa = Array.isArray(parsed.suggestedAreas) ? parsed.suggestedAreas.filter((s: unknown) => typeof s === 'string' && (s as string).trim()) : [];
       const st = Array.isArray(parsed.skills) ? parsed.skills.filter((s: unknown) => typeof s === 'string' && (s as string).trim()) : [];
       set('suggestedAreas', sa);
@@ -2627,7 +2627,7 @@ export default function CandidateApply() {
   // it just happens one step earlier in the user's path.
   const STEP_LABELS_LONG = [
     'Contact Information',
-    'Résumé Upload',
+    'Resume Upload',
     'Professional Experience',
     'Future Job Preferences',
     'Work Authorization',
@@ -2635,7 +2635,7 @@ export default function CandidateApply() {
   ];
   const STEP_LABELS_SHORT = [
     'Contact',
-    'Résumé',
+    'Resume',
     'Experience',
     'Preferences',
     'Work Auth',
@@ -2964,7 +2964,7 @@ export default function CandidateApply() {
 
               {/* Phase 4: Areas of Expertise — search-and-suggest
                   picker (replaces the Phase 2 pill grid). Seeded from
-                  the résumé parse on Tab 2 (résumé tab); candidates
+                  the resume parse on Tab 2 (resume tab); candidates
                   refine here. Soft cap 10 is UI guidance only;
                   server hard limit is 25. Taxonomy comes from
                   src/lib/areasOfExpertise.ts. */}
@@ -2973,7 +2973,7 @@ export default function CandidateApply() {
                   What areas have you developed meaningful experience in throughout your career? <span className="text-red-500">*</span>
                 </Label>
                 <p className="text-xs text-gray-500 mt-1 leading-relaxed">
-                  Select up to 10. Browse résumé suggestions or search the catalogue — choose only what feels accurate.
+                  Select up to 10. Browse resume suggestions or search the catalogue — choose only what feels accurate.
                 </p>
                 <div className="mt-3">
                   <SearchAndSuggest
@@ -2984,9 +2984,9 @@ export default function CandidateApply() {
                     allowCustom={true}
                     softCap={AREAS_MAX}
                     searchPlaceholder="Search pricing, treasury, board reporting…"
-                    suggestionsButtonLabel="See résumé suggestions"
-                    suggestionsTitle="Areas we found in your résumé"
-                    suggestionsSubtitle="Tap the ones that fit — we pulled these from your résumé."
+                    suggestionsButtonLabel="See resume suggestions"
+                    suggestionsTitle="Areas we found in your resume"
+                    suggestionsSubtitle="Tap the ones that fit — we pulled these from your resume."
                   />
                 </div>
               </div>
@@ -3012,15 +3012,15 @@ export default function CandidateApply() {
                     taxonomy={ALL_TOOL_TAGS}
                     allowCustom={true}
                     searchPlaceholder="Search Excel, NetSuite, Looker, Mixpanel…"
-                    suggestionsButtonLabel="See résumé suggestions"
-                    suggestionsTitle="Tools we found in your résumé"
-                    suggestionsSubtitle="Tap the ones that fit — we pulled these from your résumé."
+                    suggestionsButtonLabel="See resume suggestions"
+                    suggestionsTitle="Tools we found in your resume"
+                    suggestionsSubtitle="Tap the ones that fit — we pulled these from your resume."
                   />
                 </div>
               </div>
 
               {/* Years-of-experience radio removed (fix #3). Years
-                  now flows in from the résumé parse on step 2 (or
+                  now flows in from the resume parse on step 2 (or
                   from the "Years of experience" input the candidate
                   can edit on step 2's parsed-details editor). The
                   form.experience bucket is kept in sync with
@@ -3078,9 +3078,9 @@ export default function CandidateApply() {
         {/* ── Tab 3: Resume Upload (resume only) ──────────────────────── */}
         {step === 2 && isEditMode && (
           <div className="max-w-2xl mx-auto">
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Your Résumé</h2>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Your Resume</h2>
             <p className="text-gray-500 mb-8 text-sm">
-              We're staying on a single-résumé model for now. Replace coming soon.
+              We're staying on a single-resume model for now. Replace coming soon.
             </p>
             {editResumeFilename ? (
               <div className="flex items-start gap-3 p-4 rounded-xl border bg-emerald-50/40 border-emerald-200">
@@ -3092,7 +3092,7 @@ export default function CandidateApply() {
               </div>
             ) : (
               <div className="p-4 rounded-xl border border-gray-200 bg-gray-50 text-sm text-gray-600">
-                No résumé on file yet. Self-serve upload is coming soon — for now, email it to{' '}
+                No resume on file yet. Self-serve upload is coming soon — for now, email it to{' '}
                 <a href="mailto:talent@strategicfinancecareers.com" className="text-emerald-700 underline font-medium">talent@strategicfinancecareers.com</a>.
               </div>
             )}
@@ -3100,7 +3100,7 @@ export default function CandidateApply() {
         )}
         {step === 2 && !isEditMode && (
           <div className="max-w-2xl mx-auto">
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Upload Your Résumé</h2>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Upload Your Resume</h2>
             <p className="text-gray-500 mb-8 text-sm">
               We'll use AI to extract your profile automatically. PDF format required.
             </p>
@@ -3109,7 +3109,7 @@ export default function CandidateApply() {
               <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl mb-4">
                 <span className="text-amber-500 text-base shrink-0 mt-0.5">⚠️</span>
                 <p className="text-sm text-amber-800">
-                  We couldn't automatically parse your résumé — no worries. You can fill in the details below.
+                  We couldn't automatically parse your resume — no worries. You can fill in the details below.
                 </p>
               </div>
             )}
@@ -3147,7 +3147,7 @@ export default function CandidateApply() {
                   }
                   <div>
                     <p className={`text-sm font-semibold ${form.parseWarning ? 'text-amber-800' : 'text-emerald-800'}`}>
-                      {form.parseWarning ? 'Résumé uploaded — fill details on the Review tab' : 'Résumé parsed successfully!'}
+                      {form.parseWarning ? 'Resume uploaded — fill details on the Review tab' : 'Resume parsed successfully!'}
                     </p>
                     <p className={`text-xs ${form.parseWarning ? 'text-amber-600' : 'text-emerald-600'}`}>
                       {form.resumeFile?.name}
@@ -3173,14 +3173,14 @@ export default function CandidateApply() {
                   <div className="mt-3 flex items-start gap-2 p-3 border border-[#008037]/25 bg-[#008037]/5 rounded-lg">
                     <Sparkles className="w-4 h-4 text-[#006a2d] shrink-0 mt-0.5" />
                     <p className="text-xs text-[#004a1f] leading-relaxed">
-                      We've pulled details from your résumé — review and adjust them below before continuing.
+                      We've pulled details from your resume — review and adjust them below before continuing.
                     </p>
                   </div>
                 )}
 
                 {/* ── Editable parsed-details block ─────────────────────
                     Moved here from the old Review-tab editor. Renders
-                    whenever a résumé is loaded (success OR warning) so
+                    whenever a resume is loaded (success OR warning) so
                     candidates whose parse failed can still type their
                     details in directly. Bound to the same FormState
                     fields the Review tab previously wrote to —
@@ -3215,7 +3215,7 @@ export default function CandidateApply() {
                           The empty <option value=""> renders as the
                           placeholder when form.educationLevel is empty
                           OR holds a value that isn't in the known list
-                          (e.g. a résumé parser returned an unmapped
+                          (e.g. a resume parser returned an unmapped
                           string) — the <select> falls back to value=""
                           rather than throwing. State key / writes are
                           unchanged: still set('educationLevel', v) →
@@ -3279,7 +3279,7 @@ export default function CandidateApply() {
                   {/* Skills input was removed from this step-2 editor:
                       form.skills is now owned exclusively by the
                       Experience step's search-and-suggest picker
-                      (Phase 4 / 1.5). The résumé parse still seeds
+                      (Phase 4 / 1.5). The resume parse still seeds
                       form.suggestedTools via applyParsed; nothing
                       writes form.skills here. The Experience picker
                       remains the single edit surface so we don't
@@ -3505,7 +3505,7 @@ export default function CandidateApply() {
           <div className="max-w-4xl mx-auto">
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Review your profile</h2>
             <p className="text-gray-500 mb-6 text-sm">
-              This is exactly what recruiters will see — your real name, contact info, and résumé stay hidden until you accept an introduction. Tap the pencil on any section to jump back and adjust it.
+              This is exactly what recruiters will see — your real name, contact info, and resume stay hidden until you accept an introduction. Tap the pencil on any section to jump back and adjust it.
             </p>
 
             {/* Centered live preview — the focal editable surface on
@@ -3589,7 +3589,7 @@ export default function CandidateApply() {
           z-30 so it stays under any modal overlay (Radix Dialog +
           AlertDialog overlays render at z-50, so they always cover
           this pill — no z-fight with the Cancel confirmation or the
-          résumé-suggestions Dialog). The Sheet itself uses the
+          resume-suggestions Dialog). The Sheet itself uses the
           default Radix z-50 stack; opening it from a button at z-30
           doesn't conflict because the Sheet portals to the body root.
 

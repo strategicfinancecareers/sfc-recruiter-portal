@@ -383,7 +383,7 @@ export default function Home() {
               <div className="reveal-name">Marcus Reyes</div>
               <div className="reveal-tagline">Private Equity Associate · MM Buyout · 4 yrs</div>
               <ul className="reveal-list">
-                <li><CheckIcon /><span>Full name &amp; <b>résumé</b></span></li>
+                <li><CheckIcon /><span>Full name &amp; <b>resume</b></span></li>
                 <li><CheckIcon /><span>marcus.reyes@gmail.com</span></li>
                 <li><CheckIcon /><span>+1 (415) 555-0182</span></li>
                 <li><CheckIcon /><span>linkedin.com/in/marcusreyes</span></li>

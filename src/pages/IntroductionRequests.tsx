@@ -223,7 +223,7 @@ const openApprovedModal = (request: IntroductionRequest) => {
                     ) : (
                       <>
                         <Download className="w-4 h-4" />
-                        Download Resume
+                        Download Résumé
                       </>
                     )}
                   </button>
@@ -507,7 +507,7 @@ const openApprovedModal = (request: IntroductionRequest) => {
                                   </div>
                                   <div className="space-y-4">
                                     <div>
-                                      <h4 className="font-medium mb-2">Resume Preview</h4>
+                                      <h4 className="font-medium mb-2">Résumé Preview</h4>
                                       <div className="border rounded-lg max-h-96 overflow-y-auto bg-background">
                                         <RedactedResume
                                           candidate={{

@@ -16,7 +16,7 @@ const FEATURES = [
   'Unlimited candidate browsing',
   'Send introduction requests',
   'Candidate email & phone details on match',
-  'Resume PDF delivered on acceptance',
+  'Résumé PDF delivered on acceptance',
   'Dedicated SFC support',
 ];
 

@@ -1043,7 +1043,7 @@ function LandingSection({ onStart, onSignIn }: { onStart: () => void; onSignIn: 
             <div style={{ position: 'absolute', left: 14, top: 14, bottom: 14, width: 1, background: '#E5E7EB' }} />
 
             {[
-              { n: '1', title: 'Create your anonymous profile', body: 'Upload your resume. Our AI extracts your experience, skills, and background — no manual entry.', delay: 0 },
+              { n: '1', title: 'Create your anonymous profile', body: 'Upload your résumé. Our AI extracts your experience, skills, and background — no manual entry.', delay: 0 },
               { n: '2', title: 'Get discovered by top companies', body: 'Recruiters browse anonymous profiles. They see your role, experience, and skills — never your identity.', delay: 100 },
               { n: '3', title: 'Receive curated introduction requests', body: 'When a company is interested, you get a direct message. One tap to accept or decline.', delay: 200 },
               { n: '4', title: 'Connect on your terms', body: 'Only if you accept does your contact information get shared. You stay in full control throughout.', delay: 300 },
@@ -1858,6 +1858,29 @@ export default function CandidateApply() {
     return () => subscription.unsubscribe();
   }, [screen, authEmail]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Sync experience bucket from parsed/typed years ───────────────────────
+  // Fix #3 on the e00b035 base: the years-of-experience radio on
+  // step 3 is gone. Years now flows in from the résumé parse
+  // (applyParsed → form.yearsExperience) or from the candidate-
+  // editable years input that already exists in the step-2 parsed-
+  // details editor block. This effect derives form.experience (the
+  // bucket) from the numeric value whenever it changes, so
+  // canProceedStep3 and isDisqualified continue to work unchanged.
+  // Skips when yearsExperience is empty or unparseable — the
+  // step-3 gate stays closed in that case (the candidate has to go
+  // back to step 2 and type a number).
+  useEffect(() => {
+    const raw = (form.yearsExperience ?? '').toString().trim();
+    if (!raw) return;
+    const yrs = Number(raw);
+    if (!Number.isFinite(yrs)) return;
+    const next = yrs < 2 ? 'under2' : yrs < 5 ? '2to5' : yrs < 10 ? '5to10' : '10plus';
+    if (next !== form.experience) {
+      setForm(prev => ({ ...prev, experience: next }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.yearsExperience]);
+
   // ── Derived ─────────────────────────────────────────────────────────────────
 
   // Profile completion % — shown on the floating mobile preview pill
@@ -2604,7 +2627,7 @@ export default function CandidateApply() {
   // it just happens one step earlier in the user's path.
   const STEP_LABELS_LONG = [
     'Contact Information',
-    'Resume Upload',
+    'Résumé Upload',
     'Professional Experience',
     'Future Job Preferences',
     'Work Authorization',
@@ -2612,7 +2635,7 @@ export default function CandidateApply() {
   ];
   const STEP_LABELS_SHORT = [
     'Contact',
-    'Resume',
+    'Résumé',
     'Experience',
     'Preferences',
     'Work Auth',
@@ -2877,7 +2900,7 @@ export default function CandidateApply() {
 
             <div className="space-y-7">
               <div>
-                <Label className="text-sm font-semibold text-gray-800">
+                <Label className="text-base font-semibold text-gray-900 leading-snug">
                   What best describes your primary background? <span className="text-red-500">*</span>
                 </Label>
                 <div className="space-y-3 mt-3">
@@ -2911,9 +2934,9 @@ export default function CandidateApply() {
 
               {form.primaryBackground && (
                 <div>
-                  <Label className="text-sm font-semibold text-gray-800">
+                  <Label className="text-base font-semibold text-gray-900 leading-snug">
                     Any additional areas of experience?
-                    <span className="ml-2 text-xs font-normal text-gray-400">Optional — select all that apply</span>
+                    <span className="ml-2 text-sm font-normal text-gray-500">Optional — select all that apply</span>
                   </Label>
                   <div className="space-y-2 mt-3">
                     {secondaryOptions.map(bg => (
@@ -2946,7 +2969,7 @@ export default function CandidateApply() {
                   server hard limit is 25. Taxonomy comes from
                   src/lib/areasOfExpertise.ts. */}
               <div>
-                <Label className="text-sm font-semibold text-gray-800">
+                <Label className="text-base font-semibold text-gray-900 leading-snug">
                   What areas have you developed meaningful experience in throughout your career? <span className="text-red-500">*</span>
                 </Label>
                 <p className="text-xs text-gray-500 mt-1 leading-relaxed">
@@ -2975,7 +2998,7 @@ export default function CandidateApply() {
                   Areas above). Writes form.skills — same store as
                   the Review-tab SkillsInput. */}
               <div>
-                <Label className="text-sm font-semibold text-gray-800">
+                <Label className="text-base font-semibold text-gray-900 leading-snug">
                   What tools and technical skills have you used professionally?
                 </Label>
                 <div className="mt-2 p-3 rounded-lg border border-emerald-200 bg-emerald-50 text-xs text-emerald-900 leading-relaxed">
@@ -2996,16 +3019,14 @@ export default function CandidateApply() {
                 </div>
               </div>
 
-              <div>
-                <Label>Years of full-time professional experience? <span className="text-red-500">*</span></Label>
-                <RadioGroup name="experience" value={form.experience} onChange={v => set('experience', v)}
-                  options={[
-                    { value: 'under2', label: 'Under 2 years' },
-                    { value: '2to5', label: '2 – 5 years' },
-                    { value: '5to10', label: '5 – 10 years' },
-                    { value: '10plus', label: '10+ years' },
-                  ]} />
-              </div>
+              {/* Years-of-experience radio removed (fix #3). Years
+                  now flows in from the résumé parse on step 2 (or
+                  from the "Years of experience" input the candidate
+                  can edit on step 2's parsed-details editor). The
+                  form.experience bucket is kept in sync with
+                  form.yearsExperience via a useEffect at the wizard
+                  root, so canProceedStep3 and isDisqualified
+                  continue to work unchanged. */}
 
               {/* company_stage_experience — stages the candidate has
                   WORKED at. The legacy "Company-stage experience"
@@ -3018,7 +3039,7 @@ export default function CandidateApply() {
                   new candidates.company_stage_experience column.
                   Optional, no validator gate. */}
               <div>
-                <Label className="text-sm font-semibold text-gray-800">
+                <Label className="text-base font-semibold text-gray-900 leading-snug">
                   What company stages have you worked at?
                 </Label>
                 <p className="text-xs text-gray-400 mt-0.5">Select all that apply.</p>
@@ -3030,7 +3051,7 @@ export default function CandidateApply() {
               </div>
 
               <div>
-                <Label className="text-sm font-semibold text-gray-800">Industries / sectors</Label>
+                <Label className="text-base font-semibold text-gray-900 leading-snug">Industries / sectors</Label>
                 <p className="text-xs text-gray-400 mt-0.5">Select all that apply</p>
                 <CheckboxGrid options={SECTORS} selected={form.industries} onChange={v => set('industries', v)} />
                 {form.industries.includes(SECTOR_OTHER) && (
@@ -3043,13 +3064,13 @@ export default function CandidateApply() {
                 )}
               </div>
 
-              <div>
-                <Label className="text-sm font-semibold text-gray-800">
-                  New areas you'd like to move into
-                  <span className="ml-2 text-xs font-normal text-gray-400">Optional — multi-select</span>
-                </Label>
-                <ChipGrid options={NEW_AREAS} selected={form.newAreas} onChange={v => set('newAreas', v)} />
-              </div>
+              {/* "New areas you'd like to move into" moved to the
+                  Preferences step (fix #4). It's a forward-looking
+                  preference, not a past-experience signal, so it
+                  belongs alongside target roles / target stages /
+                  preferred cities on step 4. form.newAreas storage,
+                  edit-prefill, submit, and dual-write are unchanged
+                  — the single writer moved with the JSX. */}
             </div>
           </div>
         )}
@@ -3057,9 +3078,9 @@ export default function CandidateApply() {
         {/* ── Tab 3: Resume Upload (resume only) ──────────────────────── */}
         {step === 2 && isEditMode && (
           <div className="max-w-2xl mx-auto">
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Your Resume</h2>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Your Résumé</h2>
             <p className="text-gray-500 mb-8 text-sm">
-              We're staying on a single-resume model for now. Replace coming soon.
+              We're staying on a single-résumé model for now. Replace coming soon.
             </p>
             {editResumeFilename ? (
               <div className="flex items-start gap-3 p-4 rounded-xl border bg-emerald-50/40 border-emerald-200">
@@ -3071,7 +3092,7 @@ export default function CandidateApply() {
               </div>
             ) : (
               <div className="p-4 rounded-xl border border-gray-200 bg-gray-50 text-sm text-gray-600">
-                No resume on file yet. Self-serve upload is coming soon — for now, email it to{' '}
+                No résumé on file yet. Self-serve upload is coming soon — for now, email it to{' '}
                 <a href="mailto:talent@strategicfinancecareers.com" className="text-emerald-700 underline font-medium">talent@strategicfinancecareers.com</a>.
               </div>
             )}
@@ -3079,7 +3100,7 @@ export default function CandidateApply() {
         )}
         {step === 2 && !isEditMode && (
           <div className="max-w-2xl mx-auto">
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Upload Your Resume</h2>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Upload Your Résumé</h2>
             <p className="text-gray-500 mb-8 text-sm">
               We'll use AI to extract your profile automatically. PDF format required.
             </p>
@@ -3126,7 +3147,7 @@ export default function CandidateApply() {
                   }
                   <div>
                     <p className={`text-sm font-semibold ${form.parseWarning ? 'text-amber-800' : 'text-emerald-800'}`}>
-                      {form.parseWarning ? 'Resume uploaded — fill details on the Review tab' : 'Resume parsed successfully!'}
+                      {form.parseWarning ? 'Résumé uploaded — fill details on the Review tab' : 'Résumé parsed successfully!'}
                     </p>
                     <p className={`text-xs ${form.parseWarning ? 'text-amber-600' : 'text-emerald-600'}`}>
                       {form.resumeFile?.name}
@@ -3278,7 +3299,7 @@ export default function CandidateApply() {
 
             <div className="space-y-6">
               <div>
-                <Label>What's your current availability? <span className="text-red-500">*</span></Label>
+                <Label className="text-base font-semibold text-gray-900 leading-snug">What's your current availability? <span className="text-red-500">*</span></Label>
                 {/* 3-up grid for the three availability tiers. Stacks
                     on narrow viewports so each option keeps room for
                     its description copy. */}
@@ -3305,13 +3326,13 @@ export default function CandidateApply() {
               </div>
 
               <div>
-                <Label>What is your total cash compensation target? <span className="text-red-500">*</span></Label>
+                <Label className="text-base font-semibold text-gray-900 leading-snug">What is your total cash compensation target? <span className="text-red-500">*</span></Label>
                 <RadioGroup name="targetComp" value={form.targetComp} onChange={v => set('targetComp', v)}
                   options={COMP_OPTIONS} />
               </div>
 
               <div>
-                <Label>Work preference <span className="text-red-500">*</span><span className="ml-2 text-xs font-normal text-gray-400">Select all that apply</span></Label>
+                <Label className="text-base font-semibold text-gray-900 leading-snug">Work preference <span className="text-red-500">*</span><span className="ml-2 text-sm font-normal text-gray-500">Select all that apply</span></Label>
                 <div className="grid grid-cols-3 gap-3 mt-2">
                   {WORK_PREFERENCES.map(wp => {
                     const selected = form.workPreferences.includes(wp.value);
@@ -3350,16 +3371,16 @@ export default function CandidateApply() {
                   form.companyStages → target_company_stages wiring is
                   unchanged. Optional — no validator gate. */}
               <div>
-                <Label>What company stages are you targeting?
-                  <span className="ml-2 text-xs font-normal text-gray-400">Select all that interest you</span>
+                <Label className="text-base font-semibold text-gray-900 leading-snug">What company stages are you targeting?
+                  <span className="ml-2 text-sm font-normal text-gray-500">Select all that interest you</span>
                 </Label>
                 <ChipGrid options={COMPANY_STAGES} selected={form.companyStages}
                   onChange={v => set('companyStages', v)} />
               </div>
 
               <div>
-                <Label>Which cities would you consider?
-                  <span className="ml-2 text-xs font-normal text-gray-400">Select all that apply</span>
+                <Label className="text-base font-semibold text-gray-900 leading-snug">Which cities would you consider?
+                  <span className="ml-2 text-sm font-normal text-gray-500">Select all that apply</span>
                 </Label>
                 <ChipGrid options={PREFERRED_CITIES} selected={form.preferredCities}
                   onChange={v => set('preferredCities', v)} />
@@ -3374,9 +3395,22 @@ export default function CandidateApply() {
               </div>
 
               <div>
-                <Label>Target roles (select all that apply)</Label>
+                <Label className="text-base font-semibold text-gray-900 leading-snug">Target roles <span className="ml-2 text-sm font-normal text-gray-500">Select all that apply</span></Label>
                 <ChipGrid options={TARGET_ROLES} selected={form.targetRoles}
                   onChange={v => set('targetRoles', v)} />
+              </div>
+
+              {/* "New areas you'd like to move into" — moved here from
+                  the Experience step (fix #4). Forward-looking
+                  preference, sits alongside target roles / cities /
+                  target stages. Storage / edit-prefill / submit /
+                  dual-write wiring unchanged. */}
+              <div>
+                <Label className="text-base font-semibold text-gray-900 leading-snug">
+                  New areas you'd like to move into
+                  <span className="ml-2 text-sm font-normal text-gray-500">Optional — multi-select</span>
+                </Label>
+                <ChipGrid options={NEW_AREAS} selected={form.newAreas} onChange={v => set('newAreas', v)} />
               </div>
             </div>
           </div>
@@ -3392,7 +3426,7 @@ export default function CandidateApply() {
 
             <div className="space-y-6">
               <div>
-                <Label className="text-sm font-semibold text-gray-800">
+                <Label className="text-base font-semibold text-gray-900 leading-snug">
                   Are you legally authorized to work in the United States? <span className="text-red-500">*</span>
                 </Label>
                 <div className="space-y-2 mt-3">
@@ -3422,7 +3456,7 @@ export default function CandidateApply() {
               </div>
 
               <div>
-                <Label className="text-sm font-semibold text-gray-800">
+                <Label className="text-base font-semibold text-gray-900 leading-snug">
                   Will you now or in the future require sponsorship for employment visa status (e.g. H-1B)? <span className="text-red-500">*</span>
                 </Label>
                 <div className="space-y-2 mt-3">

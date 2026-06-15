@@ -294,7 +294,7 @@ export default function AnonymousCandidateCard(props: Props) {
           <div>
             <p className="text-sm font-semibold text-gray-700 mb-0.5">Candidate Identity Protected</p>
             <p className="text-xs text-gray-500 leading-relaxed">
-              Full name, detailed company history, resume, and contact information are revealed only after
+              Full name, detailed company history, résumé, and contact information are revealed only after
               the candidate accepts the introduction request.
             </p>
           </div>

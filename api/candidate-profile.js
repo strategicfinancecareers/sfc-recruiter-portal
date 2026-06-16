@@ -99,6 +99,11 @@ const CANDIDATE_GET_COLUMNS = [
   'industries', 'industries_other',
   'new_areas', 'linkedin_url', 'resume_full_url',
   'work_authorized_us', 'requires_sponsorship',
+  // Form-edits batch — Tab 6: SFC student / alumni columns
+  // (all nullable). Returned so the wizard's edit-mode prefill can
+  // hydrate form.isSfcAlum / sfcProgram / sfcCoach. PATCH whitelist
+  // below also accepts them.
+  'is_sfc_alum', 'sfc_program', 'sfc_coach',
   'status',
 ].join(', ');
 
@@ -309,6 +314,14 @@ export default async function handler(req, res) {
         'new_areas',
         'work_authorized_us',
         'requires_sponsorship',
+        // Form-edits batch — Tab 6: SFC student / alumni. All three
+        // nullable; the wizard sends null when unanswered / empty.
+        // is_sfc_alum is boolean, sfc_program / sfc_coach are
+        // free-text but the form constrains to a closed set
+        // (Base/Growth/Elite, Zu/Soomin/Dee).
+        'is_sfc_alum',
+        'sfc_program',
+        'sfc_coach',
       ]);
       const safeUpdates = {};
       const droppedKeys = [];

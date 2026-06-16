@@ -45,6 +45,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       preferredCities, preferredCitiesOther, targetRoles,
       // Work authorization (NEW, two-question pair, store-only)
       workAuthorizedUs, requiresSponsorship,
+      // SFC student / alumni (form-edits batch — Tab 6).
+      // All three optional. is_sfc_alum boolean (or null when
+      // unanswered); sfc_program / sfc_coach are text from a
+      // closed wizard set (Base/Growth/Elite, Zu Daya / Soomin Song
+      // / Dee Clarke). Empty strings from the client get normalized
+      // to null before writing.
+      isSfcAlum, sfcProgram, sfcCoach,
       // Resume
       resumeBase64, resumeFileName,
     } = req.body;
@@ -220,6 +227,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       target_roles: Array.isArray(targetRoles) ? targetRoles : [],
       work_authorized_us: typeof workAuthorizedUs === 'boolean' ? workAuthorizedUs : null,
       requires_sponsorship: typeof requiresSponsorship === 'boolean' ? requiresSponsorship : null,
+      // Form-edits batch — Tab 6: SFC student / alumni.
+      is_sfc_alum: typeof isSfcAlum === 'boolean' ? isSfcAlum : null,
+      sfc_program: (typeof sfcProgram === 'string' && sfcProgram.trim()) ? sfcProgram.trim() : null,
+      sfc_coach:   (typeof sfcCoach   === 'string' && sfcCoach.trim())   ? sfcCoach.trim()   : null,
     };
 
     // ── Save candidate: update (re-application) or insert (new) ─────────────

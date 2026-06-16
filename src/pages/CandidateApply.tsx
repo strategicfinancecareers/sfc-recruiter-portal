@@ -122,30 +122,27 @@ const SECTORS = [
 // the free-text input that lands in candidates.industries_other.
 const SECTOR_OTHER = 'Other';
 
+// Target Seniority (renamed from "Target Roles" in the form-edits batch).
+// Flat 8-level ladder — stored in the existing candidates.target_roles
+// column (column kept; just the label + option vocabulary change).
+// Existing candidates with old role-style values will re-pick on edit.
 const TARGET_ROLES = [
-  'Strategic Finance',
-  'Corporate Development',
-  'Strategy & Operations',
-  'FP&A',
-  'Chief of Staff',
-  'Finance Manager / Director',
-  'VP Finance / CFO',
+  'Analyst',
+  'Manager',
+  'Senior Manager',
+  'Director',
+  'Senior Director',
+  'VP Finance',
+  'Head of Finance',
+  'CFO',
 ];
 
-// New areas of interest (finance specializations the candidate wants to
-// move INTO). Multi-select → candidates.new_areas[].
-const NEW_AREAS = [
-  'Strategic Finance',
-  'Corporate Development / M&A',
-  'FP&A leadership',
-  'Investor Relations',
-  'Treasury / Capital Markets',
-  'Business Operations / Chief of Staff',
-  'Revenue Operations',
-  'Data & Analytics (finance)',
-  'Startup CFO / first finance hire',
-  'Fund finance / portfolio finance',
-];
+// NEW_AREAS / "new areas you'd like to move into" — the question was
+// removed from the form in the form-edits batch. The
+// candidates.new_areas DB column is intentionally untouched (no
+// migration); we just stop rendering the picker and stop writing
+// from the form. INITIAL_FORM still ships newAreas: [] so the
+// FormState shape stays stable for autosave / edit-prefill.
 
 // Target company stages — PREFERENCE list (which stages the candidate
 // wants to work at next). Multi-select → candidates.target_company_stages[].
@@ -193,15 +190,25 @@ const PREFERRED_CITIES = [
 // Sentinel for the cities "Other" picker — selecting reveals free-text.
 const CITY_OTHER = 'Other';
 
-// Under-$70k removed per spec (the comp question now lives only on the
-// Future Job Preferences tab; the global disqualifier on it is gone).
+// Compensation bands — replaced in the form-edits batch with the
+// product-spec 5-band ladder. Stored as the same string format on
+// candidates.target_salary; existing rows with old bands will simply
+// re-pick on edit. No DB migration.
 const COMP_OPTIONS = [
-  { value: '70k-100k', label: '$70k – $100k' },
   { value: '100k-150k', label: '$100k – $150k' },
-  { value: '150k-200k', label: '$150k – $200k' },
-  { value: '200k-300k', label: '$200k – $300k' },
-  { value: '300k-plus', label: '$300k+' },
+  { value: '150k-250k', label: '$150k – $250k' },
+  { value: '250k-350k', label: '$250k – $350k' },
+  { value: '350k-450k', label: '$350k – $450k' },
+  { value: '450k+',     label: '$450k+' },
 ];
+
+// SFC step constants. The new step asks whether the candidate is a
+// current student / alumni and (if yes) which program + coach. All
+// three columns (is_sfc_alum boolean, sfc_program text, sfc_coach
+// text) are nullable on candidates and already exist (migration
+// applied out-of-band). The whole step is OPTIONAL.
+const SFC_PROGRAMS = ['Base', 'Growth', 'Elite'];
+const SFC_COACHES  = ['Zu Daya', 'Soomin Song', 'Dee Clarke'];
 
 // Three-tier availability. Stored as the string literal on
 // candidates.profile_description (as "Availability: <value>.") and
@@ -314,6 +321,17 @@ interface FormState {
   // the user can move forward. Two-question pair, no filtering on values.
   workAuthorizedUs: boolean | null;
   requiresSponsorship: boolean | null;
+
+  // Tab 6 — SFC Student / Alumni (new in form-edits batch).
+  // OPTIONAL — candidate can advance with any/all unanswered.
+  //   isSfcAlum    → candidates.is_sfc_alum (boolean | null)
+  //   sfcProgram   → candidates.sfc_program (text — Base / Growth / Elite)
+  //   sfcCoach     → candidates.sfc_coach (text — Zu Daya / Soomin Song / Dee Clarke)
+  // Q2 + Q3 stay visible but disabled until Q1 = Yes (UX nudge so
+  // every candidate sees the programs / coaches on offer).
+  isSfcAlum: boolean | null;
+  sfcProgram: string;
+  sfcCoach: string;
 }
 
 const INITIAL_FORM: FormState = {
@@ -332,6 +350,8 @@ const INITIAL_FORM: FormState = {
   workPreferences: [], preferredCities: [], preferredCitiesOther: '', targetRoles: [],
   // Tab 5
   workAuthorizedUs: null, requiresSponsorship: null,
+  // Tab 6 — SFC (optional; all three default unanswered/empty)
+  isSfcAlum: null, sfcProgram: '', sfcCoach: '',
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -1171,9 +1191,9 @@ function SuccessScreen({ firstName }: { firstName: string }) {
         <div className="w-16 h-16 rounded-full bg-emerald-50 flex items-center justify-center mx-auto mb-6">
           <CheckCircle2 className="w-8 h-8 text-emerald-600" />
         </div>
-        <h2 className="text-3xl font-bold text-gray-900 mb-3">Application submitted ✓</h2>
+        <h2 className="text-3xl font-bold text-gray-900 mb-3">Profile submitted</h2>
         <p className="text-gray-500 leading-relaxed mb-8">
-          {firstName ? `Thanks, ${firstName}. ` : ''}Your profile is <strong>under review</strong>. We manually vet every candidate — we'll email you once it's approved (usually within 1–2 business days).
+          We manually go through every candidate to ensure our pool is within the realm of what Strategic Finance hiring managers are looking for.
         </p>
 
         {/* Dashboard access box */}
@@ -1198,7 +1218,11 @@ function SuccessScreen({ firstName }: { firstName: string }) {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-const TOTAL_STEPS = 6;
+// Bumped to 7 in the form-edits batch: a new SFC student/alumni step
+// is inserted between Work Authorization and Review.
+//   1 Contact · 2 Resume · 3 Experience · 4 Preferences ·
+//   5 Work Auth · 6 SFC · 7 Review
+const TOTAL_STEPS = 7;
 
 export default function CandidateApply() {
   // Landing for the marketing surface now lives at "/" (src/pages/Home.tsx).
@@ -1296,13 +1320,16 @@ export default function CandidateApply() {
     experience: 3,
     preferences: 4,
     'work-auth': 5,
-    review: 6,
+    // Form-edits batch: SFC step inserted before Review.
+    sfc: 6,
+    review: 7,
   };
   const resolveInitialStep = (): number => {
     const raw = (searchParams.get('step') || '').trim();
     if (raw) {
       const n = Number(raw);
-      if (Number.isInteger(n) && n >= 1 && n <= 6) return n;
+      // Range bumped to 7 with the SFC step insertion.
+      if (Number.isInteger(n) && n >= 1 && n <= 7) return n;
     }
     const tab = (searchParams.get('tab') || '').toLowerCase().trim();
     if (tab && TAB_TO_STEP[tab]) return TAB_TO_STEP[tab];
@@ -1513,6 +1540,15 @@ export default function CandidateApply() {
 
           workAuthorizedUs: typeof c.work_authorized_us === 'boolean' ? c.work_authorized_us : null,
           requiresSponsorship: typeof c.requires_sponsorship === 'boolean' ? c.requires_sponsorship : null,
+
+          // Form-edits batch: SFC step prefill from the candidate row.
+          // is_sfc_alum can be true / false / null on the DB; the
+          // wizard treats null as "unanswered". sfc_program / sfc_coach
+          // are nullable text — coerce nulls to '' so the radios don't
+          // crash on undefined.
+          isSfcAlum: typeof (c as any).is_sfc_alum === 'boolean' ? (c as any).is_sfc_alum : null,
+          sfcProgram: (c as any).sfc_program || '',
+          sfcCoach: (c as any).sfc_coach || '',
         };
         setForm(dbForm);
         // Snapshot the DB version as the dirty-detection baseline.
@@ -1717,6 +1753,13 @@ export default function CandidateApply() {
         // Tab 5
         work_authorized_us: form.workAuthorizedUs,
         requires_sponsorship: form.requiresSponsorship,
+        // Tab 6 — SFC student / alumni (form-edits batch).
+        // is_sfc_alum can be true / false / null; sfc_program /
+        // sfc_coach are sent as null when empty so the row doesn't
+        // hold stale "" strings.
+        is_sfc_alum: form.isSfcAlum,
+        sfc_program: form.sfcProgram || null,
+        sfc_coach: form.sfcCoach || null,
       };
 
       const res = await authedFetch('/api/candidate-profile', {
@@ -1858,6 +1901,20 @@ export default function CandidateApply() {
     return () => subscription.unsubscribe();
   }, [screen, authEmail]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Scroll-to-top on step change ─────────────────────────────────────────
+  // Form-edits batch #1: when the candidate advances or goes back, jump
+  // the page to the top so the new step is visible without scrolling.
+  // Hooked to the step state directly (rather than to handleNext /
+  // handleBack) so any code path that changes step — tab-bar click,
+  // pencil-routes from the Review preview, deep-link — also scrolls.
+  // Skips on initial mount when screen isn't 'form' so it doesn't fire
+  // during the auth flow.
+  useEffect(() => {
+    if (screen !== 'form') return;
+    if (typeof window === 'undefined') return;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [step, screen]);
+
   // ── Sync experience bucket from parsed/typed years ───────────────────────
   // Fix #3 on the e00b035 base: the years-of-experience radio on
   // step 3 is gone. Years now flows in from the resume parse
@@ -1895,13 +1952,14 @@ export default function CandidateApply() {
   // Secondary backgrounds = all categories except primary
   const secondaryOptions = PRIMARY_BACKGROUNDS.filter(b => b.value !== form.primaryBackground);
 
-  // ── Validation (per the new 6-tab order) ──────────────────────────────────
+  // ── Validation (per the 7-tab order — form-edits batch) ──────────────────
   //   1) Contact Information
-  //   2) Professional Experience
-  //   3) Resume Upload
+  //   2) Resume Upload
+  //   3) Professional Experience
   //   4) Future Job Preferences
   //   5) Work Authorization
-  //   6) Review
+  //   6) SFC Student/Alumni (OPTIONAL — canProceedStep6 = true)
+  //   7) Review
   // Forward navigation is gated by these. Back is always free, and tabs
   // are clickable for any step the user has at least one of the gates
   // satisfied for (see canVisitStep below).
@@ -1933,12 +1991,19 @@ export default function CandidateApply() {
   const canProceedStep5 =
     form.workAuthorizedUs !== null && form.requiresSponsorship !== null;
 
-  const canProceed = [null, canProceedStep1, canProceedStep2, canProceedStep3, canProceedStep4, canProceedStep5, true][step];
+  // Tab 6: SFC step — OPTIONAL. The candidate can advance with any /
+  // all unanswered, so the gate is always true.
+  const canProceedStep6 = true;
+
+  // Length matches TOTAL_STEPS+1 (index 0 is the null sentinel; index
+  // 7 = Review and is always true since Review's CTA is Submit, not
+  // Continue).
+  const canProceed = [null, canProceedStep1, canProceedStep2, canProceedStep3, canProceedStep4, canProceedStep5, canProceedStep6, true][step];
 
   // Tab bar click-to-navigate: a user can always visit an earlier step,
   // and can visit a later step only if every step before it is valid.
-  // Step 6 (Review) requires every prior validator to be true.
-  const stepValidators = [null, canProceedStep1, canProceedStep2, canProceedStep3, canProceedStep4, canProceedStep5] as const;
+  // Step 7 (Review) requires every prior validator to be true.
+  const stepValidators = [null, canProceedStep1, canProceedStep2, canProceedStep3, canProceedStep4, canProceedStep5, canProceedStep6] as const;
   const canVisitStep = (target: number): boolean => {
     // EDIT mode: the profile is already complete (admin-approved),
     // so every tab is freely clickable from any step. The forward-
@@ -2126,6 +2191,12 @@ export default function CandidateApply() {
           // Work authorization (two questions, store-only)
           workAuthorizedUs: form.workAuthorizedUs,
           requiresSponsorship: form.requiresSponsorship,
+          // SFC student / alumni (form-edits batch — Tab 6). All
+          // three are optional; the API normalizes empty strings to
+          // null before writing.
+          isSfcAlum: form.isSfcAlum,
+          sfcProgram: form.sfcProgram || null,
+          sfcCoach: form.sfcCoach || null,
           // Resume
           resumeBase64: form.resumeBase64 || null,
           resumeFileName: form.resumeFile?.name || null,
@@ -2631,6 +2702,7 @@ export default function CandidateApply() {
     'Professional Experience',
     'Future Job Preferences',
     'Work Authorization',
+    'Strategic Finance Careers',
     'Review your profile',
   ];
   const STEP_LABELS_SHORT = [
@@ -2639,6 +2711,7 @@ export default function CandidateApply() {
     'Experience',
     'Preferences',
     'Work Auth',
+    'SFC',
     'Review',
   ];
 
@@ -2797,14 +2870,14 @@ export default function CandidateApply() {
           disqualification guard, handleEditSave/handleSubmit) lives
           outside this JSX and is untouched.
 
-          STEP 6 EXCEPTION (Phase 1.5): on the Review tab the right
-          rail is hidden and the preview moves to center as the
-          focal editable element (the editor block lives below it
-          inside the form column). The grid collapses to a single
-          column on this step so the centered preview isn't pinned
-          to the left track. */}
+          STEP 7 EXCEPTION (form-edits batch — Review is now step
+          7 after the SFC step was inserted at 6): on the Review tab
+          the right rail is hidden and the preview moves to center
+          as the focal editable element. The grid collapses to a
+          single column on this step so the centered preview isn't
+          pinned to the left track. */}
       <div className={
-        step === 6
+        step === 7
           // Review step stays centered with no rail — keep
           // max-w-7xl so the single-column copy doesn't run too wide.
           ? 'max-w-7xl mx-auto px-6 md:px-8 py-10'
@@ -3360,24 +3433,10 @@ export default function CandidateApply() {
                 </div>
               </div>
 
-              {/* Target company stages — preference, NOT experience.
-                  Moved here from step 3 in the Phase 1.7 dedup pass:
-                  it was previously labeled "Company-stage experience"
-                  on the Experience step but its storage
-                  (target_company_stages) is a preference signal. Now
-                  sits alongside the other preference pickers (comp,
-                  work mode, cities, target roles) with copy that
-                  matches what the column actually represents.
-                  form.companyStages → target_company_stages wiring is
-                  unchanged. Optional — no validator gate. */}
-              <div>
-                <Label className="text-base font-semibold text-gray-900 leading-snug">What company stages are you targeting?
-                  <span className="ml-2 text-sm font-normal text-gray-500">Select all that interest you</span>
-                </Label>
-                <ChipGrid options={COMPANY_STAGES} selected={form.companyStages}
-                  onChange={v => set('companyStages', v)} />
-              </div>
-
+              {/* Which cities — moved DIRECTLY AFTER Work preference in
+                  the form-edits batch (was previously below the
+                  company-stage targets / target roles). preferred_cities
+                  + preferred_cities_other bindings unchanged. */}
               <div>
                 <Label className="text-base font-semibold text-gray-900 leading-snug">Which cities would you consider?
                   <span className="ml-2 text-sm font-normal text-gray-500">Select all that apply</span>
@@ -3394,24 +3453,42 @@ export default function CandidateApply() {
                 )}
               </div>
 
+              {/* Target company stages — preference, NOT experience.
+                  Moved here from step 3 in the Phase 1.7 dedup pass:
+                  it was previously labeled "Company-stage experience"
+                  on the Experience step but its storage
+                  (target_company_stages) is a preference signal. Now
+                  sits alongside the other preference pickers (comp,
+                  work mode, cities, target seniority) with copy that
+                  matches what the column actually represents.
+                  form.companyStages → target_company_stages wiring is
+                  unchanged. Optional — no validator gate. */}
               <div>
-                <Label className="text-base font-semibold text-gray-900 leading-snug">Target roles <span className="ml-2 text-sm font-normal text-gray-500">Select all that apply</span></Label>
+                <Label className="text-base font-semibold text-gray-900 leading-snug">What company stages are you targeting?
+                  <span className="ml-2 text-sm font-normal text-gray-500">Select all that interest you</span>
+                </Label>
+                <ChipGrid options={COMPANY_STAGES} selected={form.companyStages}
+                  onChange={v => set('companyStages', v)} />
+              </div>
+
+              {/* Target Seniority — renamed from "Target roles" in the
+                  form-edits batch. The TARGET_ROLES constant was
+                  repopulated with a flat 8-level ladder
+                  (Analyst → CFO). Storage column candidates.target_roles
+                  is unchanged — the rename is label + option vocabulary
+                  only. */}
+              <div>
+                <Label className="text-base font-semibold text-gray-900 leading-snug">Target Seniority <span className="ml-2 text-sm font-normal text-gray-500">Select all that apply</span></Label>
                 <ChipGrid options={TARGET_ROLES} selected={form.targetRoles}
                   onChange={v => set('targetRoles', v)} />
               </div>
 
-              {/* "New areas you'd like to move into" — moved here from
-                  the Experience step (fix #4). Forward-looking
-                  preference, sits alongside target roles / cities /
-                  target stages. Storage / edit-prefill / submit /
-                  dual-write wiring unchanged. */}
-              <div>
-                <Label className="text-base font-semibold text-gray-900 leading-snug">
-                  New areas you'd like to move into
-                  <span className="ml-2 text-sm font-normal text-gray-500">Optional — multi-select</span>
-                </Label>
-                <ChipGrid options={NEW_AREAS} selected={form.newAreas} onChange={v => set('newAreas', v)} />
-              </div>
+              {/* "New areas you'd like to move into" — REMOVED in the
+                  form-edits batch. candidates.new_areas column stays
+                  on the DB (no migration); FormState.newAreas defaults
+                  to [] so autosave / submit / edit-prefill behave the
+                  same, but the form no longer collects values for it
+                  and the empty [] is what flows downstream. */}
             </div>
           </div>
         )}
@@ -3488,7 +3565,127 @@ export default function CandidateApply() {
           </div>
         )}
 
-        {/* ── Tab 6: Review your profile ─────────────────────────────── */}
+        {/* ── Tab 6: Strategic Finance Careers (SFC student/alumni) ──────
+            New step inserted in the form-edits batch. Whole step is
+            OPTIONAL — canProceedStep6 is hardcoded true. Q1 (alum
+            yes/no) drives whether Q2 + Q3 are interactive; Q2 + Q3
+            ALWAYS render so candidates see the programs / coaches on
+            offer (soft nudge), but they're disabled until Q1 = Yes.
+            Wiring: form.isSfcAlum / form.sfcProgram / form.sfcCoach
+            → candidates.is_sfc_alum / sfc_program / sfc_coach via
+            submit-candidate.ts + handleEditSave (see also
+            candidate-profile.js PATCH whitelist + GET cols). */}
+        {step === 6 && (
+          <div className="max-w-2xl mx-auto">
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Strategic Finance Careers</h2>
+            <p className="text-gray-500 mb-8 text-sm">
+              Optional — tell us if you've worked with us before.
+            </p>
+
+            <div className="space-y-8">
+              {/* Q1 — alum yes/no. Drives the disabled state below. */}
+              <div>
+                <Label className="text-base font-semibold text-gray-900 leading-snug">
+                  Are you a current student or alumni with Strategic Finance Careers?
+                </Label>
+                <div className="space-y-2 mt-3">
+                  {[
+                    { value: true,  label: 'Yes' },
+                    { value: false, label: 'No' },
+                  ].map(opt => (
+                    <label key={String(opt.value)} className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-all ${
+                      form.isSfcAlum === opt.value
+                        ? 'border-[#008037] bg-[#008037]/5 text-[#004a1f]'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}>
+                      <input
+                        type="radio"
+                        name="isSfcAlum"
+                        checked={form.isSfcAlum === opt.value}
+                        onChange={() => set('isSfcAlum', opt.value)}
+                        className="sr-only"
+                      />
+                      <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                        form.isSfcAlum === opt.value ? 'border-[#008037]' : 'border-gray-300'
+                      }`}>
+                        {form.isSfcAlum === opt.value && <div className="w-2 h-2 rounded-full bg-[#008037]" />}
+                      </div>
+                      <span className="text-sm font-medium">{opt.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Q2 — program. Always visible; disabled until Q1=Yes. */}
+              <div className={form.isSfcAlum === true ? '' : 'opacity-50 pointer-events-none'}>
+                <Label className="text-base font-semibold text-gray-900 leading-snug">
+                  Which program did you enroll in?
+                </Label>
+                <div className="space-y-2 mt-3">
+                  {SFC_PROGRAMS.map(opt => (
+                    <label key={opt} className={`flex items-center gap-3 p-3 border rounded-lg transition-all ${
+                      form.isSfcAlum === true ? 'cursor-pointer' : 'cursor-default'
+                    } ${
+                      form.sfcProgram === opt
+                        ? 'border-[#008037] bg-[#008037]/5 text-[#004a1f]'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}>
+                      <input
+                        type="radio"
+                        name="sfcProgram"
+                        checked={form.sfcProgram === opt}
+                        onChange={() => set('sfcProgram', opt)}
+                        disabled={form.isSfcAlum !== true}
+                        className="sr-only"
+                      />
+                      <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                        form.sfcProgram === opt ? 'border-[#008037]' : 'border-gray-300'
+                      }`}>
+                        {form.sfcProgram === opt && <div className="w-2 h-2 rounded-full bg-[#008037]" />}
+                      </div>
+                      <span className="text-sm font-medium">{opt}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Q3 — coach. Same disabled-until-Yes treatment. */}
+              <div className={form.isSfcAlum === true ? '' : 'opacity-50 pointer-events-none'}>
+                <Label className="text-base font-semibold text-gray-900 leading-snug">
+                  Which coach did you work with?
+                </Label>
+                <div className="space-y-2 mt-3">
+                  {SFC_COACHES.map(opt => (
+                    <label key={opt} className={`flex items-center gap-3 p-3 border rounded-lg transition-all ${
+                      form.isSfcAlum === true ? 'cursor-pointer' : 'cursor-default'
+                    } ${
+                      form.sfcCoach === opt
+                        ? 'border-[#008037] bg-[#008037]/5 text-[#004a1f]'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}>
+                      <input
+                        type="radio"
+                        name="sfcCoach"
+                        checked={form.sfcCoach === opt}
+                        onChange={() => set('sfcCoach', opt)}
+                        disabled={form.isSfcAlum !== true}
+                        className="sr-only"
+                      />
+                      <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                        form.sfcCoach === opt ? 'border-[#008037]' : 'border-gray-300'
+                      }`}>
+                        {form.sfcCoach === opt && <div className="w-2 h-2 rounded-full bg-[#008037]" />}
+                      </div>
+                      <span className="text-sm font-medium">{opt}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Tab 7: Review your profile ─────────────────────────────── */}
         {/* Phase 1.5 layout: the right-rail preview hides (above) and
             the same RecruiterPreviewCard renders centered at the top
             of the form column as the focal element, followed by the
@@ -3498,10 +3695,10 @@ export default function CandidateApply() {
             animate-in fade-in (no animation library was added —
             tailwindcss-animate is already a project dependency for
             shadcn). The preview slides to its new home on the very
-            first paint of step 6 only; a true cross-step slide would
+            first paint of step 7 only; a true cross-step slide would
             require coordinated layout animation, which we degrade to
             a clean fade instead of shipping jank. */}
-        {step === 6 && (
+        {step === 7 && (
           <div className="max-w-4xl mx-auto">
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Review your profile</h2>
             <p className="text-gray-500 mb-6 text-sm">
@@ -3570,10 +3767,12 @@ export default function CandidateApply() {
             form directly; React rerenders the card on every set() /
             setForm() call so "live binding" is automatic.
 
-            Suppressed entirely on step 6 (Review): on that tab the
-            preview moves to center as the focal editable element,
-            making a sticky duplicate in the rail redundant. */}
-        {step !== 6 && (
+            Suppressed entirely on step 7 (Review — post-form-edits
+            batch, was step 6 before SFC was inserted at 6): on that
+            tab the preview moves to center as the focal editable
+            element, making a sticky duplicate in the rail
+            redundant. */}
+        {step !== 7 && (
           <aside className="hidden lg:block">
             <div className="sticky top-6">
               <RecruiterPreviewCard form={form} step={step} isEditMode={isEditMode} />

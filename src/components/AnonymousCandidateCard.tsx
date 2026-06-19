@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import { MapPin, Handshake, Shield, ChevronDown, ChevronUp, Eye } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
+import { MapPin, Handshake, Shield, ChevronDown, ChevronUp, Eye, GraduationCap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 // Anonymous candidate card — the full dossier view shown to recruiters
@@ -61,10 +60,10 @@ export interface AnonymousCandidateCardData {
   // profile-shape metadata category.
   company_stage_experience?: string[] | null;
   // Whether the candidate is a current SFC student / alumni. When
-  // true, the card renders a small brand-green "SFC Alum" badge in
-  // the header alongside the existing label badge. sfc_program /
-  // sfc_coach are deliberately NOT exposed here — those are
-  // internal coaching details, not recruiter-facing.
+  // true, the card renders a featured brand-green "SFC Alum" credential
+  // callout (GraduationCap icon + label) under the title block.
+  // sfc_program / sfc_coach are deliberately NOT exposed here — those
+  // are internal coaching details, not recruiter-facing.
   is_sfc_alum?: boolean | null;
 }
 
@@ -114,15 +113,6 @@ export default function AnonymousCandidateCard(props: Props) {
     : (Array.isArray(c.detailed_experience) ? c.detailed_experience : []);
   const areas = areasSource.filter(Boolean);
 
-  // Executive chips (verbatim from source)
-  const chips: string[] = [];
-  chips.push(`${c.experience}+ Yrs Experience`);
-  if (c.highest_education_level && ['MBA', 'Masters', 'PhD'].includes(c.highest_education_level)) {
-    chips.push(c.highest_education_level);
-  }
-  if (c.primary_background) chips.push(c.primary_background);
-  if (c.open_to_opportunities) chips.push('Open to Opportunities');
-
   // Insight bullets only render in recruiter mode (preview suppresses
   // the entire "Why This Candidate Stands Out" section per spec)
   const recruiterProps = !isPreview ? (props as RecruiterModeProps) : null;
@@ -143,32 +133,18 @@ export default function AnonymousCandidateCard(props: Props) {
           </div>
         )}
 
-        {/* Header */}
+        {/* Header — big title + the inline location · experience ·
+            education line. The duplicate title pill and the redundant
+            executive chip row were removed (Phase: card-header-
+            cleanup) — all of that data already lives in the right-rail
+            Candidate Snapshot, so the chips were pure duplication. */}
         <div>
-          <div className="flex items-start gap-3 mb-2">
-            <div>
-              <h2 className="text-2xl font-bold text-gray-900 leading-tight">{c.label}</h2>
-              {/* Admin-only real-name subtitle, recruiter mode only */}
-              {!isPreview && isAdmin && c.name && (
-                <p className="text-xs text-gray-400 mt-0.5">{c.name}</p>
-              )}
-            </div>
-            <Badge className="mt-1 bg-[#008037]/5 text-[#006a2d] border border-[#008037]/25 shrink-0">
-              {c.label}
-            </Badge>
-            {/* SFC Alum credential badge — additive only, renders
-                solely when is_sfc_alum === true (false / null /
-                undefined → renders nothing). Solid brand-green pill
-                so it reads as a credential rather than another
-                neutral tag. Companion columns sfc_program / sfc_coach
-                are NOT surfaced to recruiters — internal only. */}
-            {c.is_sfc_alum === true && (
-              <span className="mt-1 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#008037] text-white shrink-0">
-                SFC Alum
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-1.5 text-sm text-gray-500 flex-wrap">
+          <h2 className="text-2xl font-bold text-gray-900 leading-tight">{c.label}</h2>
+          {/* Admin-only real-name subtitle, recruiter mode only */}
+          {!isPreview && isAdmin && c.name && (
+            <p className="text-xs text-gray-400 mt-0.5">{c.name}</p>
+          )}
+          <div className="flex items-center gap-1.5 text-sm text-gray-500 flex-wrap mt-2">
             <MapPin className="h-3.5 w-3.5" />
             <span>{c.location}</span>
             <span className="text-gray-300">·</span>
@@ -178,14 +154,24 @@ export default function AnonymousCandidateCard(props: Props) {
           </div>
         </div>
 
-        {/* Executive summary chips */}
-        <div className="flex flex-wrap gap-2">
-          {chips.map(chip => (
-            <span key={chip} className="px-3 py-1 bg-gray-100 border border-gray-200 text-gray-700 rounded-full text-xs font-medium">
-              {chip}
-            </span>
-          ))}
-        </div>
+        {/* SFC Alum credential callout — featured, not a small pill.
+            Renders ONLY when is_sfc_alum === true (false / null /
+            undefined → renders nothing). This is the one intentional
+            icon on the card: a GraduationCap fronting a prominent
+            brand-green banner so the alum credential stands out as a
+            differentiator. Companion columns sfc_program / sfc_coach
+            stay internal — NOT surfaced to recruiters. */}
+        {c.is_sfc_alum === true && (
+          <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-[#008037]/10 border border-[#008037]/30">
+            <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-[#008037] shrink-0">
+              <GraduationCap className="w-5 h-5 text-white" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-[#004a1f] leading-tight">SFC Alum</p>
+              <p className="text-xs text-[#006a2d] leading-tight mt-0.5">Strategic Finance Careers alumnus</p>
+            </div>
+          </div>
+        )}
 
         {/* Professional Summary */}
         {bio && (

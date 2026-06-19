@@ -46,6 +46,12 @@ export interface Candidate {
   // 20260612 migration. Recruiter-safe; rendered on the card as a
   // neutral chip row near Industries.
   company_stage_experience?: string[] | null;
+  // Whether the candidate is a current Strategic Finance Careers
+  // student / alumni. Surfaced to recruiters as a small "SFC Alum"
+  // badge on the card when true. sfc_program / sfc_coach are
+  // intentionally NOT selected — those are internal coaching
+  // details, not recruiter-facing.
+  is_sfc_alum?: boolean | null;
   is_favorite?: boolean; // Computed in the hook from user_favorites — not selected.
   // SFC Take (Batch 2) — recruiters see these ONLY when sfc_take_published_at is non-null.
   // Filter happens at render time, not in the SELECT, so the hook can stay shared with admin views.
@@ -88,6 +94,11 @@ const RECRUITER_COLUMNS = [
   'detailed_experience',
   'industries',
   'company_stage_experience',
+  // SFC alum boolean — recruiters see a small "SFC Alum" badge on
+  // the card when true. The companion columns sfc_program and
+  // sfc_coach are deliberately NOT in this allow-list (internal
+  // coaching details only — not for recruiters).
+  'is_sfc_alum',
   'sfc_take',
   'sfc_take_published_at',
   'sfc_role_fit',

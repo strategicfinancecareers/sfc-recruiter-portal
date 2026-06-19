@@ -3,11 +3,12 @@ import { Link } from 'react-router-dom';
 import {
   UserPlus, LogIn, Loader2, CheckCircle2, X, ChevronLeft,
   User, Mail, FileText, Settings as SettingsIcon, Menu,
-  LogOut, KeyRound, ExternalLink, Eye, Upload,
+  LogOut, KeyRound, Eye, Upload,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { authedFetch } from '@/integrations/supabase/authedFetch';
 import AnonymousCandidateCard from '@/components/AnonymousCandidateCard';
+import ProfileForm from '@/pages/dashboard/ProfileForm';
 import '@fontsource-variable/newsreader';
 import '@fontsource-variable/manrope';
 import '@fontsource-variable/geist-mono';
@@ -347,22 +348,6 @@ export default function CandidateDashboard() {
   );
 }
 
-// ─── Constants ──────────────────────────────────────────────────────────────
-
-// CITY_OPTIONS and ROLE_OPTIONS lived here for the previous inline
-// edit form on the Profile tab. That form is gone — edits now happen
-// in the /apply?edit=1 wizard which owns its own option lists. Only
-// COMP_OPTIONS is still referenced, by the read-only target-comp label
-// in ProfileTab.
-const COMP_OPTIONS = [
-  { value: 'under-70k', label: 'Under $70,000' },
-  { value: '70k-100k',  label: '$70,000 – $100,000' },
-  { value: '100k-150k', label: '$100,000 – $150,000' },
-  { value: '150k-200k', label: '$150,000 – $200,000' },
-  { value: '200k-300k', label: '$200,000 – $300,000' },
-  { value: '300k-plus', label: '$300,000+' },
-];
-
 // ─── Status banner ──────────────────────────────────────────────────────────
 
 function StatusBanner({ status }: { status?: string }) {
@@ -453,15 +438,11 @@ function Dashboard({
   const pendingCount = intros?.filter(i => i.status === 'pending').length ?? 0;
   const canHaveIntros = candidate.status === 'active';
 
-  // updateCandidate / updateSkills were used by the previous inline
-  // ProfileTab edit form to push saved changes back to the parent;
-  // edits now happen via the full wizard at /apply?edit=1 which
-  // navigates away and back, so a fresh GET picks up the new data on
-  // dashboard re-mount. No in-place mutation pipeline needed here.
-
-  // Phase B: refresh the candidate (notably resumes) after the Resume
-  // tab mutates via the upload/update/delete endpoints. Cheap — same
-  // bearer-gated GET the dashboard mount uses.
+  // Refresh the candidate row after a mutation — used by both the
+  // Profile tab's ProfileForm (after a successful Save) and the
+  // Resume tab (after upload/update/delete). Cheap — same bearer-gated
+  // GET the dashboard mount uses; re-seeds candidate + skills so every
+  // tab reflects the canonical row.
   const refreshCandidate = async () => {
     try {
       const r = await authedFetch(`/api/candidate-profile?email=${encodeURIComponent(candidate.email.toLowerCase())}`);
@@ -615,7 +596,7 @@ function Dashboard({
           <StatusBanner status={candidate.status} />
 
           {tab === 'profile' && (
-            <ProfileTab candidate={candidate} skills={skills} />
+            <ProfileForm candidate={candidate} skills={skills} onSaved={refreshCandidate} />
           )}
           {tab === 'recruiter-view' && (
             <RecruiterViewTab candidate={candidate} skills={skills} />
@@ -671,118 +652,6 @@ function Card({
       </div>
       {children}
     </div>
-  );
-}
-
-// ─── Profile tab ────────────────────────────────────────────────────────────
-
-function ProfileTab({
-  candidate,
-  skills,
-}: {
-  candidate: CandidateRow;
-  skills: string[];
-}) {
-  // Single "Edit Profile" entry point. The wizard still accepts the
-  // ?edit=1&tab=<name> deep-link param (e.g. for future surfaces or
-  // direct URL navigation), but the dashboard surfaces just one
-  // affordance — six per-section "Edit X" links cluttered the
-  // read-only summary and offered no real value over jumping in and
-  // using the wizard's own clickable tab bar (which is freely
-  // clickable in edit mode).
-  const bio = candidate.profile_description || '';
-  const workPrefDisplay = (candidate.work_preferences && candidate.work_preferences.join(', '))
-    || candidate.work_preference;
-
-  return (
-    <Card
-      title="Your Profile"
-      action={
-        <Link
-          to="/apply?edit=1"
-          className="text-sm font-semibold transition-colors"
-          style={{ color: BRAND }}
-          onMouseEnter={e => (e.currentTarget.style.color = BRAND_HOVER)}
-          onMouseLeave={e => (e.currentTarget.style.color = BRAND)}
-        >
-          Edit Profile
-        </Link>
-      }
-    >
-      <div className="space-y-4">
-        <div>
-          <p
-            className="text-2xl"
-            style={{ fontFamily: SERIF, fontWeight: 500, letterSpacing: '-0.01em', color: INK }}
-          >
-            {candidate.label || 'Finance Professional'}
-          </p>
-          <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2">
-            {candidate.location && <span className="text-sm" style={{ color: 'rgba(14,14,13,.6)' }}>{candidate.location}</span>}
-            {candidate.experience != null && <span className="text-sm" style={{ color: 'rgba(14,14,13,.6)' }}>{candidate.experience} yrs exp</span>}
-            {workPrefDisplay && <span className="text-sm" style={{ color: 'rgba(14,14,13,.6)' }}>{workPrefDisplay}</span>}
-            {candidate.open_to_opportunities != null && (
-              <span
-                className="text-xs font-semibold px-2 py-0.5 rounded-full"
-                style={{
-                  background: candidate.open_to_opportunities ? 'rgba(0,128,55,.1)' : 'rgba(14,14,13,.06)',
-                  color: candidate.open_to_opportunities ? BRAND : 'rgba(14,14,13,.55)',
-                }}
-              >
-                {candidate.open_to_opportunities ? '🟢 Actively Looking' : '⏸ Not Active'}
-              </span>
-            )}
-          </div>
-        </div>
-        {bio && <p className="text-sm leading-relaxed" style={{ color: 'rgba(14,14,13,.75)' }}>{bio}</p>}
-        {skills.length > 0 && (
-          <div className="pt-1">
-            <p
-              className="mb-1.5"
-              style={{ fontFamily: MONO, fontSize: 10.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(14,14,13,.55)' }}
-            >
-              Technical Skills
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {skills.map(s => (
-                <span
-                  key={s}
-                  className="px-2.5 py-1 rounded-full text-xs font-medium border"
-                  style={{ background: 'rgba(0,128,55,.06)', color: BRAND, borderColor: 'rgba(0,128,55,.18)' }}
-                >
-                  {s}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
-        <div className="space-y-1 pt-2">
-          {candidate.target_salary && (
-            <p className="text-xs" style={{ color: 'rgba(14,14,13,.5)' }}>Target comp: {COMP_OPTIONS.find(o => o.value === candidate.target_salary)?.label ?? candidate.target_salary}</p>
-          )}
-          {candidate.preferred_cities && candidate.preferred_cities.length > 0 && (
-            <p className="text-xs" style={{ color: 'rgba(14,14,13,.5)' }}>Cities: {candidate.preferred_cities.join(', ')}</p>
-          )}
-          {candidate.target_roles && candidate.target_roles.length > 0 && (
-            <p className="text-xs" style={{ color: 'rgba(14,14,13,.5)' }}>Target roles: {candidate.target_roles.join(', ')}</p>
-          )}
-          {candidate.industries && candidate.industries.length > 0 && (
-            <p className="text-xs" style={{ color: 'rgba(14,14,13,.5)' }}>Industries: {candidate.industries.join(', ')}</p>
-          )}
-          {candidate.linkedin_url && (
-            <a
-              href={candidate.linkedin_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-xs font-medium hover:underline pt-1"
-              style={{ color: BRAND }}
-            >
-              LinkedIn <ExternalLink className="w-3 h-3" />
-            </a>
-          )}
-        </div>
-      </div>
-    </Card>
   );
 }
 

@@ -60,6 +60,12 @@ export interface AnonymousCandidateCardData {
   // as a chip row alongside Industries. Recruiter-safe — same
   // profile-shape metadata category.
   company_stage_experience?: string[] | null;
+  // Whether the candidate is a current SFC student / alumni. When
+  // true, the card renders a small brand-green "SFC Alum" badge in
+  // the header alongside the existing label badge. sfc_program /
+  // sfc_coach are deliberately NOT exposed here — those are
+  // internal coaching details, not recruiter-facing.
+  is_sfc_alum?: boolean | null;
 }
 
 interface RecruiterModeProps {
@@ -150,6 +156,17 @@ export default function AnonymousCandidateCard(props: Props) {
             <Badge className="mt-1 bg-[#008037]/5 text-[#006a2d] border border-[#008037]/25 shrink-0">
               {c.label}
             </Badge>
+            {/* SFC Alum credential badge — additive only, renders
+                solely when is_sfc_alum === true (false / null /
+                undefined → renders nothing). Solid brand-green pill
+                so it reads as a credential rather than another
+                neutral tag. Companion columns sfc_program / sfc_coach
+                are NOT surfaced to recruiters — internal only. */}
+            {c.is_sfc_alum === true && (
+              <span className="mt-1 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#008037] text-white shrink-0">
+                SFC Alum
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-1.5 text-sm text-gray-500 flex-wrap">
             <MapPin className="h-3.5 w-3.5" />

@@ -1530,6 +1530,17 @@ function RecruiterViewTab({
           primary_background: candidate.primary_background || null,
           secondary_backgrounds: candidate.secondary_backgrounds || null,
           open_to_opportunities: candidate.open_to_opportunities ?? null,
+          // Areas of Expertise — the primary recruiter-matching signal.
+          // Was missing from this prop object, so the candidate's own
+          // Recruiter View tab hid the Areas section while the real
+          // /browse card showed it. Pass areas_of_expertise plus
+          // detailed_experience so the card's own fallback chain
+          // (areas → detailed_experience → nothing) matches what
+          // recruiters actually see. The candidate-profile GET already
+          // returns both columns; cast through any because CandidateRow
+          // isn't typed for them.
+          areas_of_expertise: (candidate as any).areas_of_expertise || null,
+          detailed_experience: (candidate as any).detailed_experience || null,
           // Phase 1.6: pass industries through so the candidate's own
           // Recruiter View tab mirrors what recruiters see on /browse.
           // The candidate-profile GET already returns this column

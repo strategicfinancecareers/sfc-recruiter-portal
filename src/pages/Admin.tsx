@@ -64,6 +64,26 @@ interface Candidate {
   linkedin_url?: string;
   resume_full_url?: string;
   rejection_reason?: string;
+  // ── Fields surfaced on the admin review drawer (admin/owner only) ───────
+  // The admin candidates query is select('*'), so every column below is
+  // already in the payload — these declarations just make the drawer
+  // type-safe. areas_of_expertise is the primary skills signal (falls
+  // back to detailed_experience for pre-Phase-2 rows). The SFC trio is
+  // INTERNAL: admins see alum status + program + coach here, but the
+  // recruiter-facing card never exposes sfc_program / sfc_coach.
+  areas_of_expertise?: string[] | null;
+  detailed_experience?: string[] | null;
+  industries?: string[] | null;
+  industries_other?: string | null;
+  company_stage_experience?: string[] | null;
+  target_company_stages?: string[] | null;
+  work_preferences?: string[] | null;
+  preferred_cities_other?: string | null;
+  work_authorized_us?: boolean | null;
+  requires_sponsorship?: boolean | null;
+  is_sfc_alum?: boolean | null;
+  sfc_program?: string | null;
+  sfc_coach?: string | null;
   // ── SFC Take (Batch 2) ──────────────────────────────────────────────────
   sfc_take?: string | null;
   sfc_role_fit?: string[] | null;
@@ -1603,17 +1623,77 @@ TalentConnect Team"
                               )}
                             </div>
                           )}
+                          {/* Areas of Expertise — the primary skills signal.
+                              Reads areas_of_expertise first, falls back to
+                              detailed_experience for pre-Phase-2 rows (same
+                              fallback chain the recruiter card uses). */}
+                          {(() => {
+                            const adminAreas = (Array.isArray(selectedCandidate.areas_of_expertise) && selectedCandidate.areas_of_expertise.length > 0)
+                              ? selectedCandidate.areas_of_expertise
+                              : (Array.isArray(selectedCandidate.detailed_experience) ? selectedCandidate.detailed_experience : []);
+                            return adminAreas.length > 0 ? (
+                              <div className="pt-2 border-t">
+                                <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1.5">Areas of Expertise</p>
+                                <div className="flex flex-wrap gap-1">
+                                  {adminAreas.map(a => (<Badge key={a} variant="secondary" className="text-xs">{a}</Badge>))}
+                                </div>
+                              </div>
+                            ) : null;
+                          })()}
+                          {selectedCandidate.industries && selectedCandidate.industries.length > 0 && (
+                            <div className="pt-2 border-t">
+                              <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1.5">Industries</p>
+                              <div className="flex flex-wrap gap-1">
+                                {selectedCandidate.industries.map(i => (<Badge key={i} variant="secondary" className="text-xs">{i}</Badge>))}
+                              </div>
+                              {selectedCandidate.industries_other && (<p className="text-muted-foreground text-xs mt-1">Other: {selectedCandidate.industries_other}</p>)}
+                            </div>
+                          )}
+                          {selectedCandidate.company_stage_experience && selectedCandidate.company_stage_experience.length > 0 && (
+                            <div className="pt-2 border-t">
+                              <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1.5">Company stage experience</p>
+                              <div className="flex flex-wrap gap-1">
+                                {selectedCandidate.company_stage_experience.map(s => (<Badge key={s} variant="secondary" className="text-xs">{s}</Badge>))}
+                              </div>
+                            </div>
+                          )}
                           <div className="grid grid-cols-2 gap-2 pt-2 border-t text-xs">
                             {selectedCandidate.target_salary && (<div><p className="uppercase tracking-wide text-muted-foreground">Target comp</p><p className="text-sm">{selectedCandidate.target_salary}</p></div>)}
-                            {selectedCandidate.work_preference && (<div><p className="uppercase tracking-wide text-muted-foreground">Work pref</p><p className="text-sm">{selectedCandidate.work_preference}</p></div>)}
-                            {selectedCandidate.target_roles && selectedCandidate.target_roles.length > 0 && (<div className="col-span-2"><p className="uppercase tracking-wide text-muted-foreground">Target roles</p><p className="text-sm">{selectedCandidate.target_roles.join(', ')}</p></div>)}
-                            {selectedCandidate.preferred_cities && selectedCandidate.preferred_cities.length > 0 && (<div className="col-span-2"><p className="uppercase tracking-wide text-muted-foreground">Preferred cities</p><p className="text-sm">{selectedCandidate.preferred_cities.join(', ')}</p></div>)}
+                            {/* Work preference: prefer the canonical work_preferences
+                                array; fall back to the deprecated singular
+                                work_preference for older rows. */}
+                            {((selectedCandidate.work_preferences && selectedCandidate.work_preferences.length > 0) || selectedCandidate.work_preference) && (
+                              <div><p className="uppercase tracking-wide text-muted-foreground">Work pref</p><p className="text-sm">{(selectedCandidate.work_preferences && selectedCandidate.work_preferences.length > 0) ? selectedCandidate.work_preferences.join(', ') : selectedCandidate.work_preference}</p></div>
+                            )}
+                            {/* Renamed "Target roles" → "Target Seniority" to match
+                                the form's relabel (same target_roles column). */}
+                            {selectedCandidate.target_roles && selectedCandidate.target_roles.length > 0 && (<div className="col-span-2"><p className="uppercase tracking-wide text-muted-foreground">Target seniority</p><p className="text-sm">{selectedCandidate.target_roles.join(', ')}</p></div>)}
+                            {selectedCandidate.target_company_stages && selectedCandidate.target_company_stages.length > 0 && (<div className="col-span-2"><p className="uppercase tracking-wide text-muted-foreground">Target company stages</p><p className="text-sm">{selectedCandidate.target_company_stages.join(', ')}</p></div>)}
+                            {selectedCandidate.preferred_cities && selectedCandidate.preferred_cities.length > 0 && (<div className="col-span-2"><p className="uppercase tracking-wide text-muted-foreground">Preferred cities</p><p className="text-sm">{selectedCandidate.preferred_cities.join(', ')}{selectedCandidate.preferred_cities_other ? ` · ${selectedCandidate.preferred_cities_other}` : ''}</p></div>)}
+                            {selectedCandidate.work_authorized_us != null && (<div><p className="uppercase tracking-wide text-muted-foreground">US work auth</p><p className="text-sm">{selectedCandidate.work_authorized_us ? 'Yes' : 'No'}</p></div>)}
+                            {selectedCandidate.requires_sponsorship != null && (<div><p className="uppercase tracking-wide text-muted-foreground">Needs sponsorship</p><p className="text-sm">{selectedCandidate.requires_sponsorship ? 'Yes' : 'No'}</p></div>)}
                           </div>
                           {selectedCandidate.skills && selectedCandidate.skills.length > 0 && (
                             <div className="pt-2 border-t">
                               <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1.5">Skills</p>
                               <div className="flex flex-wrap gap-1">
                                 {selectedCandidate.skills.map(s => (<Badge key={s.id} variant="secondary" className="text-xs">{s.skill}</Badge>))}
+                              </div>
+                            </div>
+                          )}
+                          {/* SFC student / alumni — INTERNAL admin/owner view.
+                              Unlike the recruiter card (which only shows the alum
+                              status), the admin review surface shows program +
+                              coach when alum. Renders the alum status always (Yes/
+                              No) so reviewers can see it was answered; program +
+                              coach only when alum === true. */}
+                          {selectedCandidate.is_sfc_alum != null && (
+                            <div className="pt-2 border-t">
+                              <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1.5">SFC student / alumni</p>
+                              <div className="grid grid-cols-2 gap-2 text-xs">
+                                <div><p className="uppercase tracking-wide text-muted-foreground">Alum</p><p className="text-sm">{selectedCandidate.is_sfc_alum ? 'Yes' : 'No'}</p></div>
+                                {selectedCandidate.is_sfc_alum && selectedCandidate.sfc_program && (<div><p className="uppercase tracking-wide text-muted-foreground">Program</p><p className="text-sm">{selectedCandidate.sfc_program}</p></div>)}
+                                {selectedCandidate.is_sfc_alum && selectedCandidate.sfc_coach && (<div className="col-span-2"><p className="uppercase tracking-wide text-muted-foreground">Coach</p><p className="text-sm">{selectedCandidate.sfc_coach}</p></div>)}
                               </div>
                             </div>
                           )}

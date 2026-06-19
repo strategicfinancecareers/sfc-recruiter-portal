@@ -68,7 +68,7 @@ const COMPANY_LOGOS = [
 // relabeling here propagates cleanly. Existing candidates whose stored
 // values reference older labels will simply have to re-pick on their
 // next edit (test data; orphaned strings are acceptable per spec).
-const PRIMARY_BACKGROUNDS = [
+export const PRIMARY_BACKGROUNDS = [
   {
     value: 'Strategic Finance & Business Finance',
     subtitle: 'Strategic Finance, Fundraising, Product and Marketing Finance, Pricing & Revenue Strategy, Mergers and Acquisitions, Investor and Board Work',
@@ -112,7 +112,7 @@ const DETAILED_EXPERIENCE_MAP: Record<string, string[]> = {
   ],
 };
 
-const SECTORS = [
+export const SECTORS = [
   'Fintech', 'Consumer/CPG', 'SaaS/Technology', 'Healthcare',
   'Real Estate', 'Private Equity', 'Investment Banking', 'Consulting',
   'Energy', 'Media', 'Marketplace', 'Financial Services',
@@ -120,13 +120,13 @@ const SECTORS = [
 ];
 // Sentinel for the industries "Other" picker — selecting this reveals
 // the free-text input that lands in candidates.industries_other.
-const SECTOR_OTHER = 'Other';
+export const SECTOR_OTHER = 'Other';
 
 // Target Seniority (renamed from "Target Roles" in the form-edits batch).
 // Flat 8-level ladder — stored in the existing candidates.target_roles
 // column (column kept; just the label + option vocabulary change).
 // Existing candidates with old role-style values will re-pick on edit.
-const TARGET_ROLES = [
+export const TARGET_ROLES = [
   'Analyst',
   'Manager',
   'Senior Manager',
@@ -151,7 +151,7 @@ const TARGET_ROLES = [
 // EXPERIENCE list (where they've actually worked), which lives on
 // the Experience step and writes the separate
 // candidates.company_stage_experience column.
-const COMPANY_STAGES = [
+export const COMPANY_STAGES = [
   'Pre-seed / Seed',
   'Series A',
   'Series B',
@@ -171,7 +171,7 @@ const COMPANY_STAGES = [
 // chosen by the product spec. Stored on form.companyStageExperience
 // and written to candidates.company_stage_experience[] on submit +
 // edit-save.
-const COMPANY_STAGE_EXPERIENCE_OPTIONS = [
+export const COMPANY_STAGE_EXPERIENCE_OPTIONS = [
   'Pre-seed / Seed',
   'Series A',
   'Series B',
@@ -181,20 +181,20 @@ const COMPANY_STAGE_EXPERIENCE_OPTIONS = [
   'Public company (large cap / Fortune 500)',
 ];
 
-const PREFERRED_CITIES = [
+export const PREFERRED_CITIES = [
   'New York', 'San Francisco / Bay Area', 'Los Angeles', 'Chicago',
   'Boston', 'Austin', 'Miami', 'Seattle', 'Denver', 'Washington D.C.',
   'Open to relocation', 'No preference',
   'Other',
 ];
 // Sentinel for the cities "Other" picker — selecting reveals free-text.
-const CITY_OTHER = 'Other';
+export const CITY_OTHER = 'Other';
 
 // Compensation bands — replaced in the form-edits batch with the
 // product-spec 5-band ladder. Stored as the same string format on
 // candidates.target_salary; existing rows with old bands will simply
 // re-pick on edit. No DB migration.
-const COMP_OPTIONS = [
+export const COMP_OPTIONS = [
   { value: '100k-150k', label: '$100k – $150k' },
   { value: '150k-250k', label: '$150k – $250k' },
   { value: '250k-350k', label: '$250k – $350k' },
@@ -207,8 +207,8 @@ const COMP_OPTIONS = [
 // three columns (is_sfc_alum boolean, sfc_program text, sfc_coach
 // text) are nullable on candidates and already exist (migration
 // applied out-of-band). The whole step is OPTIONAL.
-const SFC_PROGRAMS = ['Base', 'Growth', 'Elite'];
-const SFC_COACHES  = ['Zu Daya', 'Soomin Song', 'Dee Clarke'];
+export const SFC_PROGRAMS = ['Base', 'Growth', 'Elite'];
+export const SFC_COACHES  = ['Zu Daya', 'Soomin Song', 'Dee Clarke'];
 
 // Three-tier availability. Stored as the string literal on
 // candidates.profile_description (as "Availability: <value>.") and
@@ -218,7 +218,7 @@ const SFC_COACHES  = ['Zu Daya', 'Soomin Song', 'Dee Clarke'];
 //   Not Active        → open_to_opportunities=false (hidden from "open" filters)
 // The preview surfaces the nuance directly from the string; recruiters
 // who filter by "open" still see Passively-Looking candidates.
-const AVAILABILITY_OPTIONS = [
+export const AVAILABILITY_OPTIONS = [
   {
     value: 'Actively Looking',
     emoji: '🟢',
@@ -239,7 +239,7 @@ const AVAILABILITY_OPTIONS = [
   },
 ];
 
-const WORK_PREFERENCES = [
+export const WORK_PREFERENCES = [
   { value: 'Remote', label: '🏠 Remote', desc: 'Fully remote only' },
   { value: 'Hybrid', label: '🏢 Hybrid', desc: 'Mix of remote and in-office' },
   { value: 'In-Office', label: '🏙️ In-Office', desc: 'Prefer to be in office' },
@@ -364,7 +364,7 @@ function isDisqualified(form: FormState): boolean {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function RadioGroup({ name, options, value, onChange }: {
+export function RadioGroup({ name, options, value, onChange }: {
   name: string;
   options: { value: string; label: string }[];
   value: string;
@@ -390,7 +390,7 @@ function RadioGroup({ name, options, value, onChange }: {
   );
 }
 
-function ChipGrid({ options, selected, onChange }: {
+export function ChipGrid({ options, selected, onChange }: {
   options: string[];
   selected: string[];
   onChange: (v: string[]) => void;
@@ -413,7 +413,7 @@ function ChipGrid({ options, selected, onChange }: {
   );
 }
 
-function CheckboxGrid({ options, selected, onChange }: {
+export function CheckboxGrid({ options, selected, onChange }: {
   options: string[];
   selected: string[];
   onChange: (v: string[]) => void;
@@ -461,7 +461,7 @@ function CheckboxGrid({ options, selected, onChange }: {
 // form.education. When the user types into the row we join + push;
 // when form.education changes externally (resume parse, edit
 // prefill), the effect below reparses to refresh the rows.
-function EducationRowsEditor({
+export function EducationRowsEditor({
   value,
   onChange,
 }: {
@@ -623,7 +623,7 @@ function SkillsInput({ skills, onChange }: { skills: string[]; onChange: (s: str
  * immutable snapshot from the most-recent parse (set by parent into
  * form.suggestedAreas / form.suggestedTools and passed in here).
  */
-function SearchAndSuggest({
+export function SearchAndSuggest({
   value,
   onChange,
   suggestions,

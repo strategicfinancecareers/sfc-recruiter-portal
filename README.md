@@ -1,73 +1,57 @@
-# Welcome to your Lovable project
+# SFC Talent — Recruiter Portal
 
-## Project info
+The SFC Talent platform: an anonymous candidate marketplace where recruiters
+browse pre-vetted finance professionals and request warm introductions, and
+candidates manage their own profile, résumé, and introduction responses.
 
-**URL**: https://lovable.dev/projects/92a63a91-cfde-4b58-aee3-3a90c16c5531
+## Stack
 
-## How can I edit this code?
+- **Vite** + **React** (TypeScript, SWC)
+- **Tailwind CSS** + **shadcn/ui** (Radix primitives)
+- **Supabase** — Postgres, Auth, Storage, Edge Functions
+- **Vercel** — hosting + serverless API routes (`/api`)
+- **Resend** — transactional email
+- **Anthropic API** — résumé parsing + SFC Take generation
 
-There are several ways of editing your application.
+## Local development
 
-**Use Lovable**
-
-Simply visit the [Lovable Project](https://lovable.dev/projects/92a63a91-cfde-4b58-aee3-3a90c16c5531) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
+Requires Node.js & npm (use [nvm](https://github.com/nvm-sh/nvm) if you like).
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+# Install dependencies
+npm install
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+# Start the dev server (Vite, port 8080)
 npm run dev
+
+# Type-check + production build
+npm run build
+
+# Preview the production build locally
+npm run preview
 ```
 
-**Edit a file directly in GitHub**
+### Environment variables
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+Serverless functions in `/api` and the Supabase Edge Functions read secrets
+from the environment (Vercel project settings / Supabase function secrets):
 
-**Use GitHub Codespaces**
+- `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` — service-role DB access (server only)
+- `RESEND_API_KEY` — transactional email (Resend)
+- `ANTHROPIC_API_KEY` — résumé parsing / SFC Take
+- Client-side: the public Supabase URL + anon key via the Vite `VITE_` prefix
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+Never commit real secrets. Service-role keys are used only in `/api` functions,
+never in client code.
 
-## What technologies are used for this project?
+## Project layout
 
-This project is built with:
+- `src/` — React app (pages, components, hooks, lib)
+- `api/` — Vercel serverless functions (candidate/recruiter flows, intros, email)
+- `supabase/` — migrations, config, and Edge Functions
+- `public/` — static assets (favicon, brand logo, etc.)
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+## Deployment
 
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/92a63a91-cfde-4b58-aee3-3a90c16c5531) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+Pushes to `main` deploy automatically via Vercel. Database changes are applied
+through the migrations in `supabase/migrations/`.

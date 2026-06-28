@@ -37,9 +37,9 @@ const Layout = () => {
         <div className="flex items-center justify-between p-4 border-b">
           {sidebarOpen && (
             <div className="flex items-center">
-              <img 
-                src="/lovable-uploads/e9ac1787-7fab-4403-86f1-becbe7fa7524.png" 
-                alt="Strategic Finance Recruiting" 
+              <img
+                src="/brand/e9ac1787-7fab-4403-86f1-becbe7fa7524.png"
+                alt="Strategic Finance Recruiting"
                 className="h-8 w-auto mr-2"
               />
             </div>

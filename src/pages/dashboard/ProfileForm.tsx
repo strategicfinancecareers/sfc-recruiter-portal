@@ -5,6 +5,7 @@ import { Label } from '@/components/ui/label';
 import { authedFetch } from '@/integrations/supabase/authedFetch';
 import { ALL_AREA_TAGS, AREAS_MAX } from '@/lib/areasOfExpertise';
 import { ALL_TOOL_TAGS } from '@/lib/toolsAndTechnicalSkills';
+import { normalizeLinkedInUrl, isValidLinkedInUrl, LINKEDIN_ERROR } from '@/lib/linkedin';
 // Reuse the wizard's field components + option constants verbatim
 // (exported from CandidateApply.tsx — export keyword only, no logic
 // change there). This Profile page is a flat single-scroll surface
@@ -248,8 +249,20 @@ export default function ProfileForm({
   // except the chosen primary (same derivation as the wizard).
   const secondaryOptions = PRIMARY_BACKGROUNDS.filter(b => b.value !== form.primaryBackground);
 
+  // LinkedIn is OPTIONAL on the Profile tab (blank is allowed), but if the
+  // candidate types something it must be a valid profile URL. An invalid
+  // non-empty value surfaces an inline error AND blocks Save.
+  const linkedinInvalid = form.linkedin.trim() !== '' && !isValidLinkedInUrl(form.linkedin);
+
   const handleSave = async () => {
     if (!dirty || status === 'saving') return;
+    // Block save on an invalid (non-empty) LinkedIn URL. The Save button is
+    // also disabled in this state; this is the defensive backstop.
+    if (linkedinInvalid) {
+      setErrorMsg(LINKEDIN_ERROR);
+      setStatus('error');
+      return;
+    }
     setStatus('saving');
     setErrorMsg('');
     try {
@@ -267,7 +280,7 @@ export default function ProfileForm({
       const payload: Record<string, unknown> = {
         id: candidate.id,
         phone: form.phone || null,
-        linkedin_url: form.linkedin || null,
+        linkedin_url: normalizeLinkedInUrl(form.linkedin) || null,
         primary_background: form.primaryBackground || null,
         secondary_backgrounds: form.secondaryBackgrounds,
         // Dual-write detailed_experience with the same array as areas
@@ -386,8 +399,14 @@ export default function ProfileForm({
             <div>
               <Label>LinkedIn profile URL</Label>
               <Input value={form.linkedin} onChange={e => set('linkedin', e.target.value)}
-                placeholder="https://linkedin.com/in/janesmith" className="mt-2" />
-              <p className="text-xs text-gray-500 mt-1.5">🔒 Never shown to recruiters — used for internal vetting only.</p>
+                onBlur={() => set('linkedin', normalizeLinkedInUrl(form.linkedin))}
+                placeholder="https://linkedin.com/in/janesmith"
+                className={`mt-2 ${linkedinInvalid ? 'border-red-400 focus-visible:ring-red-400' : ''}`} />
+              {linkedinInvalid ? (
+                <p className="text-xs text-red-600 mt-1.5">{LINKEDIN_ERROR}</p>
+              ) : (
+                <p className="text-xs text-gray-500 mt-1.5">🔒 Never shown to recruiters — used for internal vetting only.</p>
+              )}
             </div>
           </section>
 
@@ -753,7 +772,7 @@ export default function ProfileForm({
           <button
             type="button"
             onClick={handleSave}
-            disabled={!dirty || status === 'saving'}
+            disabled={!dirty || status === 'saving' || linkedinInvalid}
             className="inline-flex items-center gap-2 bg-[#008037] hover:bg-[#006a2d] disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg px-5 py-2.5 text-sm font-semibold transition-colors"
           >
             {status === 'saving'

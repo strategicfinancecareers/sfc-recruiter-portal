@@ -49,6 +49,7 @@ import RecruiterPreviewCard, { profileCompletion } from '@/components/wizard/Rec
 import { ALL_AREA_TAGS, AREAS_MAX } from '@/lib/areasOfExpertise';
 import { ALL_TOOL_TAGS } from '@/lib/toolsAndTechnicalSkills';
 import { parseDegrees, joinDegrees, type DegreeRow } from '@/lib/parseEducation';
+import { normalizeLinkedInUrl, isValidLinkedInUrl, LINKEDIN_ERROR } from '@/lib/linkedin';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -1710,7 +1711,7 @@ export default function CandidateApply() {
         id: editCandidateId,
         // Tab 1 (only linkedin + phone editable; firstName/lastName/email read-only in UI)
         phone: form.phone || null,
-        linkedin_url: form.linkedin || null,
+        linkedin_url: normalizeLinkedInUrl(form.linkedin) || null,
         // Tab 2
         primary_background: form.primaryBackground || null,
         secondary_backgrounds: form.secondaryBackgrounds,
@@ -1968,8 +1969,17 @@ export default function CandidateApply() {
   // are clickable for any step the user has at least one of the gates
   // satisfied for (see canVisitStep below).
 
+  // LinkedIn is REQUIRED here. Blank is blocked by the gate (disabled
+  // Continue, same as the other required fields); a non-empty value that
+  // fails strict validation surfaces an inline format error AND blocks the
+  // gate. normalize-then-validate so it passes whether or not onBlur has
+  // normalized the stored value yet.
+  const linkedinValid = isValidLinkedInUrl(form.linkedin);
+  const linkedinError =
+    form.linkedin.trim() === '' || linkedinValid ? '' : LINKEDIN_ERROR;
+
   const canProceedStep1 =
-    !!(form.firstName && form.lastName && form.email && form.phone.trim().length >= 7 && form.linkedin.trim() && form.committed);
+    !!(form.firstName && form.lastName && form.email && form.phone.trim().length >= 7 && linkedinValid && form.committed);
 
   // Phase B reorder: Resume is now step 2, Professional Experience is step 3.
   // In CREATE mode step 2 requires a parsed resume; in EDIT mode an
@@ -2160,7 +2170,7 @@ export default function CandidateApply() {
           lastName: form.lastName,
           email: form.email,
           phone: form.phone,
-          linkedin: form.linkedin || null,
+          linkedin: normalizeLinkedInUrl(form.linkedin) || null,
           // Parsed-resume / review fields
           currentRole: form.currentRole,
           location: form.location,
@@ -3010,10 +3020,16 @@ export default function CandidateApply() {
               <div>
                 <Label>LinkedIn profile URL <span className="text-red-500">*</span></Label>
                 <Input value={form.linkedin} onChange={e => set('linkedin', e.target.value)}
-                  placeholder="https://linkedin.com/in/janesmith" className="mt-2" />
-                <p className="text-xs text-gray-500 mt-1.5 flex items-center gap-1">
-                  🔒 Never shown to recruiters — used for internal vetting only.
-                </p>
+                  onBlur={() => set('linkedin', normalizeLinkedInUrl(form.linkedin))}
+                  placeholder="https://linkedin.com/in/janesmith"
+                  className={`mt-2 ${linkedinError ? 'border-red-400 focus-visible:ring-red-400' : ''}`} />
+                {linkedinError ? (
+                  <p className="text-xs text-red-600 mt-1.5">{linkedinError}</p>
+                ) : (
+                  <p className="text-xs text-gray-500 mt-1.5 flex items-center gap-1">
+                    🔒 Never shown to recruiters — used for internal vetting only.
+                  </p>
+                )}
               </div>
 
               <div className="p-4 border border-gray-200 rounded-xl bg-gray-50">

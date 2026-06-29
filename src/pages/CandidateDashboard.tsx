@@ -127,11 +127,31 @@ export default function CandidateDashboard() {
   // profile fetch resolves, eliminating the post-/apply submit flash.
   useEffect(() => {
     (async () => {
-      const { error: refreshErr } = await supabase.auth.refreshSession();
-      if (refreshErr) {
-        console.warn('[CandidateDashboard] refreshSession error:', refreshErr.message);
+      // Read the persisted session FIRST. refreshSession() below is a
+      // best-effort reconcile against the auth server — a failed or raced
+      // refresh must NOT null a still-valid local session and drop the user
+      // to the signed-out 'landing' gate (that was the post-submit "Go to
+      // Dashboard lands on Create/Sign In" bug). We only show the gate when
+      // there is genuinely no session to begin with.
+      const initial = (await supabase.auth.getSession()).data.session;
+
+      let session = initial;
+      if (initial) {
+        try {
+          const { data: refreshed, error: refreshErr } = await supabase.auth.refreshSession();
+          if (!refreshErr && refreshed?.session) {
+            session = refreshed.session; // prefer the freshly reconciled session
+          } else if (refreshErr) {
+            // Transient/refresh error — keep the known-good local session.
+            // (A transient failure leaves storage intact, so authedFetch
+            // still attaches the token below.)
+            console.warn('[CandidateDashboard] refreshSession error — keeping existing session:', refreshErr.message);
+          }
+        } catch (e) {
+          console.warn('[CandidateDashboard] refreshSession threw — keeping existing session:', e);
+        }
       }
-      const { data: { session } } = await supabase.auth.getSession();
+
       if (!session?.user?.email) {
         setView('landing');
         return;

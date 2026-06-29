@@ -260,6 +260,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (insertError1) {
         console.error('[submit-candidate] full insert failed:', JSON.stringify(insertError1));
 
+        // ── Unique-violation backstop ──────────────────────────────────────────
+        // candidates_email_lower_unique enforces one row per lower(email).
+        // The pre-check SELECT above catches the common case, but a concurrent
+        // submit can pass that SELECT and collide here. A duplicate must never
+        // become a 500 — return the SAME friendly shape the pre-check returns
+        // so the client shows the "already submitted, please sign in" message.
+        // (23505 = unique_violation.)
+        if ((insertError1 as any)?.code === '23505') {
+          console.log('[submit-candidate] duplicate email (23505) on full insert — returning alreadyExists');
+          return res.status(200).json({ success: true, alreadyExists: true });
+        }
+
         // ── Attempt 2: core fields only (fallback if migrations not run) ───────
         const { data: candidate2, error: insertError2 } = await supabase
           .from('candidates')
@@ -269,6 +281,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         if (insertError2) {
           console.error('[submit-candidate] core insert also failed:', JSON.stringify(insertError2));
+          // Same unique-violation backstop on the fallback path — if the full
+          // insert failed for a column reason but the email already exists,
+          // the core insert collides on candidates_email_lower_unique too.
+          if ((insertError2 as any)?.code === '23505') {
+            console.log('[submit-candidate] duplicate email (23505) on core insert — returning alreadyExists');
+            return res.status(200).json({ success: true, alreadyExists: true });
+          }
           return res.status(500).json({
             error: 'Failed to save application',
             detail: insertError2.message,

@@ -85,7 +85,24 @@ const SignUp = () => {
           emailRedirectTo: 'https://sfc-recruiter-portal.vercel.app/signup?mode=signin',
         },
       });
-      if (signUpError) throw new Error(signUpError.message);
+      if (signUpError) {
+        // Friendly branch for an already-registered email. Supabase phrases
+        // this as "User already registered" / "already exists"; mirror the
+        // detection used on the candidate side (CandidateApply.tsx). Show an
+        // informational message and flip to the Sign In tab instead of the
+        // raw Supabase string. Other errors keep the raw-message fallback.
+        const msg = (signUpError.message || '').toLowerCase();
+        if (msg.includes('already registered') || msg.includes('already exists')) {
+          // Flip to Sign In and surface the note in the SIGN-IN slot
+          // (signinError) — the signup `error` box unmounts with the
+          // signup form, so it must land where the user is now looking.
+          setAuthTab('signin');
+          setSigninEmail(email.trim().toLowerCase());
+          setSigninError('An account with this email already exists. Please sign in instead.');
+          return;
+        }
+        throw new Error(signUpError.message);
+      }
 
       const authUserId = signUpData.user?.id;
       if (!authUserId) throw new Error('Sign-up succeeded but no user id was returned. Try again.');

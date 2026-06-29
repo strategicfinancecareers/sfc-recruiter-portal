@@ -1204,12 +1204,12 @@ function SuccessScreen({ firstName }: { firstName: string }) {
             Access your dashboard anytime at{' '}
             <span className="font-medium">sfc-recruiter-portal.vercel.app/candidate-dashboard</span>
           </p>
-          <a
-            href="/candidate-dashboard"
+          <Link
+            to="/candidate-dashboard"
             className="w-full flex items-center justify-center bg-[#0F6E56] hover:bg-[#0a5942] text-white rounded-lg px-6 py-3 text-sm font-semibold transition-colors"
           >
             Go to Dashboard →
-          </a>
+          </Link>
         </div>
         <p className="text-xs text-gray-400">Bookmark this page — you'll use your email to sign in</p>
       </div>

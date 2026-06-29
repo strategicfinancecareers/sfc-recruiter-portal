@@ -247,7 +247,7 @@ export const WORK_PREFERENCES = [
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Screen = 'landing' | 'auth' | 'verify-email' | 'form' | 'disqualified' | 'success';
+type Screen = 'landing' | 'auth' | 'verify-email' | 'form' | 'disqualified' | 'success' | 'already-exists';
 
 // Form-rework field grouping (matches the new 6-tab wizard).
 // One comp field total (targetComp on the Future Job Preferences tab).
@@ -2203,9 +2203,19 @@ export default function CandidateApply() {
         }),
       });
 
+      const data = await res.json().catch(() => ({}));
+
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
         throw new Error(data.error || 'Submission failed');
+      }
+
+      // A profile with this email already exists (server pre-check, or the
+      // 23505 unique-violation backstop on a concurrent submit). This is
+      // NOT a new submission — don't show the "profile submitted" success.
+      // Route to an informational screen that points the candidate to sign in.
+      if (data.alreadyExists) {
+        setScreen('already-exists');
+        return;
       }
 
       setScreen('success');
@@ -2655,6 +2665,34 @@ export default function CandidateApply() {
             onClick={() => { window.location.href = 'https://strategicfinancecareers.com'; }}>
             Visit SFC
           </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Already exists ───────────────────────────────────────────────────────────
+  // Informational (NOT an error/rejection): a profile with this email was
+  // already submitted. Point the candidate to sign in to view/update it.
+  if (screen === 'already-exists') {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center px-6">
+        <div className="max-w-md text-center">
+          <div className="w-16 h-16 rounded-full bg-emerald-50 flex items-center justify-center mx-auto mb-6">
+            <CheckCircle2 className="w-8 h-8 text-emerald-600" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-3">You already have a profile</h2>
+          <p className="text-gray-500 mb-8 leading-relaxed">
+            A profile with this email has already been submitted. Sign in to view or update it —
+            no need to fill out the form again.
+          </p>
+          <div className="flex items-center justify-center gap-3">
+            <Link
+              to="/candidate-dashboard"
+              className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-5 py-2.5 text-sm font-semibold transition-colors"
+            >
+              Sign in to your profile <ChevronRight className="w-4 h-4" />
+            </Link>
+          </div>
         </div>
       </div>
     );

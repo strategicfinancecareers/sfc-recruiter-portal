@@ -29,6 +29,10 @@ const SignUp = () => {
   const [signinShowPassword, setSigninShowPassword] = useState(false);
   const [signinLoading, setSigninLoading] = useState(false);
   const [signinError, setSigninError] = useState<string | null>(null);
+  // Informational (NOT error) note shown on the Sign In tab — e.g. "this
+  // email is already registered". Calm green box, distinct from signinError's
+  // red box, because a returning user is a known customer, not a failure.
+  const [signinNotice, setSigninNotice] = useState<string | null>(null);
 
   // ── Auth tab (Create Account / Sign In), mirrors CandidateApply pattern ─
   // Initial value honors ?mode=signin so the landing's "Recruiter login"
@@ -85,22 +89,32 @@ const SignUp = () => {
           emailRedirectTo: 'https://sfc-recruiter-portal.vercel.app/signup?mode=signin',
         },
       });
+      // An already-registered email surfaces two different ways depending on
+      // Supabase config/version:
+      //   (a) an explicit "User already registered" / "already exists" error,
+      //   (b) NO error but signUpData.user.identities === [] — the anti-
+      //       enumeration signal supabase-js 2.x returns when "Confirm email"
+      //       is on (the common case here). Without (b) the recruiter would
+      //       proceed with an obfuscated user id and hit the server 409 (or,
+      //       worse, a confusing failure) instead of a clear message.
+      const msg = (signUpError?.message || '').toLowerCase();
+      const alreadyRegistered =
+        (!!signUpError && (msg.includes('already registered') || msg.includes('already exists'))) ||
+        (!signUpError && !!signUpData?.user && Array.isArray(signUpData.user.identities) && signUpData.user.identities.length === 0);
+
+      if (alreadyRegistered) {
+        // Informational, not an error. Flip to Sign In, prefill the email,
+        // and surface the note in the SIGN-IN slot (signinNotice) — the
+        // signup `error` box unmounts with the signup form, so the message
+        // must land where the user is now looking.
+        setError(null);
+        setAuthTab('signin');
+        setSigninEmail(email.trim().toLowerCase());
+        setSigninNotice('This email is already registered. Please sign in, or check your inbox for a verification link.');
+        return;
+      }
       if (signUpError) {
-        // Friendly branch for an already-registered email. Supabase phrases
-        // this as "User already registered" / "already exists"; mirror the
-        // detection used on the candidate side (CandidateApply.tsx). Show an
-        // informational message and flip to the Sign In tab instead of the
-        // raw Supabase string. Other errors keep the raw-message fallback.
-        const msg = (signUpError.message || '').toLowerCase();
-        if (msg.includes('already registered') || msg.includes('already exists')) {
-          // Flip to Sign In and surface the note in the SIGN-IN slot
-          // (signinError) — the signup `error` box unmounts with the
-          // signup form, so it must land where the user is now looking.
-          setAuthTab('signin');
-          setSigninEmail(email.trim().toLowerCase());
-          setSigninError('An account with this email already exists. Please sign in instead.');
-          return;
-        }
+        // Any other auth error keeps the raw-message fallback.
         throw new Error(signUpError.message);
       }
 
@@ -153,6 +167,7 @@ const SignUp = () => {
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setSigninError(null);
+    setSigninNotice(null);
     setSigninLoading(true);
     try {
       const ok = await login(signinEmail.trim().toLowerCase(), signinPassword);
@@ -194,6 +209,7 @@ const SignUp = () => {
                   setAuthTab(tab);
                   setError(null);
                   setSigninError(null);
+                  setSigninNotice(null);
                 }}
                 className={`flex-1 py-3 text-sm font-semibold transition-colors ${
                   authTab === tab
@@ -245,6 +261,10 @@ const SignUp = () => {
                   </button>
                 </div>
               </div>
+
+              {signinNotice && (
+                <p className="text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2.5">{signinNotice}</p>
+              )}
 
               {signinError && (
                 <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2.5">{signinError}</p>
@@ -378,7 +398,7 @@ const SignUp = () => {
                 Have an account?{' '}
                 <button
                   type="button"
-                  onClick={() => { setAuthTab('signin'); setError(null); setSigninError(null); }}
+                  onClick={() => { setAuthTab('signin'); setError(null); setSigninError(null); setSigninNotice(null); }}
                   className="text-[#008037] hover:underline font-medium"
                 >
                   Sign in
@@ -389,7 +409,7 @@ const SignUp = () => {
                 Need to apply?{' '}
                 <button
                   type="button"
-                  onClick={() => { setAuthTab('signup'); setError(null); setSigninError(null); }}
+                  onClick={() => { setAuthTab('signup'); setError(null); setSigninError(null); setSigninNotice(null); }}
                   className="text-[#008037] hover:underline font-medium"
                 >
                   Create account

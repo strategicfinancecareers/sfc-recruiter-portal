@@ -1385,6 +1385,10 @@ export default function CandidateApply() {
   const [authConfirmPassword, setAuthConfirmPassword] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState('');
+  // Informational (NOT error) auth message — e.g. "this email is already
+  // registered, please sign in". Rendered in a calm green box, distinct from
+  // the red authError box, because a returning user is a known customer.
+  const [authNotice, setAuthNotice] = useState('');
 
   const set = (field: keyof FormState, value: any) =>
     setForm(prev => ({ ...prev, [field]: value }));
@@ -2229,10 +2233,10 @@ export default function CandidateApply() {
   // ── Landing ─────────────────────────────────────────────────────────────────
 
   // "Join the Network" → create account first
-  const handleStart = () => { setAuthTab('signup'); setAuthError(''); setScreen('auth'); };
+  const handleStart = () => { setAuthTab('signup'); setAuthError(''); setAuthNotice(''); setScreen('auth'); };
 
   // "Already have a profile?" → sign in tab
-  const handleSignIn = () => { setAuthTab('signin'); setAuthError(''); setScreen('auth'); };
+  const handleSignIn = () => { setAuthTab('signin'); setAuthError(''); setAuthNotice(''); setScreen('auth'); };
 
   // ── Edit-mode loading / error gate ───────────────────────────────────────
   // While the prefill is in flight, hide the wizard chrome entirely.
@@ -2364,7 +2368,7 @@ export default function CandidateApply() {
             {(['signup', 'signin'] as const).map(tab => (
               <button
                 key={tab}
-                onClick={() => { setAuthTab(tab); setAuthError(''); }}
+                onClick={() => { setAuthTab(tab); setAuthError(''); setAuthNotice(''); }}
                 className={`flex-1 py-3 text-sm font-semibold transition-colors ${
                   authTab === tab
                     ? 'border-b-2 border-emerald-600 text-emerald-700'
@@ -2376,11 +2380,21 @@ export default function CandidateApply() {
             ))}
           </div>
 
+          {/* Informational notice (e.g. "already registered, please sign in").
+              Calm green, shown above whichever tab is active — distinct from
+              the red authError box. */}
+          {authNotice && (
+            <div className="text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2.5 mb-5">
+              {authNotice}
+            </div>
+          )}
+
           {authTab === 'signup' ? (
             <form
               onSubmit={async (e) => {
                 e.preventDefault();
                 setAuthError('');
+                setAuthNotice('');
                 if (authPassword !== authConfirmPassword) {
                   setAuthError('Passwords do not match.');
                   return;
@@ -2391,7 +2405,7 @@ export default function CandidateApply() {
                 }
                 setAuthLoading(true);
                 try {
-                  const { error } = await supabase.auth.signUp({
+                  const { data, error } = await supabase.auth.signUp({
                     email: authEmail,
                     password: authPassword,
                     // emailRedirectTo lands the candidate back on /apply
@@ -2401,16 +2415,34 @@ export default function CandidateApply() {
                     // in this same file's authTab useState picks it up.
                     options: { emailRedirectTo: 'https://sfc-recruiter-portal.vercel.app/apply?mode=signin' },
                   });
-                  if (error) {
-                    if (error.message.toLowerCase().includes('already registered')) {
-                      setAuthError('Account already exists. Sign in instead.');
-                      setAuthTab('signin');
-                    } else {
-                      setAuthError(error.message);
-                    }
+                  // An already-registered email surfaces two different ways
+                  // depending on Supabase config/version:
+                  //   (a) an explicit "User already registered" error, or
+                  //   (b) NO error but data.user.identities === [] — the
+                  //       anti-enumeration signal supabase-js 2.x returns when
+                  //       "Confirm email" is on (the common case on this
+                  //       project). Without (b) the user falls through to the
+                  //       verify-email screen and is promised a mail that is
+                  //       never sent for an existing address.
+                  const alreadyRegistered =
+                    (!!error && error.message.toLowerCase().includes('already registered')) ||
+                    (!error && !!data?.user && Array.isArray(data.user.identities) && data.user.identities.length === 0);
+
+                  if (alreadyRegistered) {
+                    // Informational, not an error: send them to Sign In with
+                    // the email prefilled. NO verify-email screen.
+                    setAuthError('');
+                    setAuthNotice('This email is already registered. Please sign in, or check your inbox for a verification link.');
+                    setAuthTab('signin');
+                    setAuthEmail(authEmail.trim().toLowerCase());
                     return;
                   }
-                  // Don't go to form yet — wait for email verification
+                  if (error) {
+                    setAuthError(error.message);
+                    return;
+                  }
+                  // Genuine new signup (identities has 1+ entry) — wait for
+                  // email verification, exactly as before.
                   setScreen('verify-email');
                 } finally {
                   setAuthLoading(false);
@@ -2469,6 +2501,7 @@ export default function CandidateApply() {
               onSubmit={async (e) => {
                 e.preventDefault();
                 setAuthError('');
+                setAuthNotice('');
                 setAuthLoading(true);
                 try {
                   const { error } = await supabase.auth.signInWithPassword({

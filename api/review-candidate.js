@@ -37,14 +37,16 @@ function buildEmail(action, candidate) {
   switch (action) {
     case 'approve':
       return {
-        subject: 'Your SFC Talent profile is now live',
+        subject: 'You\'re in, your SFC Talent profile is now live',
         html: wrap(
-          '<h2 style="color:#0F6E56">You\'re in 🎉</h2>'
+          '<h2 style="color:#0F6E56">You\'re in</h2>'
           + `<p>${hello}</p>`
-          + '<p>Great news — your profile has been approved and is now visible to recruiters on our platform. They can browse you anonymously and request introductions.</p>'
+          + '<p>Great news, your profile has been accepted and is now visible to recruiters on our platform. They can browse you anonymously and request introductions.</p>'
           + '<p>You\'ll get an email any time a recruiter requests an intro. You have 48 hours to accept or decline each one.</p>'
           + `<div style="margin:24px 0"><a href="${DASHBOARD_URL}" style="display:inline-block;background:#0F6E56;color:white;text-decoration:none;padding:12px 24px;border-radius:6px;font-weight:600">Open My Dashboard →</a></div>`
           + '<p style="color:#666;font-size:14px">Your identity stays protected. We never share your contact details without your explicit consent.</p>'
+          + '<p>Lastly, if you\'re ever interested in coaching with us, you can find more information about our academy on our home page: strategicfinancecareers.com</p>'
+          + '<p>Thanks,</p>'
         ),
       };
 
@@ -53,13 +55,13 @@ function buildEmail(action, candidate) {
       // internal-only per spec. Keep the message generic and inviting
       // of further dialogue.
       return {
-        subject: 'About your SFC Talent application',
+        subject: 'About your SFC Talent profile',
         html: wrap(
-          '<h2 style="color:#333">Thanks for applying to SFC Talent</h2>'
+          '<h2 style="color:#333">Thanks for submitting your profile to Strategic Finance Careers</h2>'
           + `<p>${hello}</p>`
-          + '<p>Thank you for taking the time to apply. After review, we\'re not able to add your profile to our platform at this time.</p>'
-          + '<p>If you have any questions, just reply to this email — we read every response.</p>'
-          + '<p style="color:#666;font-size:14px">We wish you the very best in your career.</p>'
+          + '<p>Thank you for taking the time to submit your profile to SFC Talent. After review, we\'re not able to add your profile to our platform at this time.</p>'
+          + '<p>It\'s hard to go into detail for every candidate, but in general our screen looks for professionals who typically fall within the realm of what strategic finance hiring managers are looking for. Please know this in no way means you can\'t land a strategic finance role. It simply means that, based on what recruiters have shared with us, it isn\'t a match right now.</p>'
+          + '<p>If you\'re ever interested in coaching with us, you can find more information about our academy on our home page: strategicfinancecareers.com. Before making any purchase, please book a free 15 minute advisor session to make sure we\'re a good fit.</p>'
         ),
       };
 

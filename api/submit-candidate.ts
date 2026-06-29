@@ -332,15 +332,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // ── Welcome email to candidate ────────────────────────────────────────────
     const welcomeHtml = '<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">'
-      + '<h2 style="color:#0F6E56">Application received ✓</h2>'
+      + '<h2 style="color:#0F6E56">Profile received</h2>'
       + '<p>Hi ' + firstName + ',</p>'
-      + '<p>Thanks for applying to SFC Talent. Your profile is now <strong>under review</strong> by our team — we manually vet every candidate before introducing them to top finance teams.</p>'
+      + '<p>Thanks for submitting your profile to SFC Talent. Your profile is now <strong>under review</strong> by our team. We manually vet every candidate before adding you to our platform. Our promise is to both professionals like yourself and recruiters.</p>'
       + '<p>What happens next:</p>'
       + '<ul>'
-      + '<li>Our team reviews your profile (usually within 1–2 business days)</li>'
+      + '<li>Our team reviews your profile (usually within 1 to 2 business days)</li>'
       + '<li>We\'ll email you the moment your profile is approved</li>'
       + '<li>Once approved, recruiters can browse your anonymous profile and request introductions</li>'
-      + '<li>You\'ll have <strong>48 hours to respond</strong> to each intro request — just reply YES or NO</li>'
+      + '<li>If you\'re an early adopter, you may not see recruiter requests for a little while. Thank you for being an early adopter!</li>'
+      + '<li>You\'ll have <strong>48 hours to respond</strong> to each intro request</li>'
       + '</ul>'
       + '<div style="background:#f0faf6;border-left:4px solid #0F6E56;padding:16px;border-radius:4px;margin:24px 0">'
       + '<p style="margin:0;font-weight:600">Manage your profile</p>'
@@ -359,7 +360,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       body: JSON.stringify({
         from: 'SFC Talent <noreply@strategicfinancecareers.com>',
         to: [email],
-        subject: 'Welcome to SFC Talent — Your application is under review',
+        subject: 'Welcome to SFC Talent, your profile is under review',
         html: welcomeHtml,
       }),
     }).catch(err => console.warn('[submit-candidate] welcome email failed:', err.message));

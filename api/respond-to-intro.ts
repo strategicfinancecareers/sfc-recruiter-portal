@@ -92,6 +92,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const accepted = response === 'yes';
 
+    // ── Idempotency guard ───────────────────────────────────────────────
+    // Both response surfaces (the email link and the dashboard buttons)
+    // hit this endpoint, and email links especially get clicked more than
+    // once. Only a 'pending' intro may be finalized: a repeat click must
+    // NOT re-flip the status and must NOT re-send the recruiter email
+    // (tester-reported bug: multiple accepts sent the recruiter the
+    // contact-details email once per click). Render a friendly
+    // already-responded page instead. The multi-resume chooser flow is
+    // unaffected: its first click renders the picker WITHOUT writing, so
+    // status is still 'pending' when the second (finalizing) click lands.
+    if (intro.status !== 'pending') {
+      const wasAccepted = intro.status === 'approved';
+      console.log('[respond-to-intro] already responded (status:', intro.status, ') — skipping update + email for intro', introId);
+      return res.status(200).send(`
+        <html>
+          <body style="font-family: sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #f9f9f9;">
+            <div style="text-align: center; padding: 40px; background: white; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); max-width: 400px;">
+              <div style="font-size: 48px; margin-bottom: 16px;">${wasAccepted ? '✅' : '👋'}</div>
+              <h2 style="color: #333; margin: 0 0 8px;">You've already responded</h2>
+              <p style="color: #666;">${wasAccepted
+                ? 'You accepted this introduction and the recruiter has been notified with your contact details. No further action is needed.'
+                : "You passed on this introduction and the recruiter has been notified. If you've changed your mind, reply to the introduction email and we'll help out."}</p>
+            </div>
+          </body>
+        </html>
+      `);
+    }
+
     // ── Multi-resume picker gate (Phase B) ──────────────────────────────
     // When the candidate accepts and has more than one resume on file, we
     // pause and render a chooser page instead of finalizing. The chooser
@@ -141,11 +169,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       responded_at: new Date().toISOString(),
     };
     if (accepted && resolvedResumeId) updatePayload.selected_resume_id = resolvedResumeId;
-    const { error: updateErr } = await supabase
+    // Conditional on status='pending' so two near-simultaneous clicks can't
+    // both finalize: the loser of the race matches zero rows and we bail
+    // without sending a second email.
+    const { data: updatedRows, error: updateErr } = await supabase
       .from('introduction_requests')
       .update(updatePayload)
-      .eq('id', introId);
-    console.log('[respond-to-intro] status update error:', JSON.stringify(updateErr), '| selected_resume_id:', resolvedResumeId);
+      .eq('id', introId)
+      .eq('status', 'pending')
+      .select('id');
+    console.log('[respond-to-intro] status update error:', JSON.stringify(updateErr), '| rows:', updatedRows?.length ?? 0, '| selected_resume_id:', resolvedResumeId);
+    if (!updateErr && (updatedRows?.length ?? 0) === 0) {
+      console.log('[respond-to-intro] lost finalize race (intro no longer pending) — skipping email for', introId);
+      return res.status(200).send(`
+        <html>
+          <body style="font-family: sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #f9f9f9;">
+            <div style="text-align: center; padding: 40px; background: white; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); max-width: 400px;">
+              <div style="font-size: 48px; margin-bottom: 16px;">✅</div>
+              <h2 style="color: #333; margin: 0 0 8px;">Response already recorded</h2>
+              <p style="color: #666;">Your response to this introduction was already received. No further action is needed.</p>
+            </div>
+          </body>
+        </html>
+      `);
+    }
 
     // Fetch candidate, job, and recruiter user in parallel
     const [{ data: candidate }, { data: job }, { data: recruiterUser }] = await Promise.all([

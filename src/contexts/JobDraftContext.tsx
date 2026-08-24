@@ -45,6 +45,13 @@ export const EMPTY_JOB_FORM: JobFormData = {
   requirements: '',
 };
 
+export type EditJobSession = {
+  // The DB row being edited. Kept loosely typed so this context doesn't
+  // depend on the page-level Job interface; it round-trips JSON cleanly.
+  job: Record<string, unknown>;
+  formData: JobFormData;
+};
+
 export type JobDraftValue = {
   formData: JobFormData;
   setFormData: Dispatch<SetStateAction<JobFormData>>;
@@ -67,6 +74,14 @@ export type JobDraftValue = {
   // buffer would be worse than closing).
   formOpen: boolean;
   setFormOpen: Dispatch<SetStateAction<boolean>>;
+  // EDIT-existing-job session (tester follow-up): the row being edited +
+  // the in-progress edit buffer + implicitly "the edit popup is open".
+  // Hoisted here (and persisted) for the same reason as formOpen — an
+  // in-flight edit shouldn't vanish on a sidebar tab switch. null means
+  // no edit in progress. The job row is stored loosely typed; the Jobs
+  // page casts it back to its Job interface.
+  editSession: EditJobSession | null;
+  setEditSession: Dispatch<SetStateAction<EditJobSession | null>>;
   // Single reset entry point. Callers fire it on successful submit
   // AND on explicit Cancel (the same trigger points the old local
   // resetForm() fired at). It must NOT be called on mere navigate-
@@ -90,6 +105,7 @@ type StoredDraft = {
   importStep: 'import' | 'form';
   importUrl: string;
   formOpen: boolean;
+  editSession: EditJobSession | null;
 };
 
 function loadStoredDraft(): StoredDraft | null {
@@ -105,6 +121,15 @@ function loadStoredDraft(): StoredDraft | null {
       importStep: parsed.importStep === 'form' ? 'form' : 'import',
       importUrl: typeof parsed.importUrl === 'string' ? parsed.importUrl : '',
       formOpen: parsed.formOpen === true,
+      editSession:
+        parsed.editSession && typeof parsed.editSession === 'object'
+          && parsed.editSession.job && typeof parsed.editSession.job === 'object'
+          && parsed.editSession.formData && typeof parsed.editSession.formData === 'object'
+          ? {
+              job: parsed.editSession.job,
+              formData: { ...EMPTY_JOB_FORM, ...parsed.editSession.formData },
+            }
+          : null,
     };
   } catch {
     return null;
@@ -120,6 +145,7 @@ export function JobDraftProvider({ children }: { children: ReactNode }) {
   const [importSuccess, setImportSuccess] = useState(false);
   const [importError, setImportError] = useState('');
   const [formOpen, setFormOpen] = useState<boolean>(() => loadStoredDraft()?.formOpen ?? false);
+  const [editSession, setEditSession] = useState<EditJobSession | null>(() => loadStoredDraft()?.editSession ?? null);
 
   // Debounced mirror to localStorage. Skips writing when the draft is
   // pristine (identical to the empty state) so we don't create a stored
@@ -130,18 +156,18 @@ export function JobDraftProvider({ children }: { children: ReactNode }) {
       try {
         const pristine =
           JSON.stringify(formData) === JSON.stringify(EMPTY_JOB_FORM) &&
-          importStep === 'import' && importUrl === '' && !formOpen;
+          importStep === 'import' && importUrl === '' && !formOpen && editSession === null;
         if (pristine) {
           localStorage.removeItem(DRAFT_STORAGE_KEY);
         } else {
-          localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify({ formData, importStep, importUrl, formOpen } satisfies StoredDraft));
+          localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify({ formData, importStep, importUrl, formOpen, editSession } satisfies StoredDraft));
         }
       } catch {
         // Storage full / blocked (private mode) — in-memory draft still works.
       }
     }, 400);
     return () => clearTimeout(handle);
-  }, [formData, importStep, importUrl, formOpen]);
+  }, [formData, importStep, importUrl, formOpen, editSession]);
 
   const resetDraft = () => {
     setFormData(EMPTY_JOB_FORM);
@@ -162,6 +188,7 @@ export function JobDraftProvider({ children }: { children: ReactNode }) {
         importSuccess, setImportSuccess,
         importError, setImportError,
         formOpen, setFormOpen,
+        editSession, setEditSession,
         resetDraft,
       }}
     >

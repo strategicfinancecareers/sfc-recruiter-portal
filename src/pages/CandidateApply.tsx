@@ -3027,7 +3027,7 @@ export default function CandidateApply() {
                   <p className="text-xs text-red-600 mt-1.5">{linkedinError}</p>
                 ) : (
                   <p className="text-xs text-gray-500 mt-1.5 flex items-center gap-1">
-                    🔒 Never shown to recruiters — used for internal vetting only.
+                    🔒 Used for vetting. Shared with a recruiter only after you accept their introduction request.
                   </p>
                 )}
               </div>

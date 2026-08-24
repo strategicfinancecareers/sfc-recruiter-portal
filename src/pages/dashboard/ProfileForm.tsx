@@ -405,7 +405,7 @@ export default function ProfileForm({
               {linkedinInvalid ? (
                 <p className="text-xs text-red-600 mt-1.5">{LINKEDIN_ERROR}</p>
               ) : (
-                <p className="text-xs text-gray-500 mt-1.5">🔒 Never shown to recruiters — used for internal vetting only.</p>
+                <p className="text-xs text-gray-500 mt-1.5">🔒 Used for vetting. Shared with a recruiter only after you accept their introduction request.</p>
               )}
             </div>
           </section>

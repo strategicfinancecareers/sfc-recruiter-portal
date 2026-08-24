@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import RedactedResume from "@/components/RedactedResume";
 import LoaderScreen from "@/components/LoaderScreen";
-import { CheckCircle, XCircle, Clock, Download, Mail, Phone, Loader2, MapPin, Calendar, GraduationCap, Briefcase, Eye } from "lucide-react";
+import { CheckCircle, XCircle, Clock, Download, Mail, Phone, Loader2, MapPin, Calendar, GraduationCap, Briefcase, Eye, Linkedin } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useIntroductionRequests, type IntroductionRequest } from "../hooks/useIntroductionRequests";
@@ -17,6 +17,7 @@ interface FullCandidate {
   display_name: string;
   email: string;
   phone: string | null;
+  linkedin_url: string | null;
   resume_full_url: string | null;
 }
 
@@ -54,6 +55,7 @@ const openApprovedModal = (request: IntroductionRequest) => {
             display_name: c.display_name,
             email: c.email,
             phone: c.phone ?? null,
+            linkedin_url: c.linkedin_url ?? null,
             resume_full_url: c.resume_full_url ?? null,
           }
         : null,
@@ -202,6 +204,19 @@ const openApprovedModal = (request: IntroductionRequest) => {
                       className="text-green-800 font-medium hover:underline"
                     >
                       {approvedModal.candidate.phone}
+                    </a>
+                  </div>
+                )}
+                {approvedModal.candidate?.linkedin_url && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <Linkedin className="w-4 h-4 text-green-700 shrink-0" />
+                    <a
+                      href={approvedModal.candidate.linkedin_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-green-800 font-medium hover:underline truncate"
+                    >
+                      {approvedModal.candidate.linkedin_url.replace(/^https?:\/\/(www\.)?/, '')}
                     </a>
                   </div>
                 )}
@@ -390,6 +405,51 @@ const openApprovedModal = (request: IntroductionRequest) => {
                               <Badge variant="outline" className="text-xs">
                                 +{request.candidate.skills.length - 3} more
                               </Badge>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Accepted-only: contact info + who-they-are summary,
+                            inline on the card (tester feedback: contact was
+                            one click deep in the modal and read as missing).
+                            Server only returns these fields for approved
+                            intros — the scrub nulls them otherwise. */}
+                        {request.status === 'approved' && (
+                          <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 p-3 space-y-2">
+                            <p className="text-xs font-semibold text-emerald-900">Contact details</p>
+                            {request.candidate.email && (
+                              <a
+                                href={`mailto:${request.candidate.email}`}
+                                className="flex items-center gap-1.5 text-sm text-emerald-800 hover:underline min-w-0"
+                              >
+                                <Mail className="h-3.5 w-3.5 shrink-0" />
+                                <span className="truncate">{request.candidate.email}</span>
+                              </a>
+                            )}
+                            {request.candidate.phone && (
+                              <a
+                                href={`tel:${request.candidate.phone}`}
+                                className="flex items-center gap-1.5 text-sm text-emerald-800 hover:underline"
+                              >
+                                <Phone className="h-3.5 w-3.5 shrink-0" />
+                                {request.candidate.phone}
+                              </a>
+                            )}
+                            {request.candidate.linkedin_url && (
+                              <a
+                                href={request.candidate.linkedin_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-1.5 text-sm text-emerald-800 hover:underline min-w-0"
+                              >
+                                <Linkedin className="h-3.5 w-3.5 shrink-0" />
+                                <span className="truncate">LinkedIn profile</span>
+                              </a>
+                            )}
+                            {request.candidate.profile_description && (
+                              <p className="text-xs text-emerald-900/80 leading-relaxed line-clamp-3 pt-1 border-t border-emerald-200/70">
+                                {request.candidate.profile_description.split('\n\n')[0]}
+                              </p>
                             )}
                           </div>
                         )}

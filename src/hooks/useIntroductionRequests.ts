@@ -23,6 +23,8 @@ export interface IntroductionRequest {
     display_name: string;
     email: string;
     phone: string | null;
+    // Revealed post-acceptance only (server scrubs non-approved intros).
+    linkedin_url?: string | null;
     location: string;
     experience: number;
     education: string;

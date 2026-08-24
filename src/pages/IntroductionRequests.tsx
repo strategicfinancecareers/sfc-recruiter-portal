@@ -6,6 +6,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import RedactedResume from "@/components/RedactedResume";
 import LoaderScreen from "@/components/LoaderScreen";
+import AnonymousCandidateCard, { type AnonymousCandidateCardData } from "@/components/AnonymousCandidateCard";
+import { supabase } from "@/integrations/supabase/client";
 import { CheckCircle, XCircle, Clock, Download, Mail, Phone, Loader2, MapPin, Calendar, GraduationCap, Briefcase, Eye, Linkedin } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
@@ -34,15 +36,19 @@ const IntroductionRequests = () => {
   const sortDir: 'asc' | 'desc' = 'desc';
 
   // State for approved candidate modal
-  const [approvedModal, setApprovedModal] = useState<{ open: boolean; request: IntroductionRequest | null; candidate: FullCandidate | null; loading: boolean }>({
+  const [approvedModal, setApprovedModal] = useState<{ open: boolean; request: IntroductionRequest | null; candidate: FullCandidate | null; fullCard: AnonymousCandidateCardData | null; loading: boolean }>({
     open: false,
     request: null,
     candidate: null,
+    fullCard: null,
     loading: false,
   });
 
 const openApprovedModal = (request: IntroductionRequest) => {
-    // Use already-loaded candidate data — no second network call needed
+    // Contact fields come from the already-loaded intro payload; the full
+    // dossier (areas, industries, stages, skills, alum callout — the same
+    // card recruiters see on Browse) is fetched fresh below so the modal
+    // shows the complete profile, not just name + contact.
     const c = request.candidate;
     setDownloadError(null);
     setApprovedModal({
@@ -59,8 +65,47 @@ const openApprovedModal = (request: IntroductionRequest) => {
             resume_full_url: c.resume_full_url ?? null,
           }
         : null,
-      loading: false,
+      fullCard: null,
+      loading: !!c,
     });
+    if (!c) return;
+    (async () => {
+      try {
+        // Same recruiter-safe column set Browse uses (useCandidates), one
+        // row. Plain (non-inner) skills join so zero-skill candidates
+        // still resolve. No status filter: the intro is accepted, so the
+        // reveal is already authorized even if the candidate was
+        // deactivated afterwards.
+        const { data, error } = await supabase
+          .from('candidates')
+          .select(`
+            id, display_name, label, location, experience, education,
+            highest_education_level, profile_description, primary_background,
+            secondary_backgrounds, open_to_opportunities, areas_of_expertise,
+            detailed_experience, industries, company_stage_experience, is_sfc_alum,
+            candidate_skills(skills(id, skill))
+          `)
+          .eq('id', c.id)
+          .maybeSingle();
+        if (error || !data) {
+          console.warn('[IntroductionRequests] full-card fetch failed — falling back to basic modal:', error?.message);
+          setApprovedModal(prev => ({ ...prev, loading: false }));
+          return;
+        }
+        const skills = ((data as any).candidate_skills || [])
+          .map((cs: any) => cs.skills)
+          .filter(Boolean)
+          .map((s: any) => ({ id: s.id, skill: s.skill }));
+        setApprovedModal(prev => ({
+          ...prev,
+          fullCard: { ...(data as any), skills } as AnonymousCandidateCardData,
+          loading: false,
+        }));
+      } catch (err) {
+        console.warn('[IntroductionRequests] full-card fetch threw — falling back to basic modal:', err);
+        setApprovedModal(prev => ({ ...prev, loading: false }));
+      }
+    })();
   };
 
   // Request a fresh signed URL for the resume, then open it in a new tab.
@@ -167,7 +212,7 @@ const openApprovedModal = (request: IntroductionRequest) => {
 
       {/* Approved candidate details modal */}
       <Dialog open={approvedModal.open} onOpenChange={open => setApprovedModal(prev => ({ ...prev, open }))}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="font-heading flex items-center gap-2">
               {approvedModal.candidate?.name || approvedModal.request?.candidate.display_name}
@@ -182,10 +227,9 @@ const openApprovedModal = (request: IntroductionRequest) => {
             </DialogDescription>
           </DialogHeader>
 
-          {approvedModal.loading ? (
-            <div className="py-8 text-center text-muted-foreground text-sm">Loading candidate details…</div>
-          ) : (
-            <div className="space-y-4 mt-2">
+          {/* Contact details render immediately from the intro payload;
+              the full dossier card streams in below once fetched. */}
+          <div className="space-y-4 mt-2">
               <div className="bg-green-50 border border-green-200 rounded-lg p-4 space-y-3">
                 <div className="flex items-center gap-2 text-sm">
                   <Mail className="w-4 h-4 text-green-700 shrink-0" />
@@ -250,6 +294,22 @@ const openApprovedModal = (request: IntroductionRequest) => {
                 </>
               )}
 
+              {/* Full dossier — the same card recruiters see on Browse
+                  (areas, industries, stages, skills, alum callout), rendered
+                  in preview mode (no intro CTA — the intro is already done).
+                  Falls back silently to the contact-only view if the fetch
+                  fails. */}
+              {approvedModal.loading && (
+                <div className="py-6 text-center text-muted-foreground text-sm flex items-center justify-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin" /> Loading full profile…
+                </div>
+              )}
+              {approvedModal.fullCard && (
+                <div className="border-t pt-4">
+                  <AnonymousCandidateCard candidate={approvedModal.fullCard} mode="preview" />
+                </div>
+              )}
+
               {/* SFC Take — full reveal post-approval (Batch 2). No name
                   redaction needed here; the candidate's identity is already
                   visible above. */}
@@ -299,8 +359,7 @@ const openApprovedModal = (request: IntroductionRequest) => {
                   )}
                 </div>
               )}
-            </div>
-          )}
+          </div>
         </DialogContent>
       </Dialog>
 

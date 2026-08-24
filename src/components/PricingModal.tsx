@@ -24,13 +24,14 @@ const FEATURES = [
 // Early bird coupon codes (case-insensitive). Displayed pricing only:
 // the actual placement fee is invoiced off-platform, so the code a
 // recruiter applies here should be recorded with their agreement when
-// you invoice. Edit this list to add or retire codes.
-const EARLY_BIRD_CODES = ['EARLYBIRD', 'SFCEARLY'];
+// you invoice. Edit this list to add or retire codes. Exported so the
+// StartHere pricing section stays in lockstep with this modal.
+export const EARLY_BIRD_CODES = ['EARLYBIRD', 'SFCEARLY'];
 
-const PLACEMENT_FEE_STANDARD = 15000;
-const PLACEMENT_FEE_EARLY_BIRD = 5000;
+export const PLACEMENT_FEE_STANDARD = 15000;
+export const PLACEMENT_FEE_EARLY_BIRD = 5000;
 
-const fmtUsd = (n: number) => `$${n.toLocaleString('en-US')}`;
+export const fmtUsd = (n: number) => `$${n.toLocaleString('en-US')}`;
 
 export default function PricingModal({ open, onOpenChange, userId, userEmail, defaultPlan = 'annual' }: PricingModalProps) {
   const [billing, setBilling] = useState<'monthly' | 'annual'>(defaultPlan);

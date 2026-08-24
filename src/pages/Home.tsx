@@ -34,6 +34,52 @@ const REQUEST_DELAY_MS = 2900;          // browse → request hand-off
 
 type Phase = 'browse' | 'request' | 'match';
 
+// Value props — wording mirrors the live /apply page so the two front
+// doors make the same promises in the same words.
+const VALUES = [
+  {
+    key: 'anonymous',
+    title: 'You stay anonymous',
+    body: 'Your name, employer, résumé file, and contact details are never shown to a recruiter without your explicit consent.',
+  },
+  {
+    key: 'curated',
+    title: 'Curated, not broadcast',
+    body: 'Every introduction is reviewed and selective. You are never mass-applied to roles, and never cold-called by recruiters.',
+  },
+  {
+    key: 'control',
+    title: 'You control every intro',
+    body: 'Accept or decline any introduction request within 48 hours. No pressure, no obligation, no awkward calls.',
+  },
+] as const;
+
+// Objection handling. Every answer here is a description of what the
+// product actually does — the review workflow, the 48-hour window, and
+// the recruiter pricing in PricingModal.tsx. Keep them in sync.
+const FAQS = [
+  {
+    q: 'Will my current employer find out?',
+    a: 'No. Your profile is anonymous by default. Recruiters browsing the network see your role, years of experience, areas of expertise, and a written summary — never your name, your employer, your résumé file, or any way to contact you. Those are released at the moment you accept an introduction, and not before.',
+  },
+  {
+    q: 'How are professionals vetted?',
+    a: 'Every application is reviewed by the SFC team before it goes live. We parse your résumé, confirm your experience and areas of expertise, and write a short profile summary that recruiters see in place of your identity. Profiles that do not meet the bar are not published.',
+  },
+  {
+    q: 'What does it cost?',
+    a: 'Free for professionals — the application takes about five minutes. Recruiters join by application at $500 per month, or $300 per month billed annually.',
+  },
+  {
+    q: 'How long does an introduction take?',
+    a: 'A recruiter requests an introduction as soon as they see a fit. You have 48 hours to accept or decline. Contact details are exchanged the moment you accept — there is no scheduling round-trip in between.',
+  },
+  {
+    q: 'What if I am not actively looking?',
+    a: 'That is who the network is built for. Staying in it costs nothing and keeps you invisible until something genuinely worth your time appears. Most people here are employed and exploring quietly.',
+  },
+] as const;
+
 // ─── Reusable inline SVGs (kept inline to match the source HTML fidelity) ────
 
 const RecruiterIcon = () => (
@@ -70,19 +116,63 @@ const ArrowRight = () => (
     <path d="M5 12h14M13 6l6 6-6 6" />
   </svg>
 );
+const FunnelIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+    <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+  </svg>
+);
+const ApproveIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10" />
+    <polyline points="9 12 11 14 15 10" />
+  </svg>
+);
+const ShieldLockIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="11" width="18" height="11" rx="2" />
+    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+  </svg>
+);
+
+const VALUE_ICONS: Record<string, () => JSX.Element> = {
+  anonymous: ShieldLockIcon,
+  curated: FunnelIcon,
+  control: ApproveIcon,
+};
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+// Read the motion preference synchronously so the very first paint is
+// already correct — doing this in an effect caused a frame of animation
+// to play before we could cancel it.
+const prefersReducedMotion = (): boolean =>
+  typeof window !== 'undefined' &&
+  typeof window.matchMedia === 'function' &&
+  window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function Home() {
   const navigate = useNavigate();
 
-  const [phase, setPhase] = useState<Phase>('browse');
-  const [scanIndex, setScanIndex] = useState<number>(0);
+  const [reduceMotion] = useState(prefersReducedMotion);
+  // With reduced motion we skip the scan entirely and open on the
+  // 'request' phase — the intro is visible, nothing moves, and the user
+  // still has to click Accept to reach 'match'.
+  const [phase, setPhase] = useState<Phase>(() => (prefersReducedMotion() ? 'request' : 'browse'));
+  const [scanIndex, setScanIndex] = useState<number>(() => (prefersReducedMotion() ? PROTAG : 0));
   // Bumping runId on a Pass/Replay forces the scanner useEffect to
   // re-run even when we're already in 'browse' (otherwise React would
   // skip the state update and the timers wouldn't reset).
   const [runId, setRunId] = useState<number>(0);
-  const [reduceMotion, setReduceMotion] = useState<boolean>(false);
+
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const stageRef = useRef<HTMLDivElement | null>(null);
+  // The demo used to start its 2.9s run on mount, so on any viewport
+  // where the stage sits below the fold it had already played itself out
+  // before the visitor scrolled down to it. Gate the state machine on
+  // the stage actually being on screen.
+  const [stageSeen, setStageSeen] = useState(false);
 
   // ── Nav "Join the Network" dropdown ──────────────────────────────────────
   // Click to toggle, outside-click / Escape / item-select close it. Arrow
@@ -93,6 +183,14 @@ export default function Home() {
   const ddTriggerRef = useRef<HTMLButtonElement | null>(null);
   const ddPanelRef = useRef<HTMLDivElement | null>(null);
   const ddItemRefs = useRef<Array<HTMLAnchorElement | null>>([]);
+
+  // ── Mobile menu ──────────────────────────────────────────────────────────
+  // Under 860px the mid-nav links and the login labels used to simply
+  // disappear with nothing replacing them, so How It Works / Talent /
+  // Companies and both logins were unreachable on a phone. This panel is
+  // the small-screen home for all of it.
+  const [navOpen, setNavOpen] = useState(false);
+  const navToggleRef = useRef<HTMLButtonElement | null>(null);
 
   const closeDd = useCallback(() => setDdOpen(false), []);
 
@@ -126,6 +224,32 @@ export default function Home() {
     };
   }, [ddOpen, closeDd]);
 
+  // Escape closes the mobile menu and hands focus back to the toggle.
+  useEffect(() => {
+    if (!navOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setNavOpen(false);
+        navToggleRef.current?.focus();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [navOpen]);
+
+  // Close the mobile menu if the viewport grows past the breakpoint while
+  // it's open — otherwise the panel lingers over the restored desktop nav.
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return;
+    const mq = window.matchMedia('(min-width: 861px)');
+    const onChange = (e: MediaQueryListEvent | MediaQueryList) => {
+      if (e.matches) setNavOpen(false);
+    };
+    onChange(mq);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+
   // Arrow-key navigation within the panel.
   const handleDdItemKey = (e: React.KeyboardEvent<HTMLAnchorElement>, i: number) => {
     if (e.key === 'ArrowDown') {
@@ -147,21 +271,58 @@ export default function Home() {
 
   const goAndClose = (to: string) => {
     closeDd();
+    setNavOpen(false);
     navigate(to);
   };
 
-  // ── Detect prefers-reduced-motion on mount ──────────────────────────────
-  // If set, jump straight to 'request' (intro visible, no scan, no auto-
-  // advance). The user still has to click Accept to reach 'match'.
+  // ── Scroll reveal ───────────────────────────────────────────────────────
+  // One observer for every [data-reveal] in the tree. Elements start
+  // translated + transparent in CSS and get .is-revealed on first entry;
+  // we unobserve immediately so nothing re-animates on scroll-back.
+  // Under reduced motion (or without IntersectionObserver) everything is
+  // marked revealed up front and the CSS transition is a no-op.
   useEffect(() => {
-    if (typeof window === 'undefined' || !window.matchMedia) return;
-    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
-    if (mq.matches) {
-      setReduceMotion(true);
-      setPhase('request');
-      setScanIndex(PROTAG);
+    const root = rootRef.current;
+    if (!root) return;
+    const els = Array.from(root.querySelectorAll<HTMLElement>('[data-reveal]'));
+    if (reduceMotion || typeof IntersectionObserver === 'undefined') {
+      els.forEach(el => el.classList.add('is-revealed'));
+      return;
     }
-  }, []);
+    const io = new IntersectionObserver(
+      entries => {
+        entries.forEach(entry => {
+          if (!entry.isIntersecting) return;
+          entry.target.classList.add('is-revealed');
+          io.unobserve(entry.target);
+        });
+      },
+      { rootMargin: '0px 0px -8% 0px', threshold: 0.1 },
+    );
+    els.forEach(el => io.observe(el));
+    return () => io.disconnect();
+  }, [reduceMotion]);
+
+  // ── Start the demo when the stage scrolls into view ─────────────────────
+  useEffect(() => {
+    const el = stageRef.current;
+    if (!el) return;
+    if (reduceMotion || typeof IntersectionObserver === 'undefined') {
+      setStageSeen(true);
+      return;
+    }
+    const io = new IntersectionObserver(
+      entries => {
+        if (entries.some(e => e.isIntersecting)) {
+          setStageSeen(true);
+          io.disconnect();
+        }
+      },
+      { threshold: 0.25 },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [reduceMotion]);
 
   // ── State-machine effect ────────────────────────────────────────────────
   // Mirrors the original browse() → request() flow:
@@ -173,6 +334,7 @@ export default function Home() {
   // unmount can't leak timers.
   useEffect(() => {
     if (reduceMotion) return;            // skip auto-motion entirely
+    if (!stageSeen) return;              // hold at the first frame until visible
     if (phase !== 'browse') {
       if (phase === 'request') setScanIndex(PROTAG);
       return;
@@ -188,7 +350,7 @@ export default function Home() {
       window.clearInterval(interval);
       window.clearTimeout(handoff);
     };
-  }, [phase, runId, reduceMotion]);
+  }, [phase, runId, reduceMotion, stageSeen]);
 
   // ── Handlers ────────────────────────────────────────────────────────────
   const handleAccept = useCallback(() => {
@@ -205,18 +367,20 @@ export default function Home() {
     setRunId(n => n + 1);
   }, []);
 
+  const closeNav = useCallback(() => setNavOpen(false), []);
+
   // ── Render ──────────────────────────────────────────────────────────────
   return (
-    <div className="sfc-home">
+    <div className="sfc-home" ref={rootRef}>
       {/* Noise overlay (was body::before in the source). Scoped to this
           route via the .sfc-home tree so it vanishes on navigation. */}
       <div className="sfc-home-noise" aria-hidden="true" />
 
       {/* ── Nav ─────────────────────────────────────────────────────────── */}
-      <nav className="bar">
+      <nav className="bar" data-open={navOpen ? 'true' : 'false'}>
         <div className="wrap bar-inner">
-          <Link className="brand" to="/" data-route="home">
-            <span className="mark">S</span>
+          <Link className="brand" to="/" data-route="home" aria-label="SFC Talent — home">
+            <img className="mark" src="/brand/sfc-mark.png" alt="" width={29} height={29} />
             <span className="name">
               Strategic Finance
               <b>SFC&nbsp;Talent</b>
@@ -224,9 +388,9 @@ export default function Home() {
           </Link>
 
           <div className="nav-mid">
-            <a href="#flow">How It Works</a>
-            <a href="#join">Talent</a>
-            <a href="#join">Companies</a>
+            <a href="#flow">How it works</a>
+            <a href="#why">Why SFC</a>
+            <a href="#faq">Questions</a>
           </div>
 
           <div className="nav-right">
@@ -318,6 +482,53 @@ export default function Home() {
               )}
             </div>
           </div>
+
+          {/* Hamburger — only rendered as visible under the 860px
+              breakpoint (see Home.css). Toggles the panel below. */}
+          <button
+            ref={navToggleRef}
+            type="button"
+            className="nav-toggle"
+            aria-expanded={navOpen}
+            aria-controls="sfcHome-mobileNav"
+            aria-label={navOpen ? 'Close menu' : 'Open menu'}
+            onClick={() => setNavOpen(o => !o)}
+          >
+            <span className="bars" aria-hidden="true">
+              <i /><i /><i />
+            </span>
+          </button>
+        </div>
+
+        {/* ── Mobile menu panel ──────────────────────────────────────────── */}
+        <div className="mobile-nav" id="sfcHome-mobileNav" hidden={!navOpen}>
+          <div className="wrap mobile-nav-inner">
+            <a className="mn-link" href="#flow" onClick={closeNav}>How it works</a>
+            <a className="mn-link" href="#why" onClick={closeNav}>Why SFC</a>
+            <a className="mn-link" href="#faq" onClick={closeNav}>Questions</a>
+
+            <div className="mn-sep" />
+
+            <Link className="mn-cta forest" to="/apply" onClick={closeNav}>
+              Join the Talent Network
+              <ArrowRight />
+            </Link>
+            <Link className="mn-cta ghost" to="/signup" onClick={closeNav}>
+              Hire Strategic Finance Talent
+              <ArrowRight />
+            </Link>
+
+            <div className="mn-sep" />
+
+            <div className="mn-logins">
+              <Link className="mn-login" to="/apply?mode=signin" onClick={closeNav}>
+                Professional login
+              </Link>
+              <Link className="mn-login" to="/signup?mode=signin" onClick={closeNav}>
+                Recruiter login
+              </Link>
+            </div>
+          </div>
         </div>
       </nav>
 
@@ -333,6 +544,19 @@ export default function Home() {
         <p className="hero-sub rise d3">
           Professional profiles remain anonymous until an introduction is made.
         </p>
+        <div className="hero-cta rise d4">
+          <Link className="btn forest" to="/apply">
+            Join the Talent Network
+            <ArrowRight />
+          </Link>
+          <Link className="btn ghost" to="/signup">
+            Hire finance talent
+            <ArrowRight />
+          </Link>
+        </div>
+        <p className="hero-note rise d4">
+          Free for professionals · 5-minute application · Recruiter membership by application
+        </p>
       </header>
 
       {/* ── Flow section ─────────────────────────────────────────────────── */}
@@ -343,7 +567,7 @@ export default function Home() {
           <span className="hr" />
         </div>
 
-        <div className="stage" id="stage" data-state={phase}>
+        <div className="stage" id="stage" data-state={phase} ref={stageRef}>
 
           {/* RECRUITER */}
           <div className="rcol">
@@ -375,7 +599,6 @@ export default function Home() {
                   </div>
                 );
               })}
-              <div className="pool-more">+ 240 vetted professionals</div>
             </div>
 
             <div className="r-reveal">
@@ -482,10 +705,76 @@ export default function Home() {
         </div>
       </section>
 
+      {/* ── Value props ──────────────────────────────────────────────────── */}
+      <section className="value-sec" id="why">
+        <div className="wrap">
+          <div className="sec-head" data-reveal>
+            <span className="mono-label">Why SFC Talent</span>
+            <h2>
+              Not a job board. Not a recruiter.<br />
+              <em>A private introduction network.</em>
+            </h2>
+          </div>
+
+          <div className="value-grid">
+            {VALUES.map((v, i) => {
+              const Icon = VALUE_ICONS[v.key];
+              return (
+                <article
+                  className="value-card"
+                  key={v.key}
+                  data-reveal
+                  style={{ '--r': i } as React.CSSProperties}
+                >
+                  <span className="v-ic" aria-hidden="true"><Icon /></span>
+                  <h3>{v.title}</h3>
+                  <p>{v.body}</p>
+                </article>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* ── FAQ ──────────────────────────────────────────────────────────── */}
+      <section className="faq-sec" id="faq">
+        <div className="wrap faq-inner">
+          <div className="faq-aside" data-reveal>
+            <span className="mono-label">Common questions</span>
+            <h2>Your privacy is <em>the product</em>.</h2>
+            <p>
+              Most people in this network are employed and exploring discreetly.
+              Everything below follows from that one constraint.
+            </p>
+          </div>
+
+          <div className="faq-list">
+            {FAQS.map((item, i) => (
+              <details
+                className="faq-item"
+                key={item.q}
+                data-reveal
+                style={{ '--r': i } as React.CSSProperties}
+              >
+                <summary>
+                  <span className="q">{item.q}</span>
+                  <span className="sign" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M12 5v14M5 12h14" />
+                    </svg>
+                  </span>
+                </summary>
+                <div className="faq-a"><p>{item.a}</p></div>
+              </details>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* ── Band ─────────────────────────────────────────────────────────── */}
       <section className="band" id="join">
         <div className="band-grid">
-          <div className="band-cell">
+          <div className="band-cell" data-reveal>
             <span className="mono-label">For recruiters</span>
             <h3>Hire vetted finance talent.</h3>
             <p>Request warm introductions to pre-screened, passive operators — surfaced only when there&rsquo;s mutual interest.</p>
@@ -497,7 +786,7 @@ export default function Home() {
               <span className="note">Membership · by application</span>
             </div>
           </div>
-          <div className="band-cell">
+          <div className="band-cell" data-reveal style={{ '--r': 1 } as React.CSSProperties}>
             <span className="mono-label">For professionals</span>
             <h3>Start being approached — privately.</h3>
             <p>Be open to opportunities without your employer or network ever knowing. You stay anonymous until you choose to say yes.</p>
@@ -520,6 +809,7 @@ export default function Home() {
             {/* Footer Log-in link intentionally removed — the two top-right
                 nav logins remain the only login affordance on the page. */}
             <a href="#flow">How it works</a>
+            <a href="#faq">Questions</a>
             <Link to="/apply">For professionals</Link>
             <Link to="/signup">For recruiters</Link>
           </div>

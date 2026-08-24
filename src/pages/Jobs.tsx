@@ -36,7 +36,10 @@ const Jobs = () => {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [showJobForm, setShowJobForm] = useState(false);
+  // Open flag for EDIT-existing-job dialogs only. The NEW-job popup's
+  // open state lives in JobDraftContext (draft.formOpen) so the popup —
+  // not just its data — survives sidebar navigation and reloads.
+  const [showEditForm, setShowEditForm] = useState(false);
   const [editingJob, setEditingJob] = useState<Job | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState<Job | null>(null);
   const [importing, setImporting] = useState(false); // transient; not part of the persisted draft
@@ -147,7 +150,11 @@ const handleOpenForm = (job?: Job) => {
     // Cancel/X (via onOpenChange below) or on successful submit.
     setEditingJob(null);
   }
-  setShowJobForm(true);
+  if (job) {
+    setShowEditForm(true);
+  } else {
+    draft.setFormOpen(true);
+  }
 };
 
 const handleImport = async () => {
@@ -233,7 +240,9 @@ const handleImport = async () => {
       await fetchJobs();
       console.timeEnd('[Jobs] fetchJobs');
 
-      setShowJobForm(false);
+      // Close the right surface for the mode. resetForm() (below) also
+      // clears draft.formOpen for new-job mode via resetDraft.
+      setShowEditForm(false);
       resetForm();
       console.log('[Jobs] handleSubmit success');
     } catch (error) {
@@ -461,12 +470,22 @@ const handleImport = async () => {
             with our own X that calls handleDiscardAndClose. This makes navigate-away
             robust regardless of any future Radix behavior — there's no longer any
             path from a controlled-close transition to a draft reset. */}
-        <Dialog open={showJobForm} onOpenChange={setShowJobForm}>
+        <Dialog
+          open={editingJob ? showEditForm : draft.formOpen}
+          onOpenChange={(open) => {
+            // Escape / click-outside: close only, preserve the draft.
+            // Setting draft.formOpen false here also stops the popup
+            // from auto-reopening — an explicit soft-close is a signal
+            // the recruiter wants it out of the way for now.
+            if (editingJob) setShowEditForm(open);
+            else draft.setFormOpen(open);
+          }}
+        >
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto [&>button.absolute]:hidden">
             <button
               type="button"
               aria-label="Close and discard changes"
-              onClick={() => { resetForm(); setShowJobForm(false); }}
+              onClick={() => { resetForm(); setShowEditForm(false); }}
               className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
             >
               <X className="h-4 w-4" />
@@ -648,7 +667,7 @@ const handleImport = async () => {
                   )}
 
                   <DialogFooter>
-                    <Button type="button" variant="outline" onClick={() => { resetForm(); setShowJobForm(false); }}>
+                    <Button type="button" variant="outline" onClick={() => { resetForm(); setShowEditForm(false); }}>
                       Cancel
                     </Button>
                     <Button type="submit" disabled={submitting}>

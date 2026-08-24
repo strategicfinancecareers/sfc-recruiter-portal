@@ -19,6 +19,7 @@ import { useCandidates, type Candidate } from "../hooks/useCandidates";
 import { AREA_GROUPS, ALL_AREA_TAGS } from "@/lib/areasOfExpertise";
 import { supabase } from "@/integrations/supabase/client";
 import { JobForm } from "@/components/JobForm";
+import { useJobDraft } from "@/contexts/JobDraftContext";
 import AnonymousCandidateCard from "@/components/AnonymousCandidateCard";
 
 interface Job {
@@ -78,7 +79,9 @@ export default function CandidateSearch() {
   const [selectedJobId, setSelectedJobId] = useState<string>('');
   const [showAdminWarningDialog, setShowAdminWarningDialog] = useState(false);
   const [isSubmittingIntro, setIsSubmittingIntro] = useState(false);
-  const [showJobForm, setShowJobForm] = useState(false);
+  // NEW-job popup open state lives in JobDraftContext so the popup (and
+  // its draft) survives sidebar navigation between Browse and Jobs.
+  const { formOpen: showJobForm, setFormOpen: setShowJobForm } = useJobDraft();
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [showPricingModal, setShowPricingModal] = useState(false);
   const [isSubscribed, setIsSubscribed] = useState<boolean>(false);

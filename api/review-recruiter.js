@@ -2,11 +2,18 @@ import { createClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
 
 // POST /api/review-recruiter
-// body: { recruiterUserId, adminUserId, action: 'approve'|'reject', rejectionReason? }
+// body: { recruiterUserId, adminUserId, action: 'approve'|'reject'|'deactivate'|'reactivate', rejectionReason? }
 //
-// Flips users.recruiter_status for a pending recruiter and notifies them
-// via Resend. Same shape as /api/review-candidate but for recruiter
-// vetting (the second side of the platform).
+// approve/reject: flips users.recruiter_status for a pending recruiter and
+// notifies them via Resend. Same shape as /api/review-candidate but for
+// recruiter vetting (the second side of the platform).
+//
+// deactivate/reactivate: flips users.is_active for an already-vetted
+// recruiter (admin "terminate/revoke access later" control). AuthContext
+// enforces is_active === false by signing the user out on profile fetch,
+// so deactivation takes effect on their next page load / session refresh.
+// No email is sent for these two actions — access revocation is an
+// internal admin decision.
 
 const APP_URL = 'https://sfc-recruiter-portal.vercel.app';
 const FROM_ADDR = 'SFC Talent <noreply@strategicfinancecareers.com>';
@@ -27,7 +34,7 @@ export default async function handler(req, res) {
   if (!recruiterUserId || !adminUserId || !action) {
     return res.status(400).json({ error: 'recruiterUserId, adminUserId, action required' });
   }
-  if (action !== 'approve' && action !== 'reject') {
+  if (!['approve', 'reject', 'deactivate', 'reactivate'].includes(action)) {
     return res.status(400).json({ error: `Invalid action: ${action}` });
   }
   if (action === 'reject' && !(rejectionReason && rejectionReason.trim())) {
@@ -53,7 +60,7 @@ export default async function handler(req, res) {
   // ── Load target recruiter ──────────────────────────────────────────────────
   const { data: recruiter, error: recErr } = await supabase
     .from('users')
-    .select('id, email, first_name, last_name, recruiter_status')
+    .select('id, email, first_name, last_name, recruiter_status, is_active')
     .eq('id', recruiterUserId)
     .maybeSingle();
   if (recErr) {
@@ -61,6 +68,26 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: recErr.message });
   }
   if (!recruiter) return res.status(404).json({ error: 'Recruiter not found' });
+
+  // ── Deactivate / reactivate: is_active flip, no email ─────────────────────
+  if (action === 'deactivate' || action === 'reactivate') {
+    const targetActive = action === 'reactivate';
+    if ((recruiter.is_active !== false) === targetActive) {
+      return res.status(400).json({
+        error: `Recruiter is already ${targetActive ? 'active' : 'deactivated'}.`,
+      });
+    }
+    const { error: activeErr } = await supabase
+      .from('users')
+      .update({ is_active: targetActive, updated_at: new Date().toISOString() })
+      .eq('id', recruiterUserId);
+    if (activeErr) {
+      console.error('[review-recruiter]', action, 'failed:', JSON.stringify(activeErr));
+      return res.status(500).json({ error: activeErr.message });
+    }
+    console.log('[review-recruiter]', action, 'OK — recruiter', recruiterUserId);
+    return res.status(200).json({ success: true, recruiterUserId, isActive: targetActive });
+  }
 
   if (recruiter.recruiter_status !== 'pending') {
     return res.status(400).json({

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { format } from 'date-fns';
-import { Loader2, CheckCircle, XCircle, ExternalLink } from 'lucide-react';
+import { Loader2, CheckCircle, XCircle, ExternalLink, Briefcase, Handshake, Heart, Ban, RotateCcw } from 'lucide-react';
 
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -38,6 +38,27 @@ interface RecruiterRow {
 
 type Filter = 'pending' | 'approved' | 'rejected' | 'all';
 
+// Shape of /api/admin-recruiter-detail's response (drill-down dialog).
+interface RecruiterDetail {
+  recruiter: RecruiterRow & { updated_at?: string | null };
+  auth: {
+    last_sign_in_at: string | null;
+    email_confirmed_at: string | null;
+    auth_created_at: string | null;
+    providers: string[];
+  } | null;
+  intros: Array<{
+    id: string;
+    status: string;
+    created_at: string;
+    responded_at: string | null;
+    candidate: { display_name: string | null; name: string | null } | null;
+    job: { title: string | null; company: string | null } | null;
+  }>;
+  jobs: Array<{ id: string; title: string; company: string | null; status: string | null; created_at: string }>;
+  favoritesCount: number;
+}
+
 const STATUS_BADGE: Record<string, string> = {
   pending:  'bg-amber-100 text-amber-800 border-amber-200',
   approved: 'bg-emerald-100 text-emerald-800 border-emerald-200',
@@ -71,6 +92,73 @@ export default function AdminRecruitersTab({ onCountChange }: AdminRecruitersTab
   const [approveTarget, setApproveTarget] = useState<RecruiterRow | null>(null);
   const [rejectTarget, setRejectTarget] = useState<RecruiterRow | null>(null);
   const [rejectReason, setRejectReason] = useState('');
+
+  // Drill-down detail dialog
+  const [detailTarget, setDetailTarget] = useState<RecruiterRow | null>(null);
+  const [detail, setDetail] = useState<RecruiterDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
+  const [deactivateTarget, setDeactivateTarget] = useState<RecruiterRow | null>(null);
+
+  const openDetail = (rec: RecruiterRow) => {
+    if (!user?.id) return;
+    setDetailTarget(rec);
+    setDetail(null);
+    setDetailError(null);
+    setDetailLoading(true);
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/admin-recruiter-detail?recruiterUserId=${encodeURIComponent(rec.id)}&adminUserId=${encodeURIComponent(user.id)}`
+        );
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(body.error || `Failed (${res.status})`);
+        setDetail(body as RecruiterDetail);
+      } catch (err: any) {
+        console.error('[AdminRecruitersTab] detail load failed:', err);
+        setDetailError(err?.message || 'Failed to load recruiter details');
+      } finally {
+        setDetailLoading(false);
+      }
+    })();
+  };
+
+  // ── Action: deactivate / reactivate (is_active flip, no email) ─────────────
+  const doSetActive = async (rec: RecruiterRow, active: boolean) => {
+    if (!user?.id) return;
+    setActionLoading(true);
+    try {
+      const res = await fetch('/api/review-recruiter', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          recruiterUserId: rec.id,
+          adminUserId: user.id,
+          action: active ? 'reactivate' : 'deactivate',
+        }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || `Failed (${res.status})`);
+      toast({
+        title: active ? `Reactivated ${fullName(rec)}` : `Deactivated ${fullName(rec)}`,
+        description: active
+          ? 'They can sign in again.'
+          : 'They will be signed out on their next page load and can no longer access the portal.',
+      });
+      await load();
+      setDeactivateTarget(null);
+      // Keep the detail dialog in sync if it's open on this recruiter.
+      setDetailTarget(prev => (prev && prev.id === rec.id ? { ...prev, is_active: active } : prev));
+      setDetail(prev => (prev && prev.recruiter.id === rec.id
+        ? { ...prev, recruiter: { ...prev.recruiter, is_active: active } }
+        : prev));
+    } catch (err: any) {
+      console.error('[AdminRecruitersTab] set-active failed:', err);
+      toast({ title: 'Action failed', description: err?.message || 'Unknown error', variant: 'destructive' });
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   // ── Fetch ───────────────────────────────────────────────────────────────────
   const load = async () => {
@@ -249,7 +337,11 @@ export default function AdminRecruitersTab({ onCountChange }: AdminRecruitersTab
                 const status = rec.recruiter_status;
                 const badgeStatus = status || 'legacy';
                 return (
-                  <TableRow key={rec.id}>
+                  <TableRow
+                    key={rec.id}
+                    onClick={() => openDetail(rec)}
+                    className={cn('cursor-pointer', rec.is_active === false && 'opacity-60')}
+                  >
                     <TableCell className="font-medium text-sm">{fullName(rec)}</TableCell>
                     <TableCell className="text-sm">{rec.email}</TableCell>
                     <TableCell className="text-sm">{rec.company || '—'}</TableCell>
@@ -259,6 +351,7 @@ export default function AdminRecruitersTab({ onCountChange }: AdminRecruitersTab
                           href={rec.linkedin_url}
                           target="_blank"
                           rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
                           className="inline-flex items-center gap-1 text-emerald-700 hover:underline"
                         >
                           Profile <ExternalLink className="w-3 h-3" />
@@ -269,9 +362,16 @@ export default function AdminRecruitersTab({ onCountChange }: AdminRecruitersTab
                       {rec.created_at ? format(new Date(rec.created_at), 'MMM d, yyyy') : '—'}
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline" className={cn('capitalize', STATUS_BADGE[badgeStatus])}>
-                        {status || 'legacy'}
-                      </Badge>
+                      <div className="flex items-center gap-1.5">
+                        <Badge variant="outline" className={cn('capitalize', STATUS_BADGE[badgeStatus])}>
+                          {status || 'legacy'}
+                        </Badge>
+                        {rec.is_active === false && (
+                          <Badge variant="outline" className="bg-gray-100 text-gray-600 border-gray-300">
+                            deactivated
+                          </Badge>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell className="text-right">
                       {status === 'pending' ? (
@@ -280,20 +380,20 @@ export default function AdminRecruitersTab({ onCountChange }: AdminRecruitersTab
                             size="sm"
                             variant="outline"
                             className="border-red-200 text-red-700 hover:bg-red-50"
-                            onClick={() => { setRejectReason(''); setRejectTarget(rec); }}
+                            onClick={(e) => { e.stopPropagation(); setRejectReason(''); setRejectTarget(rec); }}
                           >
                             <XCircle className="w-3 h-3 mr-1" /> Reject
                           </Button>
                           <Button
                             size="sm"
                             className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                            onClick={() => setApproveTarget(rec)}
+                            onClick={(e) => { e.stopPropagation(); setApproveTarget(rec); }}
                           >
                             <CheckCircle className="w-3 h-3 mr-1" /> Approve
                           </Button>
                         </div>
                       ) : (
-                        <span className="text-xs text-muted-foreground">—</span>
+                        <span className="text-xs text-muted-foreground">View →</span>
                       )}
                     </TableCell>
                   </TableRow>
@@ -376,6 +476,217 @@ export default function AdminRecruitersTab({ onCountChange }: AdminRecruitersTab
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ── Recruiter drill-down detail dialog ──────────────────────────── */}
+      <Dialog open={!!detailTarget} onOpenChange={(open) => { if (!open) { setDetailTarget(null); setDetail(null); } }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 flex-wrap">
+              {detailTarget ? fullName(detailTarget) : ''}
+              {detailTarget && (
+                <Badge variant="outline" className={cn('capitalize', STATUS_BADGE[detailTarget.recruiter_status || 'legacy'])}>
+                  {detailTarget.recruiter_status || 'legacy'}
+                </Badge>
+              )}
+              {detailTarget?.is_active === false && (
+                <Badge variant="outline" className="bg-gray-100 text-gray-600 border-gray-300">deactivated</Badge>
+              )}
+            </DialogTitle>
+            <DialogDescription>{detailTarget?.company || detailTarget?.email}</DialogDescription>
+          </DialogHeader>
+
+          {detailLoading && (
+            <div className="py-10 text-center text-muted-foreground text-sm flex items-center justify-center gap-2">
+              <Loader2 className="w-4 h-4 animate-spin" /> Loading recruiter details…
+            </div>
+          )}
+          {detailError && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{detailError}</div>
+          )}
+
+          {detail && (
+            <div className="space-y-5">
+              {/* Account facts */}
+              <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
+                {([
+                  { label: 'Email', value: detail.recruiter.email },
+                  {
+                    label: 'Email verified',
+                    value: detail.auth
+                      ? (detail.auth.email_confirmed_at ? `Yes — ${format(new Date(detail.auth.email_confirmed_at), 'MMM d, yyyy')}` : 'No')
+                      : 'Unknown',
+                  },
+                  {
+                    label: 'Signup date',
+                    value: detail.recruiter.created_at ? format(new Date(detail.recruiter.created_at), 'MMM d, yyyy · h:mm a') : '—',
+                  },
+                  {
+                    label: 'Last login',
+                    value: detail.auth?.last_sign_in_at
+                      ? format(new Date(detail.auth.last_sign_in_at), 'MMM d, yyyy · h:mm a')
+                      : 'Never / unknown',
+                  },
+                  {
+                    label: 'Sign-in method',
+                    value: detail.auth?.providers?.length
+                      ? detail.auth.providers.map(p => (p === 'email' ? 'Email & password' : p)).join(', ')
+                      : '—',
+                  },
+                  {
+                    label: 'Approved',
+                    value: detail.recruiter.approved_at
+                      ? format(new Date(detail.recruiter.approved_at), 'MMM d, yyyy')
+                      : '—',
+                  },
+                ] as Array<{ label: string; value: string }>).map(row => (
+                  <div key={row.label}>
+                    <p className="text-xs text-muted-foreground">{row.label}</p>
+                    <p className="font-medium break-words">{row.value}</p>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Passwords are stored as one-way hashes by Supabase Auth and cannot be viewed by anyone, including admins.
+              </p>
+              {detail.recruiter.rejection_reason && (
+                <div className="p-3 bg-red-50/60 border border-red-100 rounded-lg text-xs text-red-800">
+                  <span className="font-semibold">Rejection reason:</span> {detail.recruiter.rejection_reason}
+                </div>
+              )}
+
+              {/* Activity summary */}
+              <div className="grid grid-cols-3 gap-3">
+                {([
+                  { icon: Handshake, label: 'Intros sent', value: detail.intros.length },
+                  { icon: Briefcase, label: 'Jobs posted', value: detail.jobs.length },
+                  { icon: Heart, label: 'Favorites', value: detail.favoritesCount },
+                ] as Array<{ icon: typeof Handshake; label: string; value: number }>).map(s => (
+                  <div key={s.label} className="rounded-lg border bg-gray-50/60 p-3 text-center">
+                    <s.icon className="w-4 h-4 mx-auto text-gray-400 mb-1" />
+                    <p className="text-lg font-bold leading-none">{s.value}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{s.label}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Introductions list */}
+              {detail.intros.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Introduction requests</p>
+                  <div className="rounded-lg border divide-y max-h-56 overflow-y-auto">
+                    {detail.intros.map(i => (
+                      <div key={i.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+                        <div className="min-w-0">
+                          <p className="font-medium truncate">
+                            {i.candidate?.name || i.candidate?.display_name || 'Candidate'}
+                          </p>
+                          <p className="text-xs text-muted-foreground truncate">
+                            {i.job?.title ? `${i.job.title}${i.job.company ? ` · ${i.job.company}` : ''}` : 'General introduction'}
+                          </p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <Badge variant="outline" className={cn('capitalize text-xs',
+                            i.status === 'approved' ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                            : i.status === 'rejected' ? 'bg-red-100 text-red-800 border-red-200'
+                            : 'bg-amber-100 text-amber-800 border-amber-200')}>
+                            {i.status}
+                          </Badge>
+                          <p className="text-[10px] text-muted-foreground mt-0.5">{format(new Date(i.created_at), 'MMM d, yyyy')}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Jobs list */}
+              {detail.jobs.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Jobs posted</p>
+                  <div className="rounded-lg border divide-y max-h-40 overflow-y-auto">
+                    {detail.jobs.map(j => (
+                      <div key={j.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+                        <p className="font-medium truncate">{j.title}{j.company ? ` · ${j.company}` : ''}</p>
+                        <p className="text-[10px] text-muted-foreground shrink-0">{format(new Date(j.created_at), 'MMM d, yyyy')}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            {detailTarget?.recruiter_status === 'pending' && (
+              <>
+                <Button
+                  variant="outline"
+                  className="border-red-200 text-red-700 hover:bg-red-50"
+                  onClick={() => { setRejectReason(''); setRejectTarget(detailTarget); }}
+                >
+                  <XCircle className="w-4 h-4 mr-1" /> Reject
+                </Button>
+                <Button
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                  onClick={() => setApproveTarget(detailTarget)}
+                >
+                  <CheckCircle className="w-4 h-4 mr-1" /> Approve
+                </Button>
+              </>
+            )}
+            {detailTarget && detailTarget.recruiter_status !== 'pending' && (
+              detailTarget.is_active === false ? (
+                <Button
+                  variant="outline"
+                  disabled={actionLoading}
+                  onClick={() => doSetActive(detailTarget, true)}
+                >
+                  {actionLoading
+                    ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Reactivating…</>
+                    : <><RotateCcw className="w-4 h-4 mr-1" /> Reactivate access</>}
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  className="border-red-200 text-red-700 hover:bg-red-50"
+                  disabled={actionLoading}
+                  onClick={() => setDeactivateTarget(detailTarget)}
+                >
+                  <Ban className="w-4 h-4 mr-1" /> Deactivate access
+                </Button>
+              )
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Deactivate confirmation */}
+      <AlertDialog open={!!deactivateTarget} onOpenChange={(open) => { if (!open) setDeactivateTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Deactivate {deactivateTarget ? fullName(deactivateTarget) : ''}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              They will be signed out on their next page load and can no longer access the recruiter portal.
+              No email is sent. You can reactivate them at any time from this same screen.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={actionLoading}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              disabled={actionLoading}
+              onClick={(e) => {
+                e.preventDefault();
+                if (deactivateTarget) doSetActive(deactivateTarget, false);
+              }}
+            >
+              {actionLoading
+                ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Deactivating…</>
+                : <><Ban className="w-4 h-4 mr-2" />Deactivate</>}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

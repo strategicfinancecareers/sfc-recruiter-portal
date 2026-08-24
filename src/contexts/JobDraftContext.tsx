@@ -56,6 +56,17 @@ export type JobDraftValue = {
   setImportSuccess: Dispatch<SetStateAction<boolean>>;
   importError: string;
   setImportError: Dispatch<SetStateAction<string>>;
+  // NEW-job popup open state, shared + persisted like the draft fields.
+  // Tester feedback (Aug 2026): the draft DATA survived sidebar tab
+  // switches but the dialog itself closed (open flag was local to the
+  // route component), which read as "my work got deleted". Hoisting the
+  // flag here means the popup re-opens automatically — mid-draft, the
+  // popup follows the recruiter across Jobs/Browse and across reloads.
+  // Edit-existing-job dialogs deliberately do NOT use this flag (their
+  // buffer is local and ephemeral; auto-reopening one with a wiped
+  // buffer would be worse than closing).
+  formOpen: boolean;
+  setFormOpen: Dispatch<SetStateAction<boolean>>;
   // Single reset entry point. Callers fire it on successful submit
   // AND on explicit Cancel (the same trigger points the old local
   // resetForm() fired at). It must NOT be called on mere navigate-
@@ -78,6 +89,7 @@ type StoredDraft = {
   formData: JobFormData;
   importStep: 'import' | 'form';
   importUrl: string;
+  formOpen: boolean;
 };
 
 function loadStoredDraft(): StoredDraft | null {
@@ -92,6 +104,7 @@ function loadStoredDraft(): StoredDraft | null {
       formData: { ...EMPTY_JOB_FORM, ...parsed.formData },
       importStep: parsed.importStep === 'form' ? 'form' : 'import',
       importUrl: typeof parsed.importUrl === 'string' ? parsed.importUrl : '',
+      formOpen: parsed.formOpen === true,
     };
   } catch {
     return null;
@@ -106,6 +119,7 @@ export function JobDraftProvider({ children }: { children: ReactNode }) {
   const [importUrl, setImportUrl] = useState(() => loadStoredDraft()?.importUrl ?? '');
   const [importSuccess, setImportSuccess] = useState(false);
   const [importError, setImportError] = useState('');
+  const [formOpen, setFormOpen] = useState<boolean>(() => loadStoredDraft()?.formOpen ?? false);
 
   // Debounced mirror to localStorage. Skips writing when the draft is
   // pristine (identical to the empty state) so we don't create a stored
@@ -116,18 +130,18 @@ export function JobDraftProvider({ children }: { children: ReactNode }) {
       try {
         const pristine =
           JSON.stringify(formData) === JSON.stringify(EMPTY_JOB_FORM) &&
-          importStep === 'import' && importUrl === '';
+          importStep === 'import' && importUrl === '' && !formOpen;
         if (pristine) {
           localStorage.removeItem(DRAFT_STORAGE_KEY);
         } else {
-          localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify({ formData, importStep, importUrl } satisfies StoredDraft));
+          localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify({ formData, importStep, importUrl, formOpen } satisfies StoredDraft));
         }
       } catch {
         // Storage full / blocked (private mode) — in-memory draft still works.
       }
     }, 400);
     return () => clearTimeout(handle);
-  }, [formData, importStep, importUrl]);
+  }, [formData, importStep, importUrl, formOpen]);
 
   const resetDraft = () => {
     setFormData(EMPTY_JOB_FORM);
@@ -135,6 +149,7 @@ export function JobDraftProvider({ children }: { children: ReactNode }) {
     setImportUrl('');
     setImportSuccess(false);
     setImportError('');
+    setFormOpen(false);
     try { localStorage.removeItem(DRAFT_STORAGE_KEY); } catch { /* ignore */ }
   };
 
@@ -146,6 +161,7 @@ export function JobDraftProvider({ children }: { children: ReactNode }) {
         importUrl, setImportUrl,
         importSuccess, setImportSuccess,
         importError, setImportError,
+        formOpen, setFormOpen,
         resetDraft,
       }}
     >

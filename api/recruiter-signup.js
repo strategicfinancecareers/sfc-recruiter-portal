@@ -27,7 +27,7 @@ export default async function handler(req, res) {
     process.env.SUPABASE_SERVICE_ROLE_KEY
   );
 
-  const { authUserId, email, first_name, last_name, linkedin_url, company } = req.body || {};
+  const { authUserId, email, first_name, last_name, linkedin_url, company, job_posting_url } = req.body || {};
   console.log('[recruiter-signup] entry:', { authUserId, email });
 
   // ── Validate ───────────────────────────────────────────────────────────────
@@ -41,6 +41,30 @@ export default async function handler(req, res) {
   }
 
   const emailNorm = email.toLowerCase().trim();
+
+  // Optional vetting aid (Google completion step): link to a live job
+  // posting / careers page. Normalize a missing scheme; otherwise store
+  // as given. Empty string -> null.
+  let jobPostingUrl = typeof job_posting_url === 'string' ? job_posting_url.trim() : '';
+  if (jobPostingUrl && !/^https?:\/\//i.test(jobPostingUrl)) jobPostingUrl = 'https://' + jobPostingUrl;
+
+  // ── Cross-type guard ───────────────────────────────────────────────────────
+  // One email = one side of the marketplace. If this email already has a
+  // (non-deleted) CANDIDATE profile, block the recruiter signup with a
+  // clear message — recruiters should use a work email. This also covers
+  // the Google flow, where the same verified Gmail could otherwise end up
+  // on both sides.
+  const { data: candidateClash } = await supabase
+    .from('candidates')
+    .select('id, status')
+    .eq('email', emailNorm)
+    .maybeSingle();
+  if (candidateClash && candidateClash.status !== 'deleted') {
+    return res.status(409).json({
+      error: 'This email already has a candidate profile on SFC Talent. Please sign up as a recruiter with your work email.',
+      candidateConflict: true,
+    });
+  }
 
   // ── Insert public.users (service role bypasses RLS) ────────────────────────
   // RLS policy "Users can insert their own profile during signup" with
@@ -57,6 +81,7 @@ export default async function handler(req, res) {
       last_name: last_name.trim(),
       linkedin_url: linkedin_url.trim(),
       company: company.trim(),
+      job_posting_url: jobPostingUrl || null,
       role_id: RECRUITER_ROLE_ID,
       recruiter_status: 'pending',
       created_at: nowIso,
@@ -91,7 +116,8 @@ export default async function handler(req, res) {
           <tr><td style="padding:8px 0;border-bottom:1px solid #eee;color:#888;width:38%">Name</td><td style="padding:8px 0;border-bottom:1px solid #eee;font-weight:600">${fullName}</td></tr>
           <tr><td style="padding:8px 0;border-bottom:1px solid #eee;color:#888">Email</td><td style="padding:8px 0;border-bottom:1px solid #eee">${emailNorm}</td></tr>
           <tr><td style="padding:8px 0;border-bottom:1px solid #eee;color:#888">Company</td><td style="padding:8px 0;border-bottom:1px solid #eee">${company}</td></tr>
-          <tr><td style="padding:8px 0;color:#888">LinkedIn</td><td style="padding:8px 0"><a href="${linkedin_url}" style="color:#0F6E56">${linkedin_url}</a></td></tr>
+          <tr><td style="padding:8px 0;border-bottom:1px solid #eee;color:#888">LinkedIn</td><td style="padding:8px 0;border-bottom:1px solid #eee"><a href="${linkedin_url}" style="color:#0F6E56">${linkedin_url}</a></td></tr>
+          <tr><td style="padding:8px 0;color:#888">Job posting</td><td style="padding:8px 0">${jobPostingUrl ? `<a href="${jobPostingUrl}" style="color:#0F6E56">${jobPostingUrl}</a>` : '<span style="color:#bbb">Not provided</span>'}</td></tr>
         </table>
         <div style="margin:24px 0"><a href="${APP_URL}/admin" style="display:inline-block;background:#0F6E56;color:white;text-decoration:none;padding:12px 24px;border-radius:6px;font-weight:600">Review in admin panel →</a></div>
         <hr style="border:none;border-top:1px solid #eee;margin:24px 0" />

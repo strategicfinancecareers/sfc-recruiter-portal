@@ -1869,6 +1869,14 @@ export default function CandidateApply() {
   useEffect(() => {
     const hash = typeof window !== 'undefined' ? window.location.hash || '' : '';
     const search = typeof window !== 'undefined' ? window.location.search || '' : '';
+
+    // Google OAuth returns also carry token params in the URL, but there
+    // the incoming session is SUPPOSED to win (Supabase writes it over any
+    // stored one) — signing out here would kill the fresh Google session.
+    // The ?oauth=google marker distinguishes that return from an email
+    // verification link, which is what this guard exists for.
+    if (new URLSearchParams(search).get('oauth') === 'google') return;
+
     const verificationRegex = /(access_token=|refresh_token=|token_hash=|type=(signup|recovery|magiclink|invite|email_change))/;
     const hasVerificationParams = verificationRegex.test(hash) || verificationRegex.test(search);
 
@@ -1881,6 +1889,65 @@ export default function CandidateApply() {
         await supabase.auth.signOut({ scope: 'local' });
       }
     })().catch(err => console.error('[CandidateApply] session-leak guard error:', err));
+  }, []);
+
+  // ── Google OAuth (candidate) ──────────────────────────────────────────────
+  // The auth screen's "Continue with Google" redirects back to
+  // /apply?oauth=google. Google emails arrive pre-verified, so the whole
+  // verify-email step is skipped: once the session lands we route it the
+  // same way a freshly confirmed signup is routed (existing profile ->
+  // dashboard, none -> the wizard). Gated on the oauth param so plain
+  // /apply visits behave exactly as before.
+  const [googleAuthLoading, setGoogleAuthLoading] = useState(false);
+  const handleGoogleAuth = async () => {
+    setGoogleAuthLoading(true);
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: `${window.location.origin}/apply?oauth=google` },
+      });
+      if (error) {
+        setAuthError(error.message);
+        setGoogleAuthLoading(false);
+      }
+      // On success the browser navigates away to Google.
+    } catch (err: any) {
+      setAuthError(err?.message || 'Google sign-in failed. Please try again.');
+      setGoogleAuthLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isEditMode) return;
+    if (typeof window === 'undefined') return;
+    if (new URLSearchParams(window.location.search).get('oauth') !== 'google') return;
+
+    let routed = false;
+    const routeOnce = async (email: string) => {
+      if (routed) return;
+      routed = true;
+      await routeConfirmedSession(email);
+    };
+
+    // The PKCE code exchange may or may not have finished by mount:
+    // check the current session immediately AND listen for it landing.
+    (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user?.email_confirmed_at && session.user.email) {
+        await routeOnce(session.user.email);
+      }
+    })().catch(err => console.error('[CandidateApply] oauth session check failed:', err));
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (
+        (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') &&
+        session?.user?.email_confirmed_at && session.user.email
+      ) {
+        routeOnce(session.user.email);
+      }
+    });
+    return () => subscription.unsubscribe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ── Only listen for email confirmation while on verify-email screen ───────────
@@ -2372,6 +2439,29 @@ export default function CandidateApply() {
             {/* Heading mirrors SignUp.tsx's "Apply as a recruiter" */}
             <h1 className="text-2xl font-semibold text-gray-900 mb-1">Join as a professional</h1>
             <p className="text-sm text-gray-500 mb-6">Stay anonymous until you choose to say yes. Free, no recruiter spam — usually takes 5 minutes.</p>
+
+          {/* Google OAuth — works for both new and returning candidates.
+              Google emails are pre-verified, so this skips the whole
+              verify-email step. */}
+          <button
+            type="button"
+            onClick={handleGoogleAuth}
+            disabled={googleAuthLoading}
+            className="w-full flex items-center justify-center gap-2.5 border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-60 text-gray-700 rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors mb-4"
+          >
+            <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
+              <path fill="#FFC107" d="M43.6 20.1H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3l5.7-5.7C34.2 6.1 29.4 4 24 4 13 4 4 13 4 24s9 20 20 20 20-9 20-20c0-1.3-.1-2.6-.4-3.9z"/>
+              <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.9 1.2 8 3l5.7-5.7C34.2 6.1 29.4 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/>
+              <path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/>
+              <path fill="#1976D2" d="M43.6 20.1H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C36.9 40.4 44 35 44 24c0-1.3-.1-2.6-.4-3.9z"/>
+            </svg>
+            {googleAuthLoading ? 'Redirecting to Google…' : 'Continue with Google'}
+          </button>
+          <div className="flex items-center gap-3 mb-6">
+            <div className="flex-1 h-px bg-gray-200" />
+            <span className="text-xs text-gray-400">or</span>
+            <div className="flex-1 h-px bg-gray-200" />
+          </div>
 
           {/* Tabs */}
           <div className="flex border-b border-gray-200 mb-8">

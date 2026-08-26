@@ -24,6 +24,7 @@ import Layout from "./components/Layout";
 import ProtectedRoute from "./components/ProtectedRoute";
 import NotFound from "./pages/NotFound";
 import CandidateApply from "./pages/CandidateApply";
+import SignUpComplete from "./pages/SignUpComplete";
 import CandidateDashboard from "./pages/CandidateDashboard";
 
 const queryClient = new QueryClient();
@@ -39,6 +40,7 @@ const App = () => (
             <Route path="/" element={<Home />} />
             <Route path="/signup" element={<SignUp />} />
             <Route path="/signup/pending" element={<SignUpPending />} />
+            <Route path="/signup/complete" element={<SignUpComplete />} />
             <Route path="/signup/rejected" element={<SignUpRejected />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password" element={<ResetPasswordProfessional />} />

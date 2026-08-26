@@ -74,6 +74,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
+    // ── Cross-type guard ────────────────────────────────────────────────────
+    // One email = one side of the marketplace. If this email belongs to a
+    // recruiter account (public.users), block the candidate submission with
+    // a clear message. Mirrors the candidate-clash guard in recruiter-signup.
+    const { data: recruiterClash } = await supabase
+      .from('users')
+      .select('id, roles ( name )')
+      .eq('email', email.toLowerCase())
+      .maybeSingle();
+    if (recruiterClash && (recruiterClash as any).roles?.name === 'recruiter') {
+      return res.status(409).json({
+        error: 'This email is registered as a recruiter account on SFC Talent. Please apply as a candidate with a personal email.',
+        recruiterConflict: true,
+      });
+    }
+
     // Check for duplicate email (case-insensitive)
     const { data: existing } = await supabase
       .from('candidates')

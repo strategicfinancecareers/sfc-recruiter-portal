@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import PricingModal, { EARLY_BIRD_CODES, PLACEMENT_FEE_STANDARD, PLACEMENT_FEE_EARLY_BIRD, fmtUsd } from '../components/PricingModal';
+import RecruiterAgreementDialog from '../components/RecruiterAgreementDialog';
 
 const howItWorksSteps = [
   {
@@ -54,6 +55,7 @@ const StartHere = () => {
   // Pricing-section billing toggle + early bird coupon (mirrors the
   // PricingModal card; constants shared from PricingModal.tsx).
   const [billing, setBilling] = useState<'monthly' | 'annual'>('annual');
+  const [showAgreement, setShowAgreement] = useState(false);
   const [couponInput, setCouponInput] = useState('');
   const [couponApplied, setCouponApplied] = useState(false);
   const [couponError, setCouponError] = useState('');
@@ -282,7 +284,14 @@ const StartHere = () => {
                     Get Started
                   </button>
                   <p className="text-[11px] text-gray-400 text-center">
-                    Payment requires agreeing to the SFC Talent Recruiter Agreement, including the placement fee and cc'ing talent@strategicfinancecareers.com on candidate communications.
+                    You will review and sign the recruiter terms before payment.{' '}
+                    <button
+                      type="button"
+                      onClick={() => setShowAgreement(true)}
+                      className="text-[#006a2d] underline underline-offset-2 hover:text-[#005a26]"
+                    >
+                      Read them now
+                    </button>
                   </p>
                 </>
               )}
@@ -374,6 +383,8 @@ const StartHere = () => {
         </div>
 
       </div>
+
+      <RecruiterAgreementDialog open={showAgreement} onOpenChange={setShowAgreement} />
 
       <PricingModal
         open={showPricingModal}

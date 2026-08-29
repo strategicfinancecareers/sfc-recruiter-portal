@@ -34,11 +34,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { plan, userId, userEmail, initials, termsVersion, promoCode } = req.body as {
+  const { plan, userId, userEmail, initialsFee, initialsComms, signature, termsVersion, promoCode } = req.body as {
     plan: 'monthly' | 'annual';
     userId?: string;
     userEmail?: string;
-    initials?: string;
+    initialsFee?: string;
+    initialsComms?: string;
+    signature?: string;
     termsVersion?: string;
     promoCode?: string;
   };
@@ -53,18 +55,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   // ── Recruiter Agreement gate ────────────────────────────────────────────
-  // Payment requires typed initials on the agreement. Recorded on the
-  // users row (timestamp + initials + version) BEFORE the session is
-  // created, so acceptance evidence exists even if checkout is abandoned.
-  const initialsClean = (initials || '').trim();
-  if (!userId || !initialsClean || initialsClean.length > 8) {
-    return res.status(400).json({ error: 'Agreement initials are required before payment.' });
+  // Payment requires initials on BOTH key clauses (placement fee,
+  // communications) plus a typed full-name signature. Recorded on the
+  // users row BEFORE the session is created, so acceptance evidence
+  // exists even if the recruiter abandons checkout.
+  const feeInit = (initialsFee || '').trim();
+  const commsInit = (initialsComms || '').trim();
+  const signed = (signature || '').trim();
+  if (!userId || !feeInit || !commsInit || feeInit.length > 8 || commsInit.length > 8) {
+    return res.status(400).json({ error: 'Initials on both highlighted clauses are required before payment.' });
+  }
+  if (signed.length < 2 || signed.length > 120) {
+    return res.status(400).json({ error: 'A typed full name is required to sign the agreement.' });
   }
   const { error: agreeErr } = await supabase
     .from('users')
     .update({
       recruiter_agreement_accepted_at: new Date().toISOString(),
-      recruiter_agreement_initials: initialsClean,
+      recruiter_agreement_initials_fee: feeInit,
+      recruiter_agreement_initials_comms: commsInit,
+      recruiter_agreement_signature: signed,
       recruiter_agreement_version: (termsVersion || '1.0').slice(0, 16),
     })
     .eq('id', userId);

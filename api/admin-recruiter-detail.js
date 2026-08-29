@@ -44,7 +44,7 @@ export default async function handler(req, res) {
     // ── Recruiter profile row ────────────────────────────────────────────
     const { data: recruiter, error: recErr } = await supabase
       .from('users')
-      .select('id, email, first_name, last_name, company, linkedin_url, recruiter_status, rejection_reason, approved_at, approved_by, created_at, updated_at, is_active, roles ( name )')
+      .select('id, email, first_name, last_name, company, linkedin_url, job_posting_url, recruiter_status, rejection_reason, approved_at, approved_by, created_at, updated_at, is_active, recruiter_agreement_accepted_at, recruiter_agreement_signature, recruiter_agreement_version, roles ( name )')
       .eq('id', recruiterUserId)
       .maybeSingle();
     if (recErr) {

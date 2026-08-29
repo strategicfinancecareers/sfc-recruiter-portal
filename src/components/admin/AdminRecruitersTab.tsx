@@ -538,6 +538,22 @@ export default function AdminRecruitersTab({ onCountChange }: AdminRecruitersTab
                       ? format(new Date(detail.recruiter.approved_at), 'MMM d, yyyy')
                       : '—',
                   },
+                  {
+                    label: 'Agreement signed',
+                    value: (detail.recruiter as any).recruiter_agreement_accepted_at
+                      ? `${format(new Date((detail.recruiter as any).recruiter_agreement_accepted_at), 'MMM d, yyyy')}`
+                        + ((detail.recruiter as any).recruiter_agreement_signature
+                          ? ` by ${(detail.recruiter as any).recruiter_agreement_signature}`
+                          : '')
+                        + ((detail.recruiter as any).recruiter_agreement_version
+                          ? ` (v${(detail.recruiter as any).recruiter_agreement_version})`
+                          : '')
+                      : 'Not signed',
+                  },
+                  {
+                    label: 'Job posting',
+                    value: (detail.recruiter as any).job_posting_url || 'Not provided',
+                  },
                 ] as Array<{ label: string; value: string }>).map(row => (
                   <div key={row.label}>
                     <p className="text-xs text-muted-foreground">{row.label}</p>

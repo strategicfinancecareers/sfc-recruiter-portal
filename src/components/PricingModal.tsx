@@ -4,11 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { CheckCircle, Loader2, Tag, ShieldCheck } from 'lucide-react';
-import {
-  RECRUITER_AGREEMENT_TITLE,
-  RECRUITER_AGREEMENT_VERSION,
-  RECRUITER_AGREEMENT_CLAUSES,
-} from '@/lib/recruiterAgreement';
+import RecruiterAgreementContent, { type AgreementSignature } from './RecruiterAgreementContent';
+import { RECRUITER_AGREEMENT_TITLE, RECRUITER_AGREEMENT_VERSION } from '@/lib/recruiterAgreement';
 
 interface PricingModalProps {
   open: boolean;
@@ -26,11 +23,10 @@ const FEATURES = [
   'Dedicated SFC support',
 ];
 
-// Early bird coupon codes (case-insensitive). Displayed pricing only:
-// the actual placement fee is invoiced off-platform, so the code a
-// recruiter applies here should be recorded with their agreement when
-// you invoice. Edit this list to add or retire codes. Exported so the
-// StartHere pricing section stays in lockstep with this modal.
+// Early bird coupon codes (case-insensitive) for the PLACEMENT FEE display.
+// Display pricing only: the fee itself is invoiced off-platform, so record
+// which code a recruiter used when you invoice. Edit to add or retire codes.
+// Exported so the StartHere pricing section stays in lockstep.
 export const EARLY_BIRD_CODES = ['EARLYBIRD', 'SFCEARLY'];
 
 export const PLACEMENT_FEE_STANDARD = 15000;
@@ -42,25 +38,21 @@ export default function PricingModal({ open, onOpenChange, userId, userEmail, de
   const [billing, setBilling] = useState<'monthly' | 'annual'>(defaultPlan);
   const [loading, setLoading] = useState(false);
 
-  // Two-step flow: pick a plan, then agree to the Recruiter Agreement
-  // (typed initials) before the Stripe checkout opens.
+  // Two steps: pick a plan, then read + sign the Recruiter Agreement
+  // (initials on the fee and communications clauses, typed name at the
+  // bottom) before Stripe opens.
   const [step, setStep] = useState<'plan' | 'agreement'>('plan');
-  const [agreeInitials, setAgreeInitials] = useState('');
-  const [agreeChecked, setAgreeChecked] = useState(false);
   const [checkoutError, setCheckoutError] = useState('');
 
-  // Subscription promo code (3 months free) — validated server-side so
-  // the code list never ships in the client bundle.
+  // Subscription promo code (3 months free) — validated server-side so the
+  // code list never ships in the client bundle.
   const [promoInput, setPromoInput] = useState('');
 
-  // Early bird PLACEMENT FEE coupon state (display only)
+  // Early bird PLACEMENT FEE coupon (display only)
   const [couponInput, setCouponInput] = useState('');
   const [couponApplied, setCouponApplied] = useState(false);
   const [couponError, setCouponError] = useState('');
 
-  // Callers (e.g. StartHere's plan-specific CTAs) change defaultPlan
-  // between opens; sync the toggle and reset to the plan step each time
-  // the modal opens. Applied coupon state survives reopen.
   useEffect(() => {
     if (open) {
       setBilling(defaultPlan);
@@ -83,8 +75,7 @@ export default function PricingModal({ open, onOpenChange, userId, userEmail, de
 
   const placementFee = couponApplied ? PLACEMENT_FEE_EARLY_BIRD : PLACEMENT_FEE_STANDARD;
 
-  const handleAgreeAndPay = async () => {
-    if (!agreeChecked || !agreeInitials.trim()) return;
+  const handleSign = async (sig: AgreementSignature) => {
     setLoading(true);
     setCheckoutError('');
     try {
@@ -95,7 +86,9 @@ export default function PricingModal({ open, onOpenChange, userId, userEmail, de
           plan: billing,
           userId,
           userEmail,
-          initials: agreeInitials.trim(),
+          initialsFee: sig.initialsFee,
+          initialsComms: sig.initialsComms,
+          signature: sig.signature,
           termsVersion: RECRUITER_AGREEMENT_VERSION,
           promoCode: promoInput.trim() || undefined,
         }),
@@ -123,7 +116,7 @@ export default function PricingModal({ open, onOpenChange, userId, userEmail, de
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+      <DialogContent className={step === 'plan' ? 'max-w-md max-h-[90vh] overflow-y-auto' : 'max-w-2xl max-h-[90vh] overflow-y-auto'}>
         {step === 'plan' ? (
           <>
             <DialogHeader>
@@ -195,7 +188,7 @@ export default function PricingModal({ open, onOpenChange, userId, userEmail, de
                 Get Started
               </Button>
               <p className="text-[11px] text-muted-foreground text-center">
-                Payment requires agreeing to the {RECRUITER_AGREEMENT_TITLE}, shown next.
+                You will review and sign the {RECRUITER_AGREEMENT_TITLE} before payment.
               </p>
             </div>
 
@@ -218,7 +211,6 @@ export default function PricingModal({ open, onOpenChange, userId, userEmail, de
                 </div>
               </div>
 
-              {/* Early bird code entry */}
               {!couponApplied && (
                 <div>
                   <div className="flex gap-2">
@@ -254,60 +246,17 @@ export default function PricingModal({ open, onOpenChange, userId, userEmail, de
                 {RECRUITER_AGREEMENT_TITLE}
               </DialogTitle>
               <p className="text-sm text-muted-foreground">
-                Version {RECRUITER_AGREEMENT_VERSION}. Please read and initial to continue to payment.
+                Initial the two highlighted clauses and sign at the bottom to continue to payment.
               </p>
             </DialogHeader>
 
-            <div className="border rounded-lg bg-gray-50/60 max-h-72 overflow-y-auto p-4 space-y-3">
-              {RECRUITER_AGREEMENT_CLAUSES.map(c => (
-                <div key={c.title}>
-                  <p className="text-sm font-semibold text-gray-900">{c.title}</p>
-                  <p className="text-xs text-gray-600 leading-relaxed mt-0.5">{c.body}</p>
-                </div>
-              ))}
-            </div>
-
-            <div className="flex items-end gap-3">
-              <div className="w-28">
-                <label className="block text-xs text-gray-600 mb-1">Your initials</label>
-                <Input
-                  value={agreeInitials}
-                  onChange={e => setAgreeInitials(e.target.value.toUpperCase().slice(0, 6))}
-                  placeholder="e.g. JS"
-                  className="h-9 text-sm font-semibold tracking-widest text-center"
-                />
-              </div>
-              <label className="flex items-start gap-2 cursor-pointer pb-1 flex-1">
-                <input
-                  type="checkbox"
-                  checked={agreeChecked}
-                  onChange={e => setAgreeChecked(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 rounded border-gray-300 text-[#008037]"
-                />
-                <span className="text-xs text-gray-600 leading-snug">
-                  I have read and agree to the {RECRUITER_AGREEMENT_TITLE}, including the placement fee and communication terms.
-                </span>
-              </label>
-            </div>
-
-            {checkoutError && (
-              <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{checkoutError}</p>
-            )}
-
-            <div className="flex gap-2">
-              <Button variant="outline" className="flex-1" onClick={() => setStep('plan')} disabled={loading}>
-                Back
-              </Button>
-              <Button
-                className="flex-[2] bg-[#008037] hover:bg-[#006a2d]"
-                onClick={handleAgreeAndPay}
-                disabled={loading || !agreeChecked || !agreeInitials.trim()}
-              >
-                {loading ? (
-                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Opening checkout…</>
-                ) : 'Agree & continue to payment'}
-              </Button>
-            </div>
+            <RecruiterAgreementContent
+              mode="sign"
+              onSign={handleSign}
+              onBack={() => setStep('plan')}
+              submitting={loading}
+              error={checkoutError}
+            />
           </>
         )}
       </DialogContent>

@@ -1,10 +1,20 @@
-
 import { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { KEY_CLAUSES, RECRUITER_AGREEMENT_TITLE } from "@/lib/recruiterAgreement";
+
+// Shown before a recruiter's first introduction request. This is a
+// REMINDER of the two obligations that attach the moment an introduction
+// happens, not a separate set of terms.
+//
+// It previously stated its own commercial terms ("20% of first-year
+// salary", "90-day replacement guarantee", "payment due within 30 days"),
+// which contradicted the signed Recruiter Agreement. All commercial terms
+// now come from src/lib/recruiterAgreement.ts so there is exactly one
+// source of truth; the full text lives on the Account page.
 
 interface TermsDialogProps {
   open: boolean;
@@ -18,58 +28,57 @@ const TermsDialog: React.FC<TermsDialogProps> = ({ open, onOpenChange, onAccept 
   const { toast } = useToast();
 
   const handleAccept = () => {
-    if (accepted) {
-      acceptTerms();
-      onOpenChange(false);
-      toast({
-        title: "Terms accepted",
-        description: "You can now request introductions to candidates.",
-      });
-      
-      // Call the optional onAccept callback
-      if (onAccept) {
-        onAccept();
-      }
-    }
+    if (!accepted) return;
+    acceptTerms();
+    onOpenChange(false);
+    toast({
+      title: "Confirmed",
+      description: "You can now request introductions to candidates.",
+    });
+    onAccept?.();
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Terms and Conditions</DialogTitle>
+          <DialogTitle>Before your first introduction</DialogTitle>
           <DialogDescription>
-            Please accept our terms for candidate placement and fees before proceeding.
+            A reminder of the two obligations that apply once a candidate accepts.
           </DialogDescription>
         </DialogHeader>
-        <div className="py-4">
-          <div className="bg-gray-50 p-4 rounded-lg text-sm space-y-3">
-            <h4 className="font-medium">Placement Terms:</h4>
-            <ul className="space-y-2 text-gray-600">
-              <li>• Placement fee: 20% of first-year salary</li>
-              <li>• 90-day replacement guarantee</li>
-              <li>• Payment due within 30 days of candidate start date</li>
-              <li>• Introduction does not guarantee placement</li>
-              <li>• All communications are confidential</li>
-            </ul>
-          </div>
-          <div className="flex items-center space-x-2 mt-4">
-            <Checkbox
-              id="terms"
-              checked={accepted}
-              onCheckedChange={(checked) => setAccepted(!!checked)}
-            />
-            <label htmlFor="terms" className="text-sm">
-              I accept the terms and conditions for candidate placement and fees
-            </label>
-          </div>
+
+        <div className="space-y-3">
+          {KEY_CLAUSES.map(clause => (
+            <div key={clause.id} className="rounded-lg border border-[#008037]/25 bg-[#008037]/5 p-3">
+              <p className="text-sm font-semibold text-gray-900">{clause.title}</p>
+              <p className="text-xs text-gray-600 leading-relaxed mt-1">{clause.summary}</p>
+            </div>
+          ))}
+          <p className="text-xs text-gray-500">
+            These are sections 5 and 6 of the {RECRUITER_AGREEMENT_TITLE} you signed. The full agreement is
+            available any time on your Account page.
+          </p>
         </div>
+
+        <div className="flex items-start space-x-2 mt-1">
+          <Checkbox
+            id="terms"
+            checked={accepted}
+            onCheckedChange={(checked) => setAccepted(!!checked)}
+            className="mt-0.5"
+          />
+          <label htmlFor="terms" className="text-sm text-gray-700 leading-snug">
+            I understand the placement fee and communication obligations.
+          </label>
+        </div>
+
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={handleAccept} disabled={!accepted}>
-            Accept and Continue
+          <Button className="bg-[#008037] hover:bg-[#006a2d]" onClick={handleAccept} disabled={!accepted}>
+            Confirm and Continue
           </Button>
         </DialogFooter>
       </DialogContent>

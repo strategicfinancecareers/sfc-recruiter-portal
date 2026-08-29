@@ -16,8 +16,8 @@ export default function SignUpRejected() {
         </p>
         <p className="text-sm text-gray-500">
           If you'd like to discuss this further or reapply later, email{' '}
-          <a href="mailto:zu@strategicfinancecareers.com" className="text-[#008037] hover:underline font-medium">
-            zu@strategicfinancecareers.com
+          <a href="mailto:talent@strategicfinancecareers.com" className="text-[#008037] hover:underline font-medium">
+            talent@strategicfinancecareers.com
           </a>.
         </p>
       </div>

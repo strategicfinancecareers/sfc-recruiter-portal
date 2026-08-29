@@ -40,7 +40,7 @@ export default function SignUpPending() {
           </p>
           <p className="text-gray-400 text-xs">
             Questions? Email{' '}
-            <a href="mailto:zu@strategicfinancecareers.com" className="underline">zu@strategicfinancecareers.com</a>
+            <a href="mailto:talent@strategicfinancecareers.com" className="underline">talent@strategicfinancecareers.com</a>
           </p>
         </div>
       </div>

@@ -245,7 +245,7 @@ const StartHere = () => {
                       : 'text-gray-500 hover:text-gray-700'
                   }`}
                 >
-                  {b === 'monthly' ? 'Monthly' : 'Annual (save 40%)'}
+                  {b === 'monthly' ? 'Monthly' : 'Annual (save 33%)'}
                 </button>
               ))}
             </div>
@@ -253,13 +253,13 @@ const StartHere = () => {
             {/* Single plan card */}
             <div className="border-2 border-[#008037] rounded-xl p-6 space-y-4 bg-white">
               <div>
-                <span className="text-4xl font-bold text-gray-900">{billing === 'monthly' ? '$500' : '$300'}</span>
+                <span className="text-4xl font-bold text-gray-900">{billing === 'monthly' ? '$150' : '$100'}</span>
                 <span className="text-gray-500 text-sm">/month</span>
               </div>
               <p className="text-sm text-gray-500">
                 {billing === 'monthly'
                   ? 'Billed monthly. Cancel anytime, effective at the end of the current month.'
-                  : 'Billed once a year as $3,600. Renews annually. Cancel anytime before renewal.'}
+                  : 'Billed once a year as $1,200. Renews annually. Cancel anytime before renewal.'}
               </p>
               <ul className="space-y-2">
                 {PLAN_FEATURES.map(f => (
@@ -274,12 +274,17 @@ const StartHere = () => {
                   <CheckCircle2 className="h-4 w-4" /> Your Current Plan
                 </div>
               ) : (
-                <button
-                  onClick={() => openPricingModal(billing)}
-                  className="w-full py-2.5 rounded-lg bg-[#008037] hover:bg-[#006a2d] text-white font-semibold text-sm transition-colors"
-                >
-                  Get Started
-                </button>
+                <>
+                  <button
+                    onClick={() => openPricingModal(billing)}
+                    className="w-full py-2.5 rounded-lg bg-[#008037] hover:bg-[#006a2d] text-white font-semibold text-sm transition-colors"
+                  >
+                    Get Started
+                  </button>
+                  <p className="text-[11px] text-gray-400 text-center">
+                    Payment requires agreeing to the SFC Talent Recruiter Agreement, including the placement fee and cc'ing talent@strategicfinancecareers.com on candidate communications.
+                  </p>
+                </>
               )}
             </div>
 

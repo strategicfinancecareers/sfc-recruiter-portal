@@ -4,7 +4,7 @@ import { verifyBearerEmail } from './_shared/verifyBearerEmail.js';
 
 // Admin notify destination + sender; reuses the pattern from
 // api/recruiter-signup.js so deliverability + reply behavior match.
-const ADMIN_NOTIFY_EMAIL = 'zu@strategicfinancecareers.com';
+const ADMIN_NOTIFY_EMAIL = 'talent@strategicfinancecareers.com';
 const FROM_ADDR = 'SFC Talent <noreply@strategicfinancecareers.com>';
 const APP_URL = 'https://sfc-recruiter-portal.vercel.app';
 const resend = new Resend(process.env.RESEND_API_KEY);

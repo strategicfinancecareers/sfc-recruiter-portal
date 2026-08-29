@@ -1,38 +1,51 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { ShieldCheck } from 'lucide-react';
+import { ShieldCheck, Download } from 'lucide-react';
 import RecruiterAgreementContent from './RecruiterAgreementContent';
-import { RECRUITER_AGREEMENT_TITLE, RECRUITER_AGREEMENT_VERSION } from '@/lib/recruiterAgreement';
+import { RECRUITER_AGREEMENT_TITLE } from '@/lib/recruiterAgreement';
+import { printAgreementDocument, type SignedRecord } from '@/lib/agreementDocument';
 
 // Read-only viewer for the Recruiter Terms and Conditions, so a recruiter
-// can pull the agreement up at any time after signing (Account page,
-// pricing section, intro-request confirmation). The signing flow lives in
-// PricingModal, which renders RecruiterAgreementContent in 'sign' mode.
+// can pull the agreement up at any time. When a signed record is passed,
+// it also offers a download of the signed copy (initials, typed name, and
+// date included) through the browser's print dialog.
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Optional acceptance record shown at the top ("You accepted this on…"). */
-  acceptedAt?: string | null;
-  signature?: string | null;
+  /** Signed record. When acceptedAt is set, the download button appears. */
+  record?: SignedRecord;
 }
 
-export default function RecruiterAgreementDialog({ open, onOpenChange, acceptedAt, signature }: Props) {
+export default function RecruiterAgreementDialog({ open, onOpenChange, record }: Props) {
+  const signed = !!record?.acceptedAt;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl max-h-[92vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+          <DialogTitle className="flex items-center gap-2 text-xl">
             <ShieldCheck className="w-5 h-5 text-[#008037]" />
             {RECRUITER_AGREEMENT_TITLE}
           </DialogTitle>
         </DialogHeader>
 
-        {acceptedAt && (
-          <div className="rounded-lg border border-[#008037]/25 bg-[#008037]/5 px-3 py-2.5 text-xs text-[#004a1f]">
-            Accepted on {new Date(acceptedAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
-            {signature ? <> by <span className="font-semibold">{signature}</span></> : null}
-            {' '}(version {RECRUITER_AGREEMENT_VERSION}).
+        {signed && (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#008037]/25 bg-[#008037]/5 px-4 py-3">
+            <p className="text-sm text-[#004a1f]">
+              Signed on{' '}
+              {new Date(record!.acceptedAt!).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+              {record?.signature ? <> by <span className="font-semibold">{record.signature}</span></> : null}.
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="border-[#008037]/40 text-[#005a26] hover:bg-[#008037]/10"
+              onClick={() => printAgreementDocument(record!)}
+            >
+              <Download className="w-4 h-4 mr-1.5" />
+              Download signed copy
+            </Button>
           </div>
         )}
 

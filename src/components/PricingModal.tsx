@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { CheckCircle, Loader2, Tag, ShieldCheck } from 'lucide-react';
+import { CheckCircle, Check, Tag, ShieldCheck } from 'lucide-react';
 import RecruiterAgreementContent, { type AgreementSignature } from './RecruiterAgreementContent';
 import { RECRUITER_AGREEMENT_TITLE, RECRUITER_AGREEMENT_VERSION } from '@/lib/recruiterAgreement';
 
@@ -33,6 +33,43 @@ export const PLACEMENT_FEE_STANDARD = 15000;
 export const PLACEMENT_FEE_EARLY_BIRD = 5000;
 
 export const fmtUsd = (n: number) => `$${n.toLocaleString('en-US')}`;
+
+// Three-step progress header so "agree to the terms" reads as its own
+// deliberate step rather than an interstitial before payment.
+function Stepper({ step }: { step: 'plan' | 'agreement' }) {
+  const steps = [
+    { key: 'plan', label: 'Choose plan' },
+    { key: 'agreement', label: 'Agree to terms' },
+    { key: 'payment', label: 'Payment' },
+  ] as const;
+  const activeIndex = step === 'plan' ? 0 : 1;
+
+  return (
+    <div className="flex items-center gap-2 pb-1">
+      {steps.map((s, i) => {
+        const done = i < activeIndex;
+        const active = i === activeIndex;
+        return (
+          <div key={s.key} className="flex items-center gap-2 min-w-0">
+            <div
+              className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold shrink-0 ${
+                done ? 'bg-[#008037] text-white'
+                  : active ? 'bg-[#008037] text-white ring-4 ring-[#008037]/15'
+                  : 'bg-gray-100 text-gray-400'
+              }`}
+            >
+              {done ? <Check className="w-3.5 h-3.5" /> : i + 1}
+            </div>
+            <span className={`text-xs whitespace-nowrap ${active ? 'font-semibold text-gray-900' : 'text-gray-400'}`}>
+              {s.label}
+            </span>
+            {i < steps.length - 1 && <div className="w-6 sm:w-10 h-px bg-gray-200 mx-1" />}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 export default function PricingModal({ open, onOpenChange, userId, userEmail, defaultPlan = 'annual' }: PricingModalProps) {
   const [billing, setBilling] = useState<'monthly' | 'annual'>(defaultPlan);
@@ -116,7 +153,8 @@ export default function PricingModal({ open, onOpenChange, userId, userEmail, de
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={step === 'plan' ? 'max-w-md max-h-[90vh] overflow-y-auto' : 'max-w-2xl max-h-[90vh] overflow-y-auto'}>
+      <DialogContent className={step === 'plan' ? 'max-w-md max-h-[92vh] overflow-y-auto' : 'max-w-4xl max-h-[92vh] overflow-y-auto'}>
+        <Stepper step={step} />
         {step === 'plan' ? (
           <>
             <DialogHeader>
@@ -188,7 +226,7 @@ export default function PricingModal({ open, onOpenChange, userId, userEmail, de
                 Get Started
               </Button>
               <p className="text-[11px] text-muted-foreground text-center">
-                You will review and sign the {RECRUITER_AGREEMENT_TITLE} before payment.
+                Next: review and sign the recruiter terms. Then payment.
               </p>
             </div>
 
@@ -246,7 +284,7 @@ export default function PricingModal({ open, onOpenChange, userId, userEmail, de
                 {RECRUITER_AGREEMENT_TITLE}
               </DialogTitle>
               <p className="text-sm text-muted-foreground">
-                Initial the two highlighted clauses and sign at the bottom to continue to payment.
+                Two items need your initials, then sign at the bottom to continue to payment.
               </p>
             </DialogHeader>
 

@@ -19,8 +19,10 @@
 // on users.recruiter_agreement_version, so you always know which text a
 // given recruiter signed.
 
+// Stored on users.recruiter_agreement_version for the record. Deliberately
+// NOT displayed in the UI: version and effective-date metadata read as
+// legal clutter to a recruiter signing up.
 export const RECRUITER_AGREEMENT_VERSION = '1.0';
-export const RECRUITER_AGREEMENT_EFFECTIVE = 'August 29, 2026';
 export const RECRUITER_AGREEMENT_TITLE = 'SFC Talent Recruiter Terms and Conditions';
 
 // CONFIRM THIS. Used in the governing-law and venue clause.

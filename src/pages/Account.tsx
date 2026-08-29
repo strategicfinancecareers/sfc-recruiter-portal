@@ -10,6 +10,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import RecruiterAgreementDialog from "@/components/RecruiterAgreementDialog";
+import type { SignedRecord } from "@/lib/agreementDocument";
 
 const Account = () => {
   const { user, setAdminNotifications } = useAuth();
@@ -22,21 +23,30 @@ const Account = () => {
   // Signed-agreement record, so a recruiter can always pull up what they
   // signed and when.
   const [showAgreement, setShowAgreement] = useState(false);
-  const [agreementAcceptedAt, setAgreementAcceptedAt] = useState<string | null>(null);
-  const [agreementSignature, setAgreementSignature] = useState<string | null>(null);
+  const [agreement, setAgreement] = useState<SignedRecord | null>(null);
+  const agreementAcceptedAt = agreement?.acceptedAt ?? null;
+  const agreementSignature = agreement?.signature ?? null;
 
   useEffect(() => {
     if (!user?.id) return;
     supabase
       .from('users')
-      .select('recruiter_agreement_accepted_at, recruiter_agreement_signature')
+      .select('recruiter_agreement_accepted_at, recruiter_agreement_signature, recruiter_agreement_initials_fee, recruiter_agreement_initials_comms, company')
       .eq('id', user.id)
       .maybeSingle()
       .then(({ data }) => {
-        setAgreementAcceptedAt((data as any)?.recruiter_agreement_accepted_at ?? null);
-        setAgreementSignature((data as any)?.recruiter_agreement_signature ?? null);
+        const d = data as any;
+        setAgreement({
+          acceptedAt: d?.recruiter_agreement_accepted_at ?? null,
+          signature: d?.recruiter_agreement_signature ?? null,
+          initialsFee: d?.recruiter_agreement_initials_fee ?? null,
+          initialsComms: d?.recruiter_agreement_initials_comms ?? null,
+          company: d?.company ?? null,
+          email: user.email ?? null,
+          recruiterName: [user.first_name, user.last_name].filter(Boolean).join(' ') || null,
+        });
       });
-  }, [user?.id]);
+  }, [user?.id, user?.email, user?.first_name, user?.last_name]);
 
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -199,8 +209,7 @@ const Account = () => {
       <RecruiterAgreementDialog
         open={showAgreement}
         onOpenChange={setShowAgreement}
-        acceptedAt={agreementAcceptedAt}
-        signature={agreementSignature}
+        record={agreement ?? undefined}
       />
     </div>
   );

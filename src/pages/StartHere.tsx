@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import PricingModal, { EARLY_BIRD_CODES, PLACEMENT_FEE_STANDARD, PLACEMENT_FEE_EARLY_BIRD, fmtUsd } from '../components/PricingModal';
 import RecruiterAgreementDialog from '../components/RecruiterAgreementDialog';
+import type { SignedRecord } from '@/lib/agreementDocument';
 
 const howItWorksSteps = [
   {
@@ -56,6 +57,30 @@ const StartHere = () => {
   // PricingModal card; constants shared from PricingModal.tsx).
   const [billing, setBilling] = useState<'monthly' | 'annual'>('annual');
   const [showAgreement, setShowAgreement] = useState(false);
+  const [signAgreementOpen, setSignAgreementOpen] = useState(false);
+  // undefined = still loading, null = not signed
+  const [agreement, setAgreement] = useState<SignedRecord | null | undefined>(undefined);
+
+  const loadAgreement = () => {
+    if (!user?.id) return;
+    supabase
+      .from('users')
+      .select('recruiter_agreement_accepted_at, recruiter_agreement_signature, recruiter_agreement_initials_fee, recruiter_agreement_initials_comms, company')
+      .eq('id', user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        const d = data as any;
+        setAgreement(d?.recruiter_agreement_accepted_at ? {
+          acceptedAt: d.recruiter_agreement_accepted_at,
+          signature: d.recruiter_agreement_signature ?? null,
+          initialsFee: d.recruiter_agreement_initials_fee ?? null,
+          initialsComms: d.recruiter_agreement_initials_comms ?? null,
+          company: d?.company ?? null,
+          email: user.email ?? null,
+          recruiterName: [user.first_name, user.last_name].filter(Boolean).join(' ') || null,
+        } : null);
+      });
+  };
   const [couponInput, setCouponInput] = useState('');
   const [couponApplied, setCouponApplied] = useState(false);
   const [couponError, setCouponError] = useState('');
@@ -80,6 +105,9 @@ const StartHere = () => {
     supabase.from('users').select('is_subscribed').eq('id', user.id).single()
       .then(({ data }) => { if (data?.is_subscribed) setIsSubscribed(true); });
 
+    // Recruiter agreement signature (Getting Started step 2)
+    loadAgreement();
+
     // Fetch job count
     supabase.from('jobs').select('id', { count: 'exact', head: true }).eq('user_id', user.id)
       .then(({ count }) => setHasJobs((count ?? 0) > 0));
@@ -101,6 +129,26 @@ const StartHere = () => {
     {
       label: 'Create Account',
       done: true,
+    },
+    {
+      label: 'Agree to Terms',
+      done: !!agreement,
+      loading: agreement === undefined,
+      action: agreement === null ? (
+        <button
+          onClick={() => setSignAgreementOpen(true)}
+          className="text-xs font-semibold text-[#006a2d] underline underline-offset-2 hover:text-[#005a26] whitespace-nowrap"
+        >
+          Review & Sign →
+        </button>
+      ) : agreement ? (
+        <button
+          onClick={() => setShowAgreement(true)}
+          className="text-xs font-semibold text-[#006a2d] underline underline-offset-2 hover:text-[#005a26] whitespace-nowrap"
+        >
+          View →
+        </button>
+      ) : null,
     },
     {
       label: 'Start Membership',
@@ -170,7 +218,7 @@ const StartHere = () => {
             />
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
             {checklistSteps.map((step, i) => (
               <div
                 key={i}
@@ -284,13 +332,13 @@ const StartHere = () => {
                     Get Started
                   </button>
                   <p className="text-[11px] text-gray-400 text-center">
-                    You will review and sign the recruiter terms before payment.{' '}
+                    {agreement ? 'Recruiter terms signed.' : 'You will sign the recruiter terms before payment.'}{' '}
                     <button
                       type="button"
-                      onClick={() => setShowAgreement(true)}
+                      onClick={() => (agreement ? setShowAgreement(true) : setSignAgreementOpen(true))}
                       className="text-[#006a2d] underline underline-offset-2 hover:text-[#005a26]"
                     >
-                      Read them now
+                      {agreement ? 'View them' : 'Read and sign now'}
                     </button>
                   </p>
                 </>
@@ -384,7 +432,19 @@ const StartHere = () => {
 
       </div>
 
-      <RecruiterAgreementDialog open={showAgreement} onOpenChange={setShowAgreement} />
+      <RecruiterAgreementDialog
+        open={showAgreement}
+        onOpenChange={setShowAgreement}
+        mode="view"
+        record={agreement ?? undefined}
+      />
+
+      <RecruiterAgreementDialog
+        open={signAgreementOpen}
+        onOpenChange={setSignAgreementOpen}
+        mode="sign"
+        onSigned={loadAgreement}
+      />
 
       <PricingModal
         open={showPricingModal}

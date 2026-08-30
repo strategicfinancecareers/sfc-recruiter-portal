@@ -1,36 +1,75 @@
+import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { ShieldCheck, Download } from 'lucide-react';
-import RecruiterAgreementContent from './RecruiterAgreementContent';
-import { RECRUITER_AGREEMENT_TITLE } from '@/lib/recruiterAgreement';
+import RecruiterAgreementContent, { type AgreementSignature } from './RecruiterAgreementContent';
+import { RECRUITER_AGREEMENT_TITLE, RECRUITER_AGREEMENT_VERSION } from '@/lib/recruiterAgreement';
 import { printAgreementDocument, type SignedRecord } from '@/lib/agreementDocument';
+import { authedFetch } from '@/integrations/supabase/authedFetch';
 
-// Read-only viewer for the Recruiter Terms and Conditions, so a recruiter
-// can pull the agreement up at any time. When a signed record is passed,
-// it also offers a download of the signed copy (initials, typed name, and
-// date included) through the browser's print dialog.
+// The Recruiter Terms and Conditions, in a dialog. Two uses:
+//
+//   mode="sign" — Getting Started step 2. Records the signature through
+//                 /api/accept-recruiter-agreement (which identifies the
+//                 signer from their access token) and calls onSigned.
+//   mode="view" — read it back later, with a download of the signed copy.
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  mode?: 'view' | 'sign';
   /** Signed record. When acceptedAt is set, the download button appears. */
   record?: SignedRecord;
+  onSigned?: () => void;
 }
 
-export default function RecruiterAgreementDialog({ open, onOpenChange, record }: Props) {
+export default function RecruiterAgreementDialog({
+  open, onOpenChange, mode = 'view', record, onSigned,
+}: Props) {
   const signed = !!record?.acceptedAt;
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSign = async (sig: AgreementSignature) => {
+    setSubmitting(true);
+    setError('');
+    try {
+      const res = await authedFetch('/api/accept-recruiter-agreement', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...sig, termsVersion: RECRUITER_AGREEMENT_VERSION }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(body.error || 'Could not record your signature. Please try again.');
+        return;
+      }
+      onOpenChange(false);
+      onSigned?.();
+    } catch (err) {
+      console.error('[RecruiterAgreementDialog] sign failed:', err);
+      setError('Could not record your signature. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[92vh] overflow-y-auto">
+      <DialogContent className="max-w-6xl w-[95vw] max-h-[94vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl">
             <ShieldCheck className="w-5 h-5 text-[#008037]" />
             {RECRUITER_AGREEMENT_TITLE}
           </DialogTitle>
+          {mode === 'sign' && (
+            <p className="text-sm text-muted-foreground">
+              Two items need your initials, then sign at the bottom.
+            </p>
+          )}
         </DialogHeader>
 
-        {signed && (
+        {signed && mode === 'view' && (
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#008037]/25 bg-[#008037]/5 px-4 py-3">
             <p className="text-sm text-[#004a1f]">
               Signed on{' '}
@@ -49,11 +88,19 @@ export default function RecruiterAgreementDialog({ open, onOpenChange, record }:
           </div>
         )}
 
-        <RecruiterAgreementContent mode="view" />
+        <RecruiterAgreementContent
+          mode={mode}
+          onSign={handleSign}
+          submitting={submitting}
+          error={error}
+          submitLabel="Agree and sign"
+        />
 
-        <div className="flex justify-end">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
-        </div>
+        {mode === 'view' && (
+          <div className="flex justify-end">
+            <Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );

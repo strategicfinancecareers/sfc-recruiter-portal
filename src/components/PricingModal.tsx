@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { CheckCircle, Check, Tag, ShieldCheck } from 'lucide-react';
+import { CheckCircle, Loader2, Tag, ShieldCheck } from 'lucide-react';
 import RecruiterAgreementContent, { type AgreementSignature } from './RecruiterAgreementContent';
 import { RECRUITER_AGREEMENT_TITLE, RECRUITER_AGREEMENT_VERSION } from '@/lib/recruiterAgreement';
 
@@ -33,43 +33,6 @@ export const PLACEMENT_FEE_STANDARD = 15000;
 export const PLACEMENT_FEE_EARLY_BIRD = 5000;
 
 export const fmtUsd = (n: number) => `$${n.toLocaleString('en-US')}`;
-
-// Three-step progress header so "agree to the terms" reads as its own
-// deliberate step rather than an interstitial before payment.
-function Stepper({ step }: { step: 'plan' | 'agreement' }) {
-  const steps = [
-    { key: 'plan', label: 'Choose plan' },
-    { key: 'agreement', label: 'Agree to terms' },
-    { key: 'payment', label: 'Payment' },
-  ] as const;
-  const activeIndex = step === 'plan' ? 0 : 1;
-
-  return (
-    <div className="flex items-center gap-2 pb-1">
-      {steps.map((s, i) => {
-        const done = i < activeIndex;
-        const active = i === activeIndex;
-        return (
-          <div key={s.key} className="flex items-center gap-2 min-w-0">
-            <div
-              className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold shrink-0 ${
-                done ? 'bg-[#008037] text-white'
-                  : active ? 'bg-[#008037] text-white ring-4 ring-[#008037]/15'
-                  : 'bg-gray-100 text-gray-400'
-              }`}
-            >
-              {done ? <Check className="w-3.5 h-3.5" /> : i + 1}
-            </div>
-            <span className={`text-xs whitespace-nowrap ${active ? 'font-semibold text-gray-900' : 'text-gray-400'}`}>
-              {s.label}
-            </span>
-            {i < steps.length - 1 && <div className="w-6 sm:w-10 h-px bg-gray-200 mx-1" />}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
 
 export default function PricingModal({ open, onOpenChange, userId, userEmail, defaultPlan = 'annual' }: PricingModalProps) {
   const [billing, setBilling] = useState<'monthly' | 'annual'>(defaultPlan);
@@ -112,7 +75,10 @@ export default function PricingModal({ open, onOpenChange, userId, userEmail, de
 
   const placementFee = couponApplied ? PLACEMENT_FEE_EARLY_BIRD : PLACEMENT_FEE_STANDARD;
 
-  const handleSign = async (sig: AgreementSignature) => {
+  // Recruiters normally sign the terms in Getting Started step 2, so the
+  // usual path is plan -> Stripe. If the server says no signature is on
+  // file yet, we fall back to signing inline here and retry.
+  const startCheckout = async (sig?: AgreementSignature) => {
     setLoading(true);
     setCheckoutError('');
     try {
@@ -123,15 +89,22 @@ export default function PricingModal({ open, onOpenChange, userId, userEmail, de
           plan: billing,
           userId,
           userEmail,
-          initialsFee: sig.initialsFee,
-          initialsComms: sig.initialsComms,
-          signature: sig.signature,
-          termsVersion: RECRUITER_AGREEMENT_VERSION,
           promoCode: promoInput.trim() || undefined,
+          ...(sig ? {
+            initialsFee: sig.initialsFee,
+            initialsComms: sig.initialsComms,
+            signature: sig.signature,
+            termsVersion: RECRUITER_AGREEMENT_VERSION,
+          } : {}),
         }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
+        if (data.agreementRequired) {
+          setStep('agreement');
+          setLoading(false);
+          return;
+        }
         setCheckoutError(data.error || 'Could not start checkout. Please try again.');
         if (data.invalidPromo) setStep('plan');
         setLoading(false);
@@ -153,8 +126,7 @@ export default function PricingModal({ open, onOpenChange, userId, userEmail, de
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={step === 'plan' ? 'max-w-md max-h-[92vh] overflow-y-auto' : 'max-w-4xl max-h-[92vh] overflow-y-auto'}>
-        <Stepper step={step} />
+      <DialogContent className={step === 'plan' ? 'max-w-md max-h-[92vh] overflow-y-auto' : 'max-w-6xl w-[95vw] max-h-[94vh] overflow-y-auto'}>
         {step === 'plan' ? (
           <>
             <DialogHeader>
@@ -221,13 +193,13 @@ export default function PricingModal({ open, onOpenChange, userId, userEmail, de
 
               <Button
                 className="w-full bg-[#008037] hover:bg-[#006a2d]"
-                onClick={() => { setCheckoutError(''); setStep('agreement'); }}
+                onClick={() => startCheckout()}
+                disabled={loading}
               >
-                Get Started
+                {loading
+                  ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Opening checkout…</>
+                  : 'Get Started'}
               </Button>
-              <p className="text-[11px] text-muted-foreground text-center">
-                Next: review and sign the recruiter terms. Then payment.
-              </p>
             </div>
 
             {/* Placement fee: clear and upfront, never a footnote */}
@@ -290,7 +262,7 @@ export default function PricingModal({ open, onOpenChange, userId, userEmail, de
 
             <RecruiterAgreementContent
               mode="sign"
-              onSign={handleSign}
+              onSign={(sig) => startCheckout(sig)}
               onBack={() => setStep('plan')}
               submitting={loading}
               error={checkoutError}

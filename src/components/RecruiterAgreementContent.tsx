@@ -54,7 +54,7 @@ export default function RecruiterAgreementContent({
   const today = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 
   const renderSection = (s: TermsSection) => (
-    <div key={s.number + s.title}>
+    <div key={s.number + s.title} className="break-inside-avoid">
       <p className="text-[15px] font-semibold text-gray-900">
         {s.number ? `${s.number}. ` : ''}{s.title}
       </p>
@@ -65,7 +65,7 @@ export default function RecruiterAgreementContent({
   );
 
   const renderFullClause = (clause: typeof KEY_CLAUSES[number]) => (
-    <div key={clause.id}>
+    <div key={clause.id} className="break-inside-avoid">
       <p className="text-[15px] font-semibold text-gray-900">{clause.number}. {clause.title}</p>
       <ul className="mt-2 space-y-2">
         {clause.points.map((p, i) => (
@@ -95,6 +95,7 @@ export default function RecruiterAgreementContent({
             </div>
           </div>
 
+          <div className="grid lg:grid-cols-2 gap-3">
           {KEY_CLAUSES.map((clause, idx) => {
             const value = clause.id === 'fee' ? initialsFee : initialsComms;
             const done = value.trim().length >= 1;
@@ -135,6 +136,7 @@ export default function RecruiterAgreementContent({
               </div>
             );
           })}
+          </div>
         </div>
       )}
 
@@ -145,10 +147,12 @@ export default function RecruiterAgreementContent({
             Complete terms and conditions
           </p>
         )}
-        <div className="border rounded-lg bg-white max-h-[42vh] overflow-y-auto p-5 space-y-4">
-          {sectionsBefore.map(renderSection)}
-          {KEY_CLAUSES.map(renderFullClause)}
-          {sectionsAfter.map(renderSection)}
+        <div className="border rounded-lg bg-white max-h-[48vh] overflow-y-auto p-6">
+          <div className="lg:columns-2 lg:gap-10 space-y-5">
+            {sectionsBefore.map(renderSection)}
+            {KEY_CLAUSES.map(renderFullClause)}
+            {sectionsAfter.map(renderSection)}
+          </div>
         </div>
       </div>
 

@@ -55,32 +55,54 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   // ── Recruiter Agreement gate ────────────────────────────────────────────
-  // Payment requires initials on BOTH key clauses (placement fee,
-  // communications) plus a typed full-name signature. Recorded on the
-  // users row BEFORE the session is created, so acceptance evidence
-  // exists even if the recruiter abandons checkout.
+  // The agreement is normally signed as its own onboarding step via
+  // /api/accept-recruiter-agreement, so the usual path here is just to
+  // VERIFY a signature already exists. If the caller supplies a signature
+  // block inline (the in-checkout signing fallback, used when someone
+  // reaches payment without having signed yet) we record it first.
+  if (!userId) {
+    return res.status(400).json({ error: 'Sign in required before payment.' });
+  }
+
   const feeInit = (initialsFee || '').trim();
   const commsInit = (initialsComms || '').trim();
   const signed = (signature || '').trim();
-  if (!userId || !feeInit || !commsInit || feeInit.length > 8 || commsInit.length > 8) {
-    return res.status(400).json({ error: 'Initials on both highlighted clauses are required before payment.' });
-  }
-  if (signed.length < 2 || signed.length > 120) {
-    return res.status(400).json({ error: 'A typed full name is required to sign the agreement.' });
-  }
-  const { error: agreeErr } = await supabase
-    .from('users')
-    .update({
-      recruiter_agreement_accepted_at: new Date().toISOString(),
-      recruiter_agreement_initials_fee: feeInit,
-      recruiter_agreement_initials_comms: commsInit,
-      recruiter_agreement_signature: signed,
-      recruiter_agreement_version: (termsVersion || '1.0').slice(0, 16),
-    })
-    .eq('id', userId);
-  if (agreeErr) {
-    console.error('[create-checkout-session] agreement record failed:', agreeErr.message);
-    return res.status(500).json({ error: 'Could not record agreement. Please try again.' });
+  const hasInlineSignature = !!(feeInit && commsInit && signed);
+
+  if (hasInlineSignature) {
+    if (feeInit.length > 8 || commsInit.length > 8 || signed.length < 2 || signed.length > 120) {
+      return res.status(400).json({ error: 'Invalid signature details.' });
+    }
+    const { error: agreeErr } = await supabase
+      .from('users')
+      .update({
+        recruiter_agreement_accepted_at: new Date().toISOString(),
+        recruiter_agreement_initials_fee: feeInit,
+        recruiter_agreement_initials_comms: commsInit,
+        recruiter_agreement_signature: signed,
+        recruiter_agreement_version: (termsVersion || '1.0').slice(0, 16),
+      })
+      .eq('id', userId);
+    if (agreeErr) {
+      console.error('[create-checkout-session] agreement record failed:', agreeErr.message);
+      return res.status(500).json({ error: 'Could not record agreement. Please try again.' });
+    }
+  } else {
+    const { data: existing, error: lookupErr } = await supabase
+      .from('users')
+      .select('recruiter_agreement_accepted_at')
+      .eq('id', userId)
+      .maybeSingle();
+    if (lookupErr) {
+      console.error('[create-checkout-session] agreement lookup failed:', lookupErr.message);
+      return res.status(500).json({ error: 'Could not verify agreement. Please try again.' });
+    }
+    if (!existing?.recruiter_agreement_accepted_at) {
+      return res.status(400).json({
+        error: 'Please review and sign the recruiter terms before subscribing.',
+        agreementRequired: true,
+      });
+    }
   }
 
   // ── Promo code (3 months free) ──────────────────────────────────────────

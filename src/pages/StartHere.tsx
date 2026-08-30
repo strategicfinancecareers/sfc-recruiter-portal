@@ -6,6 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import PricingModal, { EARLY_BIRD_CODES, PLACEMENT_FEE_STANDARD, PLACEMENT_FEE_EARLY_BIRD, fmtUsd } from '../components/PricingModal';
 import RecruiterAgreementDialog from '../components/RecruiterAgreementDialog';
 import type { SignedRecord } from '@/lib/agreementDocument';
+import { RESPONSE_WINDOW_FOOTNOTE } from '@/lib/responseWindow';
 
 const howItWorksSteps = [
   {
@@ -21,7 +22,7 @@ const howItWorksSteps = [
   {
     icon: Clock,
     title: 'We Move Fast',
-    description: "Expect a response within 24 hours. Once approved, we'll reach out to the candidate on your behalf and confirm their interest.",
+    description: "We reach out to the candidate on your behalf and confirm their interest. Candidates agree to respond within 48 hours of an introduction request, and we send reminders to prompt them.",
   },
   {
     icon: CalendarCheck,
@@ -39,7 +40,7 @@ const howItWorksSteps = [
 // terms live in the billing copy under the price, not in the feature list.
 const PLAN_FEATURES = [
   'Unlimited introduction requests',
-  'Candidate responses within 24hrs',
+  'Most candidates respond within 48 hours*',
   'Full contact details + resume on acceptance',
   'Priority candidate matching',
   'Dedicated account support',
@@ -331,6 +332,9 @@ const StartHere = () => {
                   >
                     Get Started
                   </button>
+                  <p className="text-[11px] text-gray-400 leading-relaxed">
+                    {RESPONSE_WINDOW_FOOTNOTE}
+                  </p>
                   <p className="text-[11px] text-gray-400 text-center">
                     {agreement ? 'Recruiter terms signed.' : 'You will sign the recruiter terms before payment.'}{' '}
                     <button

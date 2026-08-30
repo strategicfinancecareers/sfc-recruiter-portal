@@ -117,6 +117,8 @@ export const FULL_TERMS: TermsSection[] = [
     paragraphs: [
       'The Platform allows you to browse anonymized Candidate profiles and request introductions. SFC relays each request to the Candidate, who decides whether to accept. A Candidate\'s identity and contact details are disclosed only after that Candidate accepts.',
       'SFC does not guarantee that any Candidate will respond to, accept, or remain available following an introduction request, or that any Candidate will be suitable for your role.',
+      'Response window. Candidates agree, as a condition of joining the Platform, to respond to an introduction request within 48 hours. SFC supports that commitment on a best-efforts basis by sending automated reminders to the Candidate, and may follow up through any other channel the Candidate has agreed to be contacted on. Candidates who repeatedly fail to respond are deprioritized or removed from the Platform.',
+      'The 48 hour window is a target, not a service commitment. SFC does not control Candidate behavior and does not guarantee that any Candidate will respond within 48 hours or at all. A slower response, or no response, does not constitute a breach by SFC and does not give rise to any refund, credit, fee reduction, or other remedy.',
     ],
   },
   {

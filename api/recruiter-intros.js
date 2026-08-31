@@ -21,7 +21,7 @@ export default async function handler(req, res) {
       .from('introduction_requests')
       .select(`
         *,
-        candidate:candidates!fk_introduction_requests_candidate(id, name, display_name, email, phone, location, experience, education, highest_education_level, label, profile_description, resume_full_url, sfc_take, sfc_role_fit, sfc_strengths, sfc_considerations, sfc_take_published_at),
+        candidate:candidates!fk_introduction_requests_candidate(id, name, display_name, email, phone, linkedin_url, location, experience, education, highest_education_level, label, profile_description, resume_full_url, sfc_take, sfc_role_fit, sfc_strengths, sfc_considerations, sfc_take_published_at),
         requester:users!fk_introduction_requests_requester(id, first_name, last_name, email),
         job:jobs!fk_introduction_requests_job(id, title, company, location)
       `)
@@ -67,6 +67,7 @@ export default async function handler(req, res) {
           name: null,
           email: null,
           phone: null,
+          linkedin_url: null,
           resume_full_url: null,
           sfc_take: null,
           sfc_role_fit: null,

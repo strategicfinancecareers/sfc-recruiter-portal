@@ -11,7 +11,7 @@ import { Resend } from 'resend';
 // the public.users row is the source of truth.
 
 const RECRUITER_ROLE_ID = 'e7b112a8-8493-46e6-bc02-ab8ca66a746a';
-const ADMIN_NOTIFY_EMAIL = 'zu@strategicfinancecareers.com';
+const ADMIN_NOTIFY_EMAIL = 'talent@strategicfinancecareers.com';
 const APP_URL = 'https://sfc-recruiter-portal.vercel.app';
 const FROM_ADDR = 'SFC Talent <noreply@strategicfinancecareers.com>';
 

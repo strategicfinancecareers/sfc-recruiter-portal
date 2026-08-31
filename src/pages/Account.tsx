@@ -1,12 +1,16 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { FileText } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import RecruiterAgreementDialog from "@/components/RecruiterAgreementDialog";
+import type { SignedRecord } from "@/lib/agreementDocument";
 
 const Account = () => {
   const { user, setAdminNotifications } = useAuth();
@@ -15,6 +19,34 @@ const Account = () => {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  // Signed-agreement record, so a recruiter can always pull up what they
+  // signed and when.
+  const [showAgreement, setShowAgreement] = useState(false);
+  const [agreement, setAgreement] = useState<SignedRecord | null>(null);
+  const agreementAcceptedAt = agreement?.acceptedAt ?? null;
+  const agreementSignature = agreement?.signature ?? null;
+
+  useEffect(() => {
+    if (!user?.id) return;
+    supabase
+      .from('users')
+      .select('recruiter_agreement_accepted_at, recruiter_agreement_signature, recruiter_agreement_initials_fee, recruiter_agreement_initials_comms, company')
+      .eq('id', user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        const d = data as any;
+        setAgreement({
+          acceptedAt: d?.recruiter_agreement_accepted_at ?? null,
+          signature: d?.recruiter_agreement_signature ?? null,
+          initialsFee: d?.recruiter_agreement_initials_fee ?? null,
+          initialsComms: d?.recruiter_agreement_initials_comms ?? null,
+          company: d?.company ?? null,
+          email: user.email ?? null,
+          recruiterName: [user.first_name, user.last_name].filter(Boolean).join(' ') || null,
+        });
+      });
+  }, [user?.id, user?.email, user?.first_name, user?.last_name]);
 
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -80,12 +112,26 @@ const Account = () => {
                 <Input value={user?.role || ''} disabled className="capitalize" />
               </div>
               <div>
-                <Label>Terms Status</Label>
-                <div className="mt-1">
-                  <Badge variant={user?.has_accepted_terms ? "default" : "secondary"}>
-                    {user?.has_accepted_terms ? "Accepted" : "Not Accepted"}
+                <Label>Recruiter Agreement</Label>
+                <div className="mt-1 flex flex-wrap items-center gap-3">
+                  <Badge variant={agreementAcceptedAt ? "default" : "secondary"}>
+                    {agreementAcceptedAt ? "Signed" : "Not signed"}
                   </Badge>
+                  <button
+                    type="button"
+                    onClick={() => setShowAgreement(true)}
+                    className="inline-flex items-center gap-1 text-sm font-medium text-[#006a2d] hover:underline"
+                  >
+                    <FileText className="h-3.5 w-3.5" />
+                    View agreement
+                  </button>
                 </div>
+                {agreementAcceptedAt && (
+                  <p className="text-xs text-muted-foreground mt-1.5">
+                    Signed {new Date(agreementAcceptedAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                    {agreementSignature ? ` by ${agreementSignature}` : ''}.
+                  </p>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -159,6 +205,12 @@ const Account = () => {
           )}
         </div>
       </div>
+
+      <RecruiterAgreementDialog
+        open={showAgreement}
+        onOpenChange={setShowAgreement}
+        record={agreement ?? undefined}
+      />
     </div>
   );
 };

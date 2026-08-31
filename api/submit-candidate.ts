@@ -9,7 +9,7 @@ const supabase = createClient(
 );
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
-const NOTIFY_EMAIL = 'zu@strategicfinancecareers.com';
+const NOTIFY_EMAIL = 'talent@strategicfinancecareers.com';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });

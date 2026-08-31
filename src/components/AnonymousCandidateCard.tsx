@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { MapPin, Handshake, Shield, ChevronDown, ChevronUp, Eye, GraduationCap } from 'lucide-react';
+import { MapPin, Handshake, Shield, ChevronDown, ChevronUp, Eye, GraduationCap, Mail, Phone, Linkedin, Download, Loader2, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import EmailCandidateBlock from './EmailCandidateBlock';
 
 // Anonymous candidate card — the full dossier view shown to recruiters
 // when they click "View Profile" on /browse, and now also used to render
@@ -10,15 +11,20 @@ import { Button } from '@/components/ui/button';
 // JSX inside the "Profile Dialog — Executive Dossier" block) so the
 // preview at /apply shows EXACTLY what recruiters will see.
 //
-// Two render modes:
-//   'recruiter' — original behavior. Parent supplies insightBullets +
-//                 insightLoading (cached across opens in CandidateSearch)
-//                 and an onRequestIntro callback for the CTA.
-//   'preview'   — used by /apply. Hides the Request Introduction CTA,
-//                 shows a top badge "This is what recruiters will see",
-//                 suppresses the "Why This Candidate Stands Out" AI
-//                 section entirely (no fetch, no skeleton), and never
-//                 shows the SFC Take.
+// Three render modes, matching the product's three reveal states:
+//   'recruiter' — pre-request Browse dossier. Anonymous. Parent supplies
+//                 insightBullets + insightLoading (cached across opens in
+//                 CandidateSearch) and an onRequestIntro callback for the
+//                 CTA. Shows the "Candidate Identity Protected" note.
+//   'preview'   — the candidate's own "this is what recruiters see" view
+//                 (/apply final step + dashboard Recruiter View tab).
+//                 Candidate-addressed banner + passive rail note.
+//   'revealed'  — POST-ACCEPTANCE recruiter view (approved-intro modal).
+//                 Identity is unlocked: real-name subtitle, contact
+//                 details + resume download + "introduction accepted"
+//                 note in the right rail, SFC Take in the body. No CTA,
+//                 no identity-protected note, no candidate-addressed
+//                 copy, no AI-insights section.
 
 export interface AnonymousCandidateCardData {
   id?: string;
@@ -84,7 +90,27 @@ interface PreviewModeProps {
   mode: 'preview';
 }
 
-type Props = { candidate: AnonymousCandidateCardData } & (RecruiterModeProps | PreviewModeProps);
+interface RevealedModeProps {
+  mode: 'revealed';
+  // Unlocked contact details (post-acceptance reveal).
+  email?: string | null;
+  phone?: string | null;
+  linkedinUrl?: string | null;
+  // Resume download — parent owns the signed-URL fetch.
+  resumeAvailable?: boolean;
+  resumeDownloading?: boolean;
+  resumeError?: string | null;
+  onDownloadResume?: () => void;
+  // SFC Take (already-published only — parent gates on published_at).
+  sfcTake?: {
+    take: string;
+    roleFit?: string[] | null;
+    strengths?: string[] | null;
+    considerations?: string[] | null;
+  } | null;
+}
+
+type Props = { candidate: AnonymousCandidateCardData } & (RecruiterModeProps | PreviewModeProps | RevealedModeProps);
 
 const BIO_LIMIT = 320;
 
@@ -113,9 +139,11 @@ export default function AnonymousCandidateCard(props: Props) {
     : (Array.isArray(c.detailed_experience) ? c.detailed_experience : []);
   const areas = areasSource.filter(Boolean);
 
-  // Insight bullets only render in recruiter mode (preview suppresses
-  // the entire "Why This Candidate Stands Out" section per spec)
-  const recruiterProps = !isPreview ? (props as RecruiterModeProps) : null;
+  // Insight bullets only render in recruiter mode (preview and revealed
+  // both suppress the entire "Why This Candidate Stands Out" section).
+  const recruiterProps = props.mode === 'recruiter' ? props : null;
+  const revealedProps = props.mode === 'revealed' ? props : null;
+  const isRevealed = props.mode === 'revealed';
   const insightLoading = recruiterProps?.insightLoading ?? false;
   const insightBullets = recruiterProps?.insightBullets ?? [];
   const isAdmin = recruiterProps?.isAdmin ?? false;
@@ -140,8 +168,9 @@ export default function AnonymousCandidateCard(props: Props) {
             Candidate Snapshot, so the chips were pure duplication. */}
         <div>
           <h2 className="text-2xl font-bold text-gray-900 leading-tight">{c.label}</h2>
-          {/* Admin-only real-name subtitle, recruiter mode only */}
-          {!isPreview && isAdmin && c.name && (
+          {/* Real-name subtitle: admins in recruiter mode, and always in
+              revealed mode (identity is unlocked post-acceptance). */}
+          {((isAdmin && !isPreview) || isRevealed) && c.name && (
             <p className="text-xs text-gray-400 mt-0.5">{c.name}</p>
           )}
           <div className="flex items-center gap-1.5 text-sm text-gray-500 flex-wrap mt-2">
@@ -262,8 +291,8 @@ export default function AnonymousCandidateCard(props: Props) {
         )}
 
         {/* Why This Candidate Stands Out — recruiter mode only.
-            Preview mode suppresses entirely (no fetch, no skeleton). */}
-        {!isPreview && (
+            Preview and revealed modes suppress entirely. */}
+        {recruiterProps && (
           <div>
             <h3 className="text-sm font-semibold text-gray-900 mb-3">Why This Candidate Stands Out ✦</h3>
             {insightLoading ? (
@@ -290,18 +319,46 @@ export default function AnonymousCandidateCard(props: Props) {
           </div>
         )}
 
-        {/* Anonymity note — shown in both modes (it's a useful reminder
-            of the contract in both contexts). */}
-        <div className="flex items-start gap-3 p-4 bg-gray-50 rounded-xl border border-gray-100">
-          <Shield className="w-5 h-5 text-gray-400 shrink-0 mt-0.5" />
-          <div>
-            <p className="text-sm font-semibold text-gray-700 mb-0.5">Candidate Identity Protected</p>
-            <p className="text-xs text-gray-500 leading-relaxed">
-              Full name, detailed company history, resume, and contact information are revealed only after
-              the candidate accepts the introduction request.
-            </p>
+        {/* SFC Take — revealed mode only (post-acceptance full reveal).
+            Recruiter mode surfaces its own insights; preview never shows it. */}
+        {isRevealed && revealedProps?.sfcTake?.take && (
+          <div className="border-t border-gray-100 pt-4 space-y-4">
+            <div>
+              <p className="text-[10px] uppercase tracking-wider font-semibold text-[#006a2d] italic mb-1.5">SFC Take</p>
+              <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">{revealedProps.sfcTake.take}</p>
+            </div>
+            {([
+              { title: 'Role fit', items: revealedProps.sfcTake.roleFit },
+              { title: 'Strengths', items: revealedProps.sfcTake.strengths },
+              { title: 'Considerations', items: revealedProps.sfcTake.considerations },
+            ] as Array<{ title: string; items?: string[] | null }>).filter(s => s.items && s.items.length > 0).map(s => (
+              <div key={s.title}>
+                <p className="text-xs uppercase tracking-wide text-gray-400 font-medium mb-1.5">{s.title}</p>
+                <div className="flex flex-wrap gap-1">
+                  {s.items!.map((item, i) => (
+                    <span key={`${s.title}-${i}`} className="px-2.5 py-1 rounded-full text-xs font-medium border border-[#008037]/25 bg-[#008037]/5 text-[#005a26]">{item}</span>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
-        </div>
+        )}
+
+        {/* Anonymity note — Browse + preview only. Nonsensical once the
+            candidate has ACCEPTED (revealed mode): identity and contact
+            are unlocked, so the "protected" promise no longer applies. */}
+        {!isRevealed && (
+          <div className="flex items-start gap-3 p-4 bg-gray-50 rounded-xl border border-gray-100">
+            <Shield className="w-5 h-5 text-gray-400 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-semibold text-gray-700 mb-0.5">Candidate Identity Protected</p>
+              <p className="text-xs text-gray-500 leading-relaxed">
+                Full name, detailed company history, resume, and contact information are revealed only after
+                the candidate accepts the introduction request.
+              </p>
+            </div>
+          </div>
+        )}
 
       </div>
 
@@ -337,12 +394,59 @@ export default function AnonymousCandidateCard(props: Props) {
             </div>
           </div>
 
-          {/* CTA — recruiter mode only. Preview mode replaces it with a
-              passive "you're previewing your own profile" label. */}
+          {/* Rail action area, one branch per mode:
+              preview  → passive "you're previewing your own profile" note
+              revealed → unlocked contact details + resume download +
+                         "introduction accepted" confirmation
+              recruiter→ Request Introduction CTA */}
           <div className="space-y-2 pt-1">
             {isPreview ? (
               <div className="rounded-lg border border-[#008037]/25 bg-[#008037]/5 px-3 py-2.5 text-xs text-[#004a1f] leading-relaxed">
                 <strong>Preview only.</strong> Recruiters will see this view and tap "Request Introduction" to ask SFC for a warm intro.
+              </div>
+            ) : isRevealed ? (
+              <div className="space-y-4">
+                <div>
+                  <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Contact</h3>
+                  <div className="space-y-2.5">
+                    {revealedProps?.email && (
+                      <EmailCandidateBlock email={revealedProps.email} subject="Introduction via SFC Talent" />
+                    )}
+                    {revealedProps?.phone && (
+                      <a href={`tel:${revealedProps.phone}`} className="flex items-center gap-2 text-xs font-medium text-[#005a26] hover:underline">
+                        <Phone className="w-3.5 h-3.5 shrink-0" />
+                        {revealedProps.phone}
+                      </a>
+                    )}
+                    {revealedProps?.linkedinUrl && (
+                      <a href={revealedProps.linkedinUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-xs font-medium text-[#005a26] hover:underline min-w-0">
+                        <Linkedin className="w-3.5 h-3.5 shrink-0" />
+                        <span className="truncate">LinkedIn profile</span>
+                      </a>
+                    )}
+                  </div>
+                </div>
+                {revealedProps?.resumeAvailable && (
+                  <div className="space-y-1.5">
+                    <Button
+                      variant="outline"
+                      className="w-full border-[#008037]/30 text-[#005a26] hover:bg-[#008037]/5 font-semibold"
+                      disabled={revealedProps?.resumeDownloading}
+                      onClick={() => revealedProps?.onDownloadResume?.()}
+                    >
+                      {revealedProps?.resumeDownloading
+                        ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Generating link…</>
+                        : <><Download className="mr-2 h-4 w-4" /> Download Resume</>}
+                    </Button>
+                    {revealedProps?.resumeError && (
+                      <p className="text-xs text-red-600">{revealedProps.resumeError}</p>
+                    )}
+                  </div>
+                )}
+                <div className="flex items-start gap-2 rounded-lg border border-[#008037]/25 bg-[#008037]/5 px-3 py-2.5 text-xs text-[#004a1f] leading-relaxed">
+                  <CheckCircle2 className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                  <span>Introduction accepted. We recommend reaching out within 24 hours while their interest is fresh.</span>
+                </div>
               </div>
             ) : (
               <>

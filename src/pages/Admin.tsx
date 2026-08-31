@@ -1279,8 +1279,8 @@ if (!usersError && usersData) {
                       <Input
                         id="ccEmail"
                         type="email"
-                        placeholder="zu@company.com"
-                        defaultValue="zu@company.com"
+                        placeholder="name@company.com"
+                        defaultValue="name@company.com"
                       />
                       <p className="text-sm text-gray-500 mt-1">
                         Email address to CC on all introduction emails

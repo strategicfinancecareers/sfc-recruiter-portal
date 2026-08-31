@@ -6,7 +6,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import RedactedResume from "@/components/RedactedResume";
 import LoaderScreen from "@/components/LoaderScreen";
-import { CheckCircle, XCircle, Clock, Download, Mail, Phone, Loader2, MapPin, Calendar, GraduationCap, Briefcase, Eye } from "lucide-react";
+import AnonymousCandidateCard, { type AnonymousCandidateCardData } from "@/components/AnonymousCandidateCard";
+import { supabase } from "@/integrations/supabase/client";
+import EmailCandidateBlock from "@/components/EmailCandidateBlock";
+import { CheckCircle, XCircle, Clock, Download, Mail, Phone, Loader2, MapPin, Calendar, GraduationCap, Briefcase, Eye, Linkedin } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useIntroductionRequests, type IntroductionRequest } from "../hooks/useIntroductionRequests";
@@ -17,6 +20,7 @@ interface FullCandidate {
   display_name: string;
   email: string;
   phone: string | null;
+  linkedin_url: string | null;
   resume_full_url: string | null;
 }
 
@@ -33,15 +37,19 @@ const IntroductionRequests = () => {
   const sortDir: 'asc' | 'desc' = 'desc';
 
   // State for approved candidate modal
-  const [approvedModal, setApprovedModal] = useState<{ open: boolean; request: IntroductionRequest | null; candidate: FullCandidate | null; loading: boolean }>({
+  const [approvedModal, setApprovedModal] = useState<{ open: boolean; request: IntroductionRequest | null; candidate: FullCandidate | null; fullCard: AnonymousCandidateCardData | null; loading: boolean }>({
     open: false,
     request: null,
     candidate: null,
+    fullCard: null,
     loading: false,
   });
 
 const openApprovedModal = (request: IntroductionRequest) => {
-    // Use already-loaded candidate data — no second network call needed
+    // Contact fields come from the already-loaded intro payload; the full
+    // dossier (areas, industries, stages, skills, alum callout — the same
+    // card recruiters see on Browse) is fetched fresh below so the modal
+    // shows the complete profile, not just name + contact.
     const c = request.candidate;
     setDownloadError(null);
     setApprovedModal({
@@ -54,11 +62,51 @@ const openApprovedModal = (request: IntroductionRequest) => {
             display_name: c.display_name,
             email: c.email,
             phone: c.phone ?? null,
+            linkedin_url: c.linkedin_url ?? null,
             resume_full_url: c.resume_full_url ?? null,
           }
         : null,
-      loading: false,
+      fullCard: null,
+      loading: !!c,
     });
+    if (!c) return;
+    (async () => {
+      try {
+        // Same recruiter-safe column set Browse uses (useCandidates), one
+        // row. Plain (non-inner) skills join so zero-skill candidates
+        // still resolve. No status filter: the intro is accepted, so the
+        // reveal is already authorized even if the candidate was
+        // deactivated afterwards.
+        const { data, error } = await supabase
+          .from('candidates')
+          .select(`
+            id, display_name, label, location, experience, education,
+            highest_education_level, profile_description, primary_background,
+            secondary_backgrounds, open_to_opportunities, areas_of_expertise,
+            detailed_experience, industries, company_stage_experience, is_sfc_alum,
+            candidate_skills(skills(id, skill))
+          `)
+          .eq('id', c.id)
+          .maybeSingle();
+        if (error || !data) {
+          console.warn('[IntroductionRequests] full-card fetch failed — falling back to basic modal:', error?.message);
+          setApprovedModal(prev => ({ ...prev, loading: false }));
+          return;
+        }
+        const skills = ((data as any).candidate_skills || [])
+          .map((cs: any) => cs.skills)
+          .filter(Boolean)
+          .map((s: any) => ({ id: s.id, skill: s.skill }));
+        setApprovedModal(prev => ({
+          ...prev,
+          fullCard: { ...(data as any), skills } as AnonymousCandidateCardData,
+          loading: false,
+        }));
+      } catch (err) {
+        console.warn('[IntroductionRequests] full-card fetch threw — falling back to basic modal:', err);
+        setApprovedModal(prev => ({ ...prev, loading: false }));
+      }
+    })();
   };
 
   // Request a fresh signed URL for the resume, then open it in a new tab.
@@ -165,8 +213,8 @@ const openApprovedModal = (request: IntroductionRequest) => {
 
       {/* Approved candidate details modal */}
       <Dialog open={approvedModal.open} onOpenChange={open => setApprovedModal(prev => ({ ...prev, open }))}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden p-0 flex flex-col">
+          <DialogHeader className="px-6 pt-5 pb-4 border-b border-gray-100 shrink-0">
             <DialogTitle className="font-heading flex items-center gap-2">
               {approvedModal.candidate?.name || approvedModal.request?.candidate.display_name}
               <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 ml-1">
@@ -180,10 +228,40 @@ const openApprovedModal = (request: IntroductionRequest) => {
             </DialogDescription>
           </DialogHeader>
 
+          {/* Body: the full Browse dossier in 'revealed' mode (identity
+              unlocked — contact + resume + SFC Take live inside the card).
+              While it loads, a spinner; if the fetch failed, fall back to
+              the original stacked contact view below. */}
           {approvedModal.loading ? (
-            <div className="py-8 text-center text-muted-foreground text-sm">Loading candidate details…</div>
+            <div className="py-16 text-center text-muted-foreground text-sm flex items-center justify-center gap-2">
+              <Loader2 className="w-4 h-4 animate-spin" /> Loading full profile…
+            </div>
+          ) : approvedModal.fullCard ? (
+            <div className="min-h-0 flex-1">
+              <AnonymousCandidateCard
+                mode="revealed"
+                candidate={{ ...approvedModal.fullCard, name: approvedModal.candidate?.name }}
+                email={approvedModal.candidate?.email ?? null}
+                phone={approvedModal.candidate?.phone ?? null}
+                linkedinUrl={approvedModal.candidate?.linkedin_url ?? null}
+                resumeAvailable={!!approvedModal.candidate?.resume_full_url}
+                resumeDownloading={downloadingResume}
+                resumeError={downloadError}
+                onDownloadResume={handleDownloadResume}
+                sfcTake={
+                  approvedModal.request?.candidate?.sfc_take_published_at && approvedModal.request?.candidate?.sfc_take
+                    ? {
+                        take: approvedModal.request.candidate.sfc_take,
+                        roleFit: approvedModal.request.candidate.sfc_role_fit,
+                        strengths: approvedModal.request.candidate.sfc_strengths,
+                        considerations: approvedModal.request.candidate.sfc_considerations,
+                      }
+                    : null
+                }
+              />
+            </div>
           ) : (
-            <div className="space-y-4 mt-2">
+          <div className="space-y-4 px-6 pb-6 overflow-y-auto">
               <div className="bg-green-50 border border-green-200 rounded-lg p-4 space-y-3">
                 <div className="flex items-center gap-2 text-sm">
                   <Mail className="w-4 h-4 text-green-700 shrink-0" />
@@ -202,6 +280,19 @@ const openApprovedModal = (request: IntroductionRequest) => {
                       className="text-green-800 font-medium hover:underline"
                     >
                       {approvedModal.candidate.phone}
+                    </a>
+                  </div>
+                )}
+                {approvedModal.candidate?.linkedin_url && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <Linkedin className="w-4 h-4 text-green-700 shrink-0" />
+                    <a
+                      href={approvedModal.candidate.linkedin_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-green-800 font-medium hover:underline truncate"
+                    >
+                      {approvedModal.candidate.linkedin_url.replace(/^https?:\/\/(www\.)?/, '')}
                     </a>
                   </div>
                 )}
@@ -284,7 +375,7 @@ const openApprovedModal = (request: IntroductionRequest) => {
                   )}
                 </div>
               )}
-            </div>
+          </div>
           )}
         </DialogContent>
       </Dialog>
@@ -390,6 +481,48 @@ const openApprovedModal = (request: IntroductionRequest) => {
                               <Badge variant="outline" className="text-xs">
                                 +{request.candidate.skills.length - 3} more
                               </Badge>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Accepted-only: contact info + who-they-are summary,
+                            inline on the card (tester feedback: contact was
+                            one click deep in the modal and read as missing).
+                            Server only returns these fields for approved
+                            intros — the scrub nulls them otherwise. */}
+                        {request.status === 'approved' && (
+                          <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 p-3 space-y-2">
+                            <p className="text-xs font-semibold text-emerald-900">Contact details</p>
+                            {request.candidate.email && (
+                              <EmailCandidateBlock
+                                email={request.candidate.email}
+                                subject={`Introduction via SFC Talent${request.job?.title ? ` - ${request.job.title}` : ''}`}
+                              />
+                            )}
+                            {request.candidate.phone && (
+                              <a
+                                href={`tel:${request.candidate.phone}`}
+                                className="flex items-center gap-1.5 text-sm text-emerald-800 hover:underline"
+                              >
+                                <Phone className="h-3.5 w-3.5 shrink-0" />
+                                {request.candidate.phone}
+                              </a>
+                            )}
+                            {request.candidate.linkedin_url && (
+                              <a
+                                href={request.candidate.linkedin_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-1.5 text-sm text-emerald-800 hover:underline min-w-0"
+                              >
+                                <Linkedin className="h-3.5 w-3.5 shrink-0" />
+                                <span className="truncate">LinkedIn profile</span>
+                              </a>
+                            )}
+                            {request.candidate.profile_description && (
+                              <p className="text-xs text-emerald-900/80 leading-relaxed line-clamp-3 pt-1 border-t border-emerald-200/70">
+                                {request.candidate.profile_description.split('\n\n')[0]}
+                              </p>
                             )}
                           </div>
                         )}

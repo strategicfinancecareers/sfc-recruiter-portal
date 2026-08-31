@@ -36,21 +36,26 @@ const Jobs = () => {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  // Open flag for EDIT-existing-job dialogs only. The NEW-job popup's
-  // open state lives in JobDraftContext (draft.formOpen) so the popup —
-  // not just its data — survives sidebar navigation and reloads.
-  const [showEditForm, setShowEditForm] = useState(false);
-  const [editingJob, setEditingJob] = useState<Job | null>(null);
+  // Both popups' open state lives in JobDraftContext so the popup — not
+  // just its data — survives sidebar navigation and reloads. New-job:
+  // draft.formOpen + draft.formData. Edit-job: draft.editSession, which
+  // bundles the row being edited with the in-progress buffer; non-null
+  // means "edit popup open".
   const [showDeleteDialog, setShowDeleteDialog] = useState<Job | null>(null);
   const [importing, setImporting] = useState(false); // transient; not part of the persisted draft
 
-  // NEW-job draft lives in JobDraftContext (above <Outlet />) so it
-  // survives sidebar tab switches — fix for bug #1.15.
-  // EDIT-existing-job state stays local: it's per-row, ephemeral, and
-  // seeded from the row being edited; it must not leak into or be
-  // overwritten by the shared new-job draft.
+  // Both drafts live in JobDraftContext (above <Outlet />) so they
+  // survive sidebar tab switches — fix for bug #1.15, extended to the
+  // edit popup per tester follow-up. Edit state stays in its own
+  // editSession slice so it can never leak into or overwrite the
+  // separate new-job draft.
   const draft = useJobDraft();
-  const [editingFormData, setEditingFormData] = useState<JobFormData>(EMPTY_JOB_FORM);
+  const editingJob: Job | null = (draft.editSession?.job as Job | undefined) ?? null;
+  const editingFormData: JobFormData = draft.editSession?.formData ?? EMPTY_JOB_FORM;
+  const setEditingFormData: React.Dispatch<React.SetStateAction<JobFormData>> = (action) =>
+    draft.setEditSession(prev => prev
+      ? { ...prev, formData: typeof action === 'function' ? (action as (p: JobFormData) => JobFormData)(prev.formData) : action }
+      : prev);
 
   // Active form state branches on editingJob. Both setters share the
   // same Dispatch<SetStateAction<JobFormData>> signature so existing
@@ -119,8 +124,9 @@ const Jobs = () => {
 // component unmount; that's the whole reason the context survives.
 const resetForm = () => {
   if (editingJob) {
-    setEditingFormData(EMPTY_JOB_FORM);
-    setEditingJob(null);
+    // Ends the edit session — clears the buffer AND closes the popup
+    // (non-null session is what keeps it open).
+    draft.setEditSession(null);
   } else {
     draft.resetDraft();
   }
@@ -128,31 +134,33 @@ const resetForm = () => {
 
 const handleOpenForm = (job?: Job) => {
   if (job) {
-    // EDIT path: seed local-only state from the row being edited.
-    // Do NOT touch the shared new-job draft — preserves an unrelated
-    // in-progress new-job posting while the user edits an existing one.
-    setEditingJob(job);
-    setEditingFormData({
-      title: job.title,
-      company: job.company,
-      location: job.location,
-      type: job.type,
-      salaryRange: job.salary_range || '',
-      jobDescriptionUrl: job.job_description_url || '',
-      description: job.description || '',
-      requirements: job.requirements || '',
+    // EDIT path: start an edit session seeded from the row being
+    // edited. Lives in its own context slice — does NOT touch the
+    // shared new-job draft, so an unrelated in-progress new-job
+    // posting is preserved while the user edits an existing one.
+    // A non-null session doubles as "edit popup open".
+    draft.setEditSession({
+      job: job as unknown as Record<string, unknown>,
+      formData: {
+        title: job.title,
+        company: job.company,
+        location: job.location,
+        type: job.type,
+        salaryRange: job.salary_range || '',
+        jobDescriptionUrl: job.job_description_url || '',
+        description: job.description || '',
+        requirements: job.requirements || '',
+      },
     });
   } else {
     // NEW path: just open. Do NOT reset the context draft — the whole
     // point of the context is to preserve in-progress data across
     // sidebar nav, including the case where the recruiter comes back
     // and clicks "Create Job" again. Reset only happens on explicit
-    // Cancel/X (via onOpenChange below) or on successful submit.
-    setEditingJob(null);
-  }
-  if (job) {
-    setShowEditForm(true);
-  } else {
+    // Cancel/X or on successful submit. Any lingering edit session is
+    // dropped (edit takes render precedence, so it must end here —
+    // mirrors the old setEditingJob(null)).
+    draft.setEditSession(null);
     draft.setFormOpen(true);
   }
 };
@@ -240,9 +248,8 @@ const handleImport = async () => {
       await fetchJobs();
       console.timeEnd('[Jobs] fetchJobs');
 
-      // Close the right surface for the mode. resetForm() (below) also
-      // clears draft.formOpen for new-job mode via resetDraft.
-      setShowEditForm(false);
+      // resetForm() closes + clears the active mode: edit → editSession
+      // null; new → resetDraft (clears draft + formOpen).
       resetForm();
       console.log('[Jobs] handleSubmit success');
     } catch (error) {
@@ -269,6 +276,10 @@ const handleImport = async () => {
 
       await fetchJobs();
       setShowDeleteDialog(null);
+      // If the deleted row was mid-edit, end the (persistent) edit
+      // session — otherwise the edit popup would keep resurrecting a
+      // job that no longer exists.
+      if (editingJob?.id === jobId) draft.setEditSession(null);
       toast({
         title: "Job deleted",
         description: "The job posting has been removed.",
@@ -471,21 +482,25 @@ const handleImport = async () => {
             robust regardless of any future Radix behavior — there's no longer any
             path from a controlled-close transition to a draft reset. */}
         <Dialog
-          open={editingJob ? showEditForm : draft.formOpen}
+          open={editingJob ? true : draft.formOpen}
           onOpenChange={(open) => {
-            // Escape / click-outside: close only, preserve the draft.
-            // Setting draft.formOpen false here also stops the popup
-            // from auto-reopening — an explicit soft-close is a signal
-            // the recruiter wants it out of the way for now.
-            if (editingJob) setShowEditForm(open);
-            else draft.setFormOpen(open);
+            // Escape / click-outside. New-job: close only, preserve the
+            // draft (formOpen false also stops the auto-reopen — a
+            // soft-close signals the recruiter wants it out of the way).
+            // Edit: ends the session — same net effect as the old local
+            // behavior, where reopening re-seeded from the row anyway.
+            if (editingJob) {
+              if (!open) draft.setEditSession(null);
+            } else {
+              draft.setFormOpen(open);
+            }
           }}
         >
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto [&>button.absolute]:hidden">
             <button
               type="button"
               aria-label="Close and discard changes"
-              onClick={() => { resetForm(); setShowEditForm(false); }}
+              onClick={() => resetForm()}
               className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
             >
               <X className="h-4 w-4" />
@@ -667,7 +682,7 @@ const handleImport = async () => {
                   )}
 
                   <DialogFooter>
-                    <Button type="button" variant="outline" onClick={() => { resetForm(); setShowEditForm(false); }}>
+                    <Button type="button" variant="outline" onClick={() => resetForm()}>
                       Cancel
                     </Button>
                     <Button type="submit" disabled={submitting}>

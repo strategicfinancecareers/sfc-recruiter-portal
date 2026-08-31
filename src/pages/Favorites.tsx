@@ -121,7 +121,7 @@ const Favorites = () => {
     
     toast({
       title: "Introduction request sent",
-      description: "Thank you for your interest. Please give us 24-48 hours to connect with the candidate and see their interest in this role. We will email you once the candidate has accepted or rejected.",
+      description: "Thank you for your interest. Candidates agree to respond within 48 hours, though response times are not guaranteed. We will email you as soon as the candidate accepts or declines.",
     });
   };
 

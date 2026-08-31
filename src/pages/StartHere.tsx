@@ -3,7 +3,10 @@ import { Search, Handshake, CalendarCheck, BadgeCheck, ShieldCheck, ArrowRight, 
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import PricingModal from '../components/PricingModal';
+import PricingModal, { EARLY_BIRD_CODES, PLACEMENT_FEE_STANDARD, PLACEMENT_FEE_EARLY_BIRD, fmtUsd } from '../components/PricingModal';
+import RecruiterAgreementDialog from '../components/RecruiterAgreementDialog';
+import type { SignedRecord } from '@/lib/agreementDocument';
+import { RESPONSE_WINDOW_FOOTNOTE } from '@/lib/responseWindow';
 
 const howItWorksSteps = [
   {
@@ -19,7 +22,7 @@ const howItWorksSteps = [
   {
     icon: Clock,
     title: 'We Move Fast',
-    description: "Expect a response within 24 hours. Once approved, we'll reach out to the candidate on your behalf and confirm their interest.",
+    description: "We reach out to the candidate on your behalf and confirm their interest. Candidates agree to respond within 48 hours of an introduction request, and we send reminders to prompt them.",
   },
   {
     icon: CalendarCheck,
@@ -33,16 +36,11 @@ const howItWorksSteps = [
   },
 ];
 
-const PLAN_FEATURES_MONTHLY = [
+// One plan, two billing options — same features either way. Cancellation
+// terms live in the billing copy under the price, not in the feature list.
+const PLAN_FEATURES = [
   'Unlimited introduction requests',
-  'Candidate responses within 24hrs',
-  'Full contact details + resume on acceptance',
-  'Cancel anytime',
-];
-
-const PLAN_FEATURES_ANNUAL = [
-  'Unlimited introduction requests',
-  'Candidate responses within 24hrs',
+  'Most candidates respond within 48 hours*',
   'Full contact details + resume on acceptance',
   'Priority candidate matching',
   'Dedicated account support',
@@ -56,12 +54,61 @@ const StartHere = () => {
   const [showPricingModal, setShowPricingModal] = useState(false);
   const [pricingPlan, setPricingPlan] = useState<'monthly' | 'annual'>('monthly');
 
+  // Pricing-section billing toggle + early bird coupon (mirrors the
+  // PricingModal card; constants shared from PricingModal.tsx).
+  const [billing, setBilling] = useState<'monthly' | 'annual'>('annual');
+  const [showAgreement, setShowAgreement] = useState(false);
+  const [signAgreementOpen, setSignAgreementOpen] = useState(false);
+  // undefined = still loading, null = not signed
+  const [agreement, setAgreement] = useState<SignedRecord | null | undefined>(undefined);
+
+  const loadAgreement = () => {
+    if (!user?.id) return;
+    supabase
+      .from('users')
+      .select('recruiter_agreement_accepted_at, recruiter_agreement_signature, recruiter_agreement_initials_fee, recruiter_agreement_initials_comms, company')
+      .eq('id', user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        const d = data as any;
+        setAgreement(d?.recruiter_agreement_accepted_at ? {
+          acceptedAt: d.recruiter_agreement_accepted_at,
+          signature: d.recruiter_agreement_signature ?? null,
+          initialsFee: d.recruiter_agreement_initials_fee ?? null,
+          initialsComms: d.recruiter_agreement_initials_comms ?? null,
+          company: d?.company ?? null,
+          email: user.email ?? null,
+          recruiterName: [user.first_name, user.last_name].filter(Boolean).join(' ') || null,
+        } : null);
+      });
+  };
+  const [couponOpen, setCouponOpen] = useState(false);
+  const [couponInput, setCouponInput] = useState('');
+  const [couponApplied, setCouponApplied] = useState(false);
+  const [couponError, setCouponError] = useState('');
+
+  const applyCoupon = () => {
+    const code = couponInput.trim().toUpperCase();
+    if (!code) return;
+    if (EARLY_BIRD_CODES.includes(code)) {
+      setCouponApplied(true);
+      setCouponError('');
+    } else {
+      setCouponApplied(false);
+      setCouponError('That code is not valid. Check the spelling and try again.');
+    }
+  };
+  const placementFee = couponApplied ? PLACEMENT_FEE_EARLY_BIRD : PLACEMENT_FEE_STANDARD;
+
   useEffect(() => {
     if (!user?.id) return;
 
     // Fetch subscription status
     supabase.from('users').select('is_subscribed').eq('id', user.id).single()
       .then(({ data }) => { if (data?.is_subscribed) setIsSubscribed(true); });
+
+    // Recruiter agreement signature (Getting Started step 2)
+    loadAgreement();
 
     // Fetch job count
     supabase.from('jobs').select('id', { count: 'exact', head: true }).eq('user_id', user.id)
@@ -84,6 +131,26 @@ const StartHere = () => {
     {
       label: 'Create Account',
       done: true,
+    },
+    {
+      label: 'Agree to Terms',
+      done: !!agreement,
+      loading: agreement === undefined,
+      action: agreement === null ? (
+        <button
+          onClick={() => setSignAgreementOpen(true)}
+          className="text-xs font-semibold text-[#006a2d] underline underline-offset-2 hover:text-[#005a26] whitespace-nowrap"
+        >
+          Review & Sign →
+        </button>
+      ) : agreement ? (
+        <button
+          onClick={() => setShowAgreement(true)}
+          className="text-xs font-semibold text-[#006a2d] underline underline-offset-2 hover:text-[#005a26] whitespace-nowrap"
+        >
+          View →
+        </button>
+      ) : null,
     },
     {
       label: 'Start Membership',
@@ -153,7 +220,7 @@ const StartHere = () => {
             />
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
             {checklistSteps.map((step, i) => (
               <div
                 key={i}
@@ -216,17 +283,38 @@ const StartHere = () => {
             </div>
           )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-            {/* Monthly */}
-            <div className="border border-gray-200 rounded-xl p-6 flex flex-col gap-4">
-              <div className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Monthly</div>
+          <div className="max-w-xl mx-auto space-y-4">
+            {/* Billing toggle */}
+            <div className="grid grid-cols-2 rounded-lg border border-gray-200 p-1 bg-gray-50">
+              {(['monthly', 'annual'] as const).map(b => (
+                <button
+                  key={b}
+                  type="button"
+                  onClick={() => setBilling(b)}
+                  className={`rounded-md py-2 text-sm font-semibold transition-colors ${
+                    billing === b
+                      ? 'bg-white shadow-sm text-[#004a1f] border border-[#008037]/30'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  {b === 'monthly' ? 'Monthly' : 'Annual (save 33%)'}
+                </button>
+              ))}
+            </div>
+
+            {/* Single plan card */}
+            <div className="border-2 border-[#008037] rounded-xl p-6 space-y-4 bg-white">
               <div>
-                <span className="text-4xl font-bold text-gray-900">$500</span>
-                <span className="text-gray-500 text-sm">/mo</span>
+                <span className="text-4xl font-bold text-gray-900">{billing === 'monthly' ? '$150' : '$100'}</span>
+                <span className="text-gray-500 text-sm">/month</span>
               </div>
-              <p className="text-sm text-gray-500">Billed monthly</p>
-              <ul className="space-y-2 flex-1">
-                {PLAN_FEATURES_MONTHLY.map(f => (
+              <p className="text-sm text-gray-500">
+                {billing === 'monthly'
+                  ? 'Billed monthly. Cancel anytime, effective at the end of the current month.'
+                  : 'Billed once a year as $1,200. Renews annually. Cancel anytime before renewal.'}
+              </p>
+              <ul className="space-y-2">
+                {PLAN_FEATURES.map(f => (
                   <li key={f} className="flex items-start gap-2 text-sm text-gray-600">
                     <CheckCircle2 className="h-4 w-4 text-[#008037] mt-0.5 shrink-0" />
                     {f}
@@ -238,56 +326,84 @@ const StartHere = () => {
                   <CheckCircle2 className="h-4 w-4" /> Your Current Plan
                 </div>
               ) : (
-                <button
-                  onClick={() => openPricingModal('monthly')}
-                  className="w-full py-2.5 rounded-lg bg-[#008037] hover:bg-[#006a2d] text-white font-semibold text-sm transition-colors"
-                >
-                  Get Started Monthly
-                </button>
+                <>
+                  <button
+                    onClick={() => openPricingModal(billing)}
+                    className="w-full py-2.5 rounded-lg bg-[#008037] hover:bg-[#006a2d] text-white font-semibold text-sm transition-colors"
+                  >
+                    Get Started
+                  </button>
+                  <p className="text-[11px] text-gray-400 text-center">
+                    {agreement ? 'Recruiter terms signed.' : 'You will sign the recruiter terms before payment.'}{' '}
+                    <button
+                      type="button"
+                      onClick={() => (agreement ? setShowAgreement(true) : setSignAgreementOpen(true))}
+                      className="text-[#006a2d] underline underline-offset-2 hover:text-[#005a26]"
+                    >
+                      {agreement ? 'View them' : 'Read and sign now'}
+                    </button>
+                  </p>
+                </>
               )}
             </div>
 
-            {/* Annual */}
-            <div className="border-2 border-[#008037] rounded-xl p-6 flex flex-col gap-4 relative">
-              <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#008037] text-white text-xs font-bold px-3 py-1 rounded-full">
-                Best Value
-              </span>
-              <div className="text-sm font-semibold text-[#008037] uppercase tracking-wide">Annual</div>
-              <div>
-                <span className="text-4xl font-bold text-gray-900">$300</span>
-                <span className="text-gray-500 text-sm">/mo</span>
+            {/* Placement fee: clear and upfront, never a footnote */}
+            <div className="rounded-xl border border-gray-200 bg-gray-50 p-5 space-y-3">
+              <div className="flex items-baseline justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">Placement fee</p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Due only when you successfully hire an SFC candidate.
+                  </p>
+                </div>
+                <div className="text-right shrink-0">
+                  <p className="text-2xl font-bold text-gray-900">{fmtUsd(placementFee)}</p>
+                  {couponApplied ? (
+                    <span className="inline-block bg-[#008037] text-white text-[10px] font-semibold rounded-full px-2 py-0.5 mt-0.5">
+                      Early bird applied
+                    </span>
+                  ) : (
+                    <p className="text-[10px] text-gray-400">per placement</p>
+                  )}
+                </div>
               </div>
-              <p className="text-sm text-gray-500">Billed annually · Save $2,400/year</p>
-              <ul className="space-y-2 flex-1">
-                {PLAN_FEATURES_ANNUAL.map(f => (
-                  <li key={f} className="flex items-start gap-2 text-sm text-gray-600">
-                    <CheckCircle2 className="h-4 w-4 text-[#008037] mt-0.5 shrink-0" />
-                    {f}
-                  </li>
-                ))}
-              </ul>
-              {isSubscribed ? (
-                <div className="flex items-center gap-2 text-sm font-semibold text-[#006a2d]">
-                  <CheckCircle2 className="h-4 w-4" /> Active
+
+              {!couponApplied && !couponOpen ? (
+                <button
+                  type="button"
+                  onClick={() => setCouponOpen(true)}
+                  className="text-xs text-gray-400 hover:text-[#006a2d] underline underline-offset-2 text-left"
+                >
+                  Have a promotion?
+                </button>
+              ) : !couponApplied ? (
+                <div>
+                  <div className="flex gap-2">
+                    <input
+                      value={couponInput}
+                      onChange={e => { setCouponInput(e.target.value); setCouponError(''); }}
+                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); applyCoupon(); } }}
+                      placeholder="Promotion code"
+                      autoFocus
+                      className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#008037] focus:border-transparent"
+                    />
+                    <button
+                      type="button"
+                      onClick={applyCoupon}
+                      disabled={!couponInput.trim()}
+                      className="px-4 py-2 rounded-lg border border-gray-300 bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                    >
+                      Apply
+                    </button>
+                  </div>
+                  {couponError && <p className="text-xs text-red-600 mt-1.5">{couponError}</p>}
                 </div>
               ) : (
-                <button
-                  onClick={() => openPricingModal('annual')}
-                  className="w-full py-2.5 rounded-lg bg-[#008037] hover:bg-[#006a2d] text-white font-semibold text-sm transition-colors"
-                >
-                  Get Started Annually
-                </button>
+                <p className="text-xs text-[#006a2d]">
+                  Early bird rate locked in: {fmtUsd(PLACEMENT_FEE_EARLY_BIRD)} per placement instead of {fmtUsd(PLACEMENT_FEE_STANDARD)}.
+                </p>
               )}
             </div>
-          </div>
-
-          <div className="mt-4 text-center space-y-1">
-            <p className="text-xs text-gray-400">
-              * Plus 5% of candidate starting salary upon successful placement, including signing bonus.
-            </p>
-            <p className="text-xs text-gray-400">
-              All plans include full platform access. Cancel monthly plan anytime.
-            </p>
           </div>
         </div>
 
@@ -325,7 +441,26 @@ const StartHere = () => {
           </Link>
         </div>
 
+        {/* Page footnotes */}
+        <p className="text-[11px] text-gray-400 leading-relaxed text-center mt-14 max-w-2xl mx-auto">
+          {RESPONSE_WINDOW_FOOTNOTE}
+        </p>
+
       </div>
+
+      <RecruiterAgreementDialog
+        open={showAgreement}
+        onOpenChange={setShowAgreement}
+        mode="view"
+        record={agreement ?? undefined}
+      />
+
+      <RecruiterAgreementDialog
+        open={signAgreementOpen}
+        onOpenChange={setSignAgreementOpen}
+        mode="sign"
+        onSigned={loadAgreement}
+      />
 
       <PricingModal
         open={showPricingModal}

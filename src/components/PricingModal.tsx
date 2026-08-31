@@ -27,9 +27,9 @@ const FEATURES = [
 // Display pricing only: the fee itself is invoiced off-platform, so record
 // which code a recruiter used when you invoice. Edit to add or retire codes.
 // Exported so the StartHere pricing section stays in lockstep.
-export const EARLY_BIRD_CODES = ['EARLYBIRD', 'SFCEARLY'];
+export const EARLY_BIRD_CODES = ['SFCEARLYBIRD'];
 
-export const PLACEMENT_FEE_STANDARD = 15000;
+export const PLACEMENT_FEE_STANDARD = 10000;
 export const PLACEMENT_FEE_EARLY_BIRD = 5000;
 
 export const fmtUsd = (n: number) => `$${n.toLocaleString('en-US')}`;
@@ -44,11 +44,15 @@ export default function PricingModal({ open, onOpenChange, userId, userEmail, de
   const [step, setStep] = useState<'plan' | 'agreement'>('plan');
   const [checkoutError, setCheckoutError] = useState('');
 
-  // Subscription promo code (3 months free) — validated server-side so the
-  // code list never ships in the client bundle.
+  // Subscription promo code — validated server-side so the code list never
+  // ships in the client bundle. Hidden behind a small link: codes are
+  // handed out privately, so the checkout should not advertise that one
+  // exists or what it grants.
+  const [promoOpen, setPromoOpen] = useState(false);
   const [promoInput, setPromoInput] = useState('');
 
-  // Early bird PLACEMENT FEE coupon (display only)
+  // Early bird PLACEMENT FEE coupon (display only), same discreet treatment
+  const [couponOpen, setCouponOpen] = useState(false);
   const [couponInput, setCouponInput] = useState('');
   const [couponApplied, setCouponApplied] = useState(false);
   const [couponError, setCouponError] = useState('');
@@ -174,18 +178,27 @@ export default function PricingModal({ open, onOpenChange, userId, userEmail, de
                 ))}
               </ul>
 
-              {/* Subscription promo code (3 months free) */}
-              <div>
-                <Input
-                  value={promoInput}
-                  onChange={e => { setPromoInput(e.target.value); setCheckoutError(''); }}
-                  placeholder="Promo code (optional)"
-                  className="h-9 text-sm"
-                />
-                <p className="text-[11px] text-muted-foreground mt-1">
-                  A valid promo code gives you the first 3 months free. Validated at checkout.
-                </p>
-              </div>
+              {/* Subscription promo code — revealed on request only */}
+              {promoOpen ? (
+                <div>
+                  <Input
+                    value={promoInput}
+                    onChange={e => { setPromoInput(e.target.value); setCheckoutError(''); }}
+                    placeholder="Promo code"
+                    autoFocus
+                    className="h-9 text-sm"
+                  />
+                  <p className="text-[11px] text-muted-foreground mt-1">Applied at checkout.</p>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setPromoOpen(true)}
+                  className="text-xs text-gray-400 hover:text-[#006a2d] underline underline-offset-2 text-left"
+                >
+                  Have a promo code?
+                </button>
+              )}
 
               {checkoutError && (
                 <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{checkoutError}</p>
@@ -221,7 +234,7 @@ export default function PricingModal({ open, onOpenChange, userId, userEmail, de
                 </div>
               </div>
 
-              {!couponApplied && (
+              {!couponApplied && (couponOpen ? (
                 <div>
                   <div className="flex gap-2">
                     <div className="relative flex-1">
@@ -230,7 +243,8 @@ export default function PricingModal({ open, onOpenChange, userId, userEmail, de
                         value={couponInput}
                         onChange={e => { setCouponInput(e.target.value); setCouponError(''); }}
                         onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); applyCoupon(); } }}
-                        placeholder="Early bird code"
+                        placeholder="Promotion code"
+                        autoFocus
                         className="pl-8 h-9 text-sm bg-white"
                       />
                     </div>
@@ -240,7 +254,15 @@ export default function PricingModal({ open, onOpenChange, userId, userEmail, de
                   </div>
                   {couponError && <p className="text-xs text-red-600 mt-1.5">{couponError}</p>}
                 </div>
-              )}
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setCouponOpen(true)}
+                  className="text-xs text-gray-400 hover:text-[#006a2d] underline underline-offset-2 text-left"
+                >
+                  Have a promotion?
+                </button>
+              ))}
               {couponApplied && (
                 <p className="text-xs text-[#006a2d]">
                   Early bird rate locked in: {fmtUsd(PLACEMENT_FEE_EARLY_BIRD)} per placement instead of {fmtUsd(PLACEMENT_FEE_STANDARD)}.

@@ -82,6 +82,7 @@ const StartHere = () => {
         } : null);
       });
   };
+  const [couponOpen, setCouponOpen] = useState(false);
   const [couponInput, setCouponInput] = useState('');
   const [couponApplied, setCouponApplied] = useState(false);
   const [couponError, setCouponError] = useState('');
@@ -332,9 +333,6 @@ const StartHere = () => {
                   >
                     Get Started
                   </button>
-                  <p className="text-[11px] text-gray-400 leading-relaxed">
-                    {RESPONSE_WINDOW_FOOTNOTE}
-                  </p>
                   <p className="text-[11px] text-gray-400 text-center">
                     {agreement ? 'Recruiter terms signed.' : 'You will sign the recruiter terms before payment.'}{' '}
                     <button
@@ -370,14 +368,23 @@ const StartHere = () => {
                 </div>
               </div>
 
-              {!couponApplied ? (
+              {!couponApplied && !couponOpen ? (
+                <button
+                  type="button"
+                  onClick={() => setCouponOpen(true)}
+                  className="text-xs text-gray-400 hover:text-[#006a2d] underline underline-offset-2 text-left"
+                >
+                  Have a promotion?
+                </button>
+              ) : !couponApplied ? (
                 <div>
                   <div className="flex gap-2">
                     <input
                       value={couponInput}
                       onChange={e => { setCouponInput(e.target.value); setCouponError(''); }}
                       onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); applyCoupon(); } }}
-                      placeholder="Early bird code"
+                      placeholder="Promotion code"
+                      autoFocus
                       className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#008037] focus:border-transparent"
                     />
                     <button
@@ -433,6 +440,11 @@ const StartHere = () => {
             <ArrowRight className="h-4 w-4" />
           </Link>
         </div>
+
+        {/* Page footnotes */}
+        <p className="text-[11px] text-gray-400 leading-relaxed text-center mt-14 max-w-2xl mx-auto">
+          {RESPONSE_WINDOW_FOOTNOTE}
+        </p>
 
       </div>
 

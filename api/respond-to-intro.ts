@@ -271,9 +271,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         + '<div style="background:#f0faf6;border-left:4px solid #0F6E56;padding:16px;border-radius:4px;margin:24px 0">'
         + '<p style="margin:0 0 10px"><strong>Candidate Details:</strong></p>'
         + `<p style="margin:0 0 6px">👤 <strong>${candidateName}</strong></p>`
-        + `<p style="margin:0 0 6px">📧 <a href="mailto:${candidate?.email}" style="color:#0F6E56">${candidate?.email}</a></p>`
+        + `<p style="margin:0 0 6px">📧 <a href="mailto:${candidate?.email}?cc=talent@strategicfinancecareers.com" style="color:#0F6E56">${candidate?.email}</a></p>`
         + (candidate?.phone ? `<p style="margin:0">📱 <a href="tel:${candidate?.phone}" style="color:#0F6E56">${candidate?.phone}</a></p>` : '')
         + '</div>'
+        + `<div style="margin:16px 0"><a href="https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(candidate?.email || '')}&cc=${encodeURIComponent('talent@strategicfinancecareers.com')}&su=${encodeURIComponent('Introduction via SFC Talent' + (jobTitle ? ' - ' + jobTitle : ''))}" style="display:inline-block;background:#0F6E56;color:white;text-decoration:none;padding:12px 24px;border-radius:6px;font-weight:600">✉️ Email ${candidateName}</a></div>`
+        + '<p style="color:#666;font-size:13px">The button opens Gmail with <strong>talent@strategicfinancecareers.com</strong> pre-filled as cc. Per your recruiter terms, please keep that address cc\'d on all emails with this candidate.</p>'
         + resumeBlock
         + '<p style="color:#666;font-size:14px">We recommend reaching out within 24 hours while their interest is fresh.</p>'
         + '<hr style="border:none;border-top:1px solid #eee;margin:24px 0" />'

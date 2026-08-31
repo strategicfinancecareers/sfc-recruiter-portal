@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { MapPin, Handshake, Shield, ChevronDown, ChevronUp, Eye, GraduationCap, Mail, Phone, Linkedin, Download, Loader2, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { gmailComposeUrl, CC_REMINDER } from '@/lib/emailCandidate';
+import EmailCandidateBlock from './EmailCandidateBlock';
 
 // Anonymous candidate card — the full dossier view shown to recruiters
 // when they click "View Profile" on /browse, and now also used to render
@@ -410,24 +410,7 @@ export default function AnonymousCandidateCard(props: Props) {
                   <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Contact</h3>
                   <div className="space-y-2.5">
                     {revealedProps?.email && (
-                      <>
-                        <a
-                          href={gmailComposeUrl(revealedProps.email, `Introduction via SFC Talent`)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="w-full inline-flex items-center justify-center gap-2 bg-[#008037] hover:bg-[#006a2d] text-white rounded-lg px-3 py-2 text-xs font-semibold transition-colors"
-                        >
-                          <Mail className="w-3.5 h-3.5 shrink-0" />
-                          Email candidate
-                        </a>
-                        <p className="text-[10px] text-gray-500 leading-relaxed">
-                          Opens Gmail with talent@strategicfinancecareers.com cc'd. {CC_REMINDER}
-                        </p>
-                        <p className="flex items-center gap-2 text-xs font-medium text-[#005a26] min-w-0">
-                          <Mail className="w-3.5 h-3.5 shrink-0" />
-                          <span className="truncate select-all">{revealedProps.email}</span>
-                        </p>
-                      </>
+                      <EmailCandidateBlock email={revealedProps.email} subject="Introduction via SFC Talent" />
                     )}
                     {revealedProps?.phone && (
                       <a href={`tel:${revealedProps.phone}`} className="flex items-center gap-2 text-xs font-medium text-[#005a26] hover:underline">

@@ -30,6 +30,34 @@ const IntroductionRequests = () => {
 
   const [downloadingResume, setDownloadingResume] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
+
+  // Per-card resume download (tester feedback: the resume was only inside
+  // the View-full-profile modal and read as missing). Admins/owners pass
+  // adminUserId — get-resume-url's recruiter path requires the caller to
+  // BE the intro's requester, which an admin viewing all intros is not.
+  const [cardDownloadingId, setCardDownloadingId] = useState<string | null>(null);
+  const [cardDownloadError, setCardDownloadError] = useState<{ id: string; message: string } | null>(null);
+  const downloadCardResume = async (candidateId: string) => {
+    if (!user?.id || cardDownloadingId) return;
+    setCardDownloadingId(candidateId);
+    setCardDownloadError(null);
+    try {
+      const authParam = (user.role === 'admin' || user.role === 'owner')
+        ? `adminUserId=${encodeURIComponent(user.id)}`
+        : `requesterId=${encodeURIComponent(user.id)}`;
+      const res = await fetch(`/api/get-resume-url?candidateId=${encodeURIComponent(candidateId)}&${authParam}`);
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok || !body.url) {
+        throw new Error(body.error || `Failed to generate download link (${res.status})`);
+      }
+      window.open(body.url, '_blank', 'noopener,noreferrer');
+    } catch (err: any) {
+      console.error('[IntroductionRequests] card resume download failed:', err);
+      setCardDownloadError({ id: candidateId, message: err?.message || 'Failed to generate download link' });
+    } finally {
+      setCardDownloadingId(null);
+    }
+  };
   // Cards display intros sorted by request date (newest first). The
   // multi-column sort UI from the old table layout is gone; if we add
   // sort controls back, restore these as useState.
@@ -498,6 +526,23 @@ const openApprovedModal = (request: IntroductionRequest) => {
                                 email={request.candidate.email}
                                 subject={`Introduction via SFC Talent${request.job?.title ? ` - ${request.job.title}` : ''}`}
                               />
+                            )}
+                            {request.candidate.resume_full_url && (
+                              <div>
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); downloadCardResume(request.candidate.id); }}
+                                  disabled={cardDownloadingId === request.candidate.id}
+                                  className="w-full inline-flex items-center justify-center gap-1.5 border border-[#008037]/40 bg-white hover:bg-[#008037]/5 disabled:opacity-60 text-[#005a26] rounded-lg px-3 py-2 text-xs font-semibold transition-colors"
+                                >
+                                  {cardDownloadingId === request.candidate.id
+                                    ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Generating link…</>
+                                    : <><Download className="h-3.5 w-3.5 shrink-0" /> Download resume</>}
+                                </button>
+                                {cardDownloadError?.id === request.candidate.id && (
+                                  <p className="text-[10px] text-red-600 mt-1">{cardDownloadError.message}</p>
+                                )}
+                              </div>
                             )}
                             {request.candidate.phone && (
                               <a

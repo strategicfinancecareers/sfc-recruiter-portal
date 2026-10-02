@@ -429,7 +429,7 @@ const openApprovedModal = (request: IntroductionRequest) => {
                   //   pending/rejected → anonymous display_name
                   // Admin sees the real name as a small subtitle either way.
                   const isApproved = request.status === 'approved';
-                  const isAdmin = user?.role === 'admin';
+                  const isAdmin = (user?.role === 'admin' || user?.role === 'owner');
                   const titleName = isApproved
                     ? (request.candidate.name || request.candidate.display_name)
                     : request.candidate.display_name;

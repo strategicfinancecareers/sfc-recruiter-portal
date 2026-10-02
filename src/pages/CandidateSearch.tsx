@@ -278,7 +278,7 @@ export default function CandidateSearch() {
 
   const handleIntroduceMe = (candidate: Candidate) => {
     // Admins can't request intros
-    if (user?.role === 'admin') {
+    if ((user?.role === 'admin' || user?.role === 'owner')) {
       setShowAdminWarningDialog(true);
       return;
     }
@@ -411,7 +411,7 @@ export default function CandidateSearch() {
       <div className="flex-1 overflow-auto">
         <div className="p-4 sm:p-6">
           {/* Free-mode banner */}
-          {!isSubscribed && user?.role !== 'admin' && (
+          {!isSubscribed && (user?.role !== 'admin' && user?.role !== 'owner') && (
             <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
               <span>🔓 You're browsing in free mode. Subscribe to request introductions.</span>
               <button
@@ -645,7 +645,7 @@ export default function CandidateSearch() {
           {!loading && viewMode === 'grid' && (
             <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
               {filteredCandidates.map((candidate, idx) => {
-                const locked = !isSubscribed && user?.role !== 'admin' && idx >= 6;
+                const locked = !isSubscribed && (user?.role !== 'admin' && user?.role !== 'owner') && idx >= 6;
                 return locked ? (
                   <div key={candidate.id} className="relative">
                     <Card className="h-full flex flex-col pointer-events-none select-none" style={{ filter: 'blur(4px)' }}>
@@ -686,7 +686,7 @@ export default function CandidateSearch() {
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
                         <CardTitle className="text-lg font-heading">{candidate.display_name}</CardTitle>
-                        {user?.role === 'admin' && (
+                        {(user?.role === 'admin' || user?.role === 'owner') && (
                           <p className="text-sm text-muted-foreground">{candidate.name}</p>
                         )}
                         <CardDescription className="text-primary font-medium">
@@ -822,7 +822,7 @@ export default function CandidateSearch() {
                 );
               })}
               {/* Unlock wall — shown after 6th card for unsubscribed */}
-              {!isSubscribed && user?.role !== 'admin' && filteredCandidates.length > 6 && (
+              {!isSubscribed && (user?.role !== 'admin' && user?.role !== 'owner') && filteredCandidates.length > 6 && (
                 <div className="col-span-full mt-2 flex flex-col items-center justify-center py-10 px-6 bg-white border border-gray-200 rounded-2xl text-center shadow-sm">
                   <div className="text-3xl mb-3">🔒</div>
                   <h3 className="text-lg font-bold text-gray-900 mb-1">Unlock the Full Talent Network</h3>
@@ -839,7 +839,7 @@ export default function CandidateSearch() {
           {!loading && viewMode === 'list' && (
             <div className="border border-gray-200 rounded-xl overflow-hidden bg-white">
               {filteredCandidates.map((candidate, idx) => {
-                const locked = !isSubscribed && user?.role !== 'admin' && idx >= 6;
+                const locked = !isSubscribed && (user?.role !== 'admin' && user?.role !== 'owner') && idx >= 6;
                 return locked ? (
                   <div key={candidate.id} className="relative border-b border-gray-100 last:border-b-0">
                     <div className="flex items-center gap-4 px-5 py-4 pointer-events-none select-none" style={{ filter: 'blur(4px)' }}>
@@ -945,7 +945,7 @@ export default function CandidateSearch() {
                 );
               })}
               {/* Unlock wall for list view */}
-              {!isSubscribed && user?.role !== 'admin' && filteredCandidates.length > 6 && (
+              {!isSubscribed && (user?.role !== 'admin' && user?.role !== 'owner') && filteredCandidates.length > 6 && (
                 <div className="flex flex-col items-center justify-center py-10 px-6 text-center border-t border-gray-100">
                   <div className="text-3xl mb-3">🔒</div>
                   <h3 className="text-lg font-bold text-gray-900 mb-1">Unlock the Full Talent Network</h3>
@@ -983,10 +983,10 @@ export default function CandidateSearch() {
                 mode="recruiter"
                 insightBullets={insightBullets}
                 insightLoading={insightLoading}
-                isAdmin={user?.role === 'admin'}
+                isAdmin={(user?.role === 'admin' || user?.role === 'owner')}
                 introCtaDisabled={pending || complete}
                 introCtaLabel={pending ? 'Intro Requested' : complete ? 'Intro Complete' : 'Request Introduction'}
-                showSubscribeHint={!isSubscribed && user?.role !== 'admin'}
+                showSubscribeHint={!isSubscribed && (user?.role !== 'admin' && user?.role !== 'owner')}
                 onRequestIntro={() => { setSelectedCandidate(null); handleIntroduceMe(c); }}
               />
             );

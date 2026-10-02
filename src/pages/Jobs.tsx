@@ -92,7 +92,7 @@ const Jobs = () => {
         .select('*');
 
       // If user is not admin, only show their own jobs
-      if (user.role !== 'admin') {
+      if ((user.role !== 'admin' && user.role !== 'owner')) {
         query = query.eq('user_id', session.user.id);
       }
 

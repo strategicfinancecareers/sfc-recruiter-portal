@@ -102,7 +102,7 @@ const Favorites = () => {
 
   const handleIntroduceMe = (candidate: any) => {
     // Check if user is admin
-    if (user?.role === 'admin') {
+    if ((user?.role === 'admin' || user?.role === 'owner')) {
       toast({
         title: "Cannot Request Introductions",
         description: "You are an admin, you cannot request introductions",
@@ -247,7 +247,7 @@ const Favorites = () => {
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
                         <CardTitle className="text-lg font-heading">{candidate.display_name}</CardTitle>
-                        {user?.role === 'admin' && (
+                        {(user?.role === 'admin' || user?.role === 'owner') && (
                           <p className="text-sm text-muted-foreground">{candidate.name}</p>
                         )}
                         <CardDescription className="text-primary font-medium">
@@ -348,7 +348,7 @@ const Favorites = () => {
             <div className="flex items-center justify-between">
               <div>
                 <DialogTitle className="font-heading">{selectedCandidate?.display_name}</DialogTitle>
-                {user?.role === 'admin' && (
+                {(user?.role === 'admin' || user?.role === 'owner') && (
                   <p className="text-sm text-muted-foreground">{selectedCandidate?.name}</p>
                 )}
                 <DialogDescription>{selectedCandidate?.label}</DialogDescription>

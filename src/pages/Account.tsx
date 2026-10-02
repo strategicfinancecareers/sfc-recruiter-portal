@@ -182,7 +182,7 @@ const Account = () => {
           </Card>
 
           {/* Admin Notifications */}
-          {user?.role === 'admin' && (
+          {(user?.role === 'admin' || user?.role === 'owner') && (
             <Card>
               <CardHeader>
                 <CardTitle>Notifications</CardTitle>

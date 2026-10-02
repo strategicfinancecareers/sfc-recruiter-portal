@@ -22,13 +22,13 @@
 // Stored on users.recruiter_agreement_version for the record. Deliberately
 // NOT displayed in the UI: version and effective-date metadata read as
 // legal clutter to a recruiter signing up.
-export const RECRUITER_AGREEMENT_VERSION = '1.0';
+export const RECRUITER_AGREEMENT_VERSION = '1.1';
 export const RECRUITER_AGREEMENT_TITLE = 'SFC Talent Recruiter Terms and Conditions';
 
 // CONFIRM THIS. Used in the governing-law and venue clause.
 export const GOVERNING_LAW_STATE = 'California';
 
-export const SFC_CONTACT_EMAIL = 'talent@strategicfinancecareers.com';
+export const SFC_CONTACT_EMAIL = 'team@strategicfinancecareers.com';
 
 // ─── The two clauses that require separate initials ──────────────────────
 // These are the commercial heart of the agreement, so they are called out

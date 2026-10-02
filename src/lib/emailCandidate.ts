@@ -1,7 +1,7 @@
 import { SFC_CONTACT_EMAIL } from './recruiterAgreement';
 
 // Gmail compose link for contacting a matched candidate, with
-// talent@strategicfinancecareers.com pre-filled as cc.
+// team@strategicfinancecareers.com pre-filled as cc.
 //
 // The cc is the recruiter's Section 6 obligation (they initialed it), so
 // every "email the candidate" affordance in the product routes through

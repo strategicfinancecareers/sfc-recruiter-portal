@@ -11,7 +11,7 @@ import { SFC_CONTACT_EMAIL } from '@/lib/recruiterAgreement';
 //                                tooltip carries the cc obligation instead
 //                                of a paragraph of always-visible copy
 //   candidate@email.com  [copy]
-//   cc talent@strategicfinancecareers.com  [copy]
+//   cc team@strategicfinancecareers.com  [copy]
 
 function CopyButton({ value, label }: { value: string; label: string }) {
   const [copied, setCopied] = useState(false);

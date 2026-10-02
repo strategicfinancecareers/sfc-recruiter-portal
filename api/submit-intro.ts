@@ -34,7 +34,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.log('[submit-intro] calling send-intro-email for introId:', intro.id);
     try {
       const emailRes = await fetch(
-        `${process.env.VITE_APP_URL || 'https://sfc-recruiter-portal.vercel.app'}/api/send-intro-email`,
+        `${process.env.VITE_APP_URL || 'https://talent.strategicfinancecareers.com'}/api/send-intro-email`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

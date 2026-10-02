@@ -2,7 +2,7 @@
  * Stripe webhook handler — called by Stripe after a successful checkout.
  *
  * Set up in Stripe Dashboard → Webhooks → Add endpoint:
- *   URL: https://sfc-recruiter-portal.vercel.app/api/payment-success
+ *   URL: https://talent.strategicfinancecareers.com/api/payment-success
  *   Events: checkout.session.completed
  *
  * Required env vars:

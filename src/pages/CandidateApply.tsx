@@ -1202,7 +1202,7 @@ function SuccessScreen({ firstName }: { firstName: string }) {
           <p className="text-sm font-semibold text-emerald-900 mb-1">Your dashboard</p>
           <p className="text-xs text-emerald-700 mb-4 leading-relaxed">
             Access your dashboard anytime at{' '}
-            <span className="font-medium">sfc-recruiter-portal.vercel.app/candidate-dashboard</span>
+            <span className="font-medium">talent.strategicfinancecareers.com/candidate-dashboard</span>
           </p>
           <Link
             to="/candidate-dashboard"
@@ -2423,7 +2423,7 @@ export default function CandidateApply() {
                     // so they don't see "Create Account" again after
                     // they just verified. The ?mode=signin lazy-initializer
                     // in this same file's authTab useState picks it up.
-                    options: { emailRedirectTo: 'https://sfc-recruiter-portal.vercel.app/apply?mode=signin' },
+                    options: { emailRedirectTo: 'https://talent.strategicfinancecareers.com/apply?mode=signin' },
                   });
                   // An already-registered email surfaces two different ways
                   // depending on Supabase config/version:

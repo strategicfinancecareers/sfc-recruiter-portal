@@ -15,7 +15,7 @@ import { Resend } from 'resend';
 // No email is sent for these two actions — access revocation is an
 // internal admin decision.
 
-const APP_URL = 'https://sfc-recruiter-portal.vercel.app';
+const APP_URL = 'https://talent.strategicfinancecareers.com';
 const FROM_ADDR = 'SFC Talent <noreply@strategicfinancecareers.com>';
 
 const resend = new Resend(process.env.RESEND_API_KEY);

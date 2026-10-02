@@ -347,7 +347,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // Auth account is created during signup — just use the plain dashboard URL
-    const dashboardLink = 'https://sfc-recruiter-portal.vercel.app/candidate-dashboard';
+    const dashboardLink = 'https://talent.strategicfinancecareers.com/candidate-dashboard';
 
     // ── Welcome email to candidate ────────────────────────────────────────────
     const welcomeHtml = '<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">'
@@ -501,7 +501,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (enabled) {
           const draftBase = process.env.VERCEL_URL
             ? `https://${process.env.VERCEL_URL}`
-            : 'https://sfc-recruiter-portal.vercel.app';
+            : 'https://talent.strategicfinancecareers.com';
           // Fire-and-forget. Logs but never rethrows.
           void fetch(`${draftBase}/api/generate-sfc-take`, {
             method: 'POST',

@@ -119,7 +119,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
-  const origin = req.headers.origin || 'https://sfc-recruiter-portal.vercel.app';
+  const origin = req.headers.origin || 'https://talent.strategicfinancecareers.com';
   const priceConfig = PLANS[plan];
 
   try {

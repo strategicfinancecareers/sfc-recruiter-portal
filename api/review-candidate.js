@@ -12,7 +12,7 @@ import { Resend } from 'resend';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-const DASHBOARD_URL = 'https://sfc-recruiter-portal.vercel.app/candidate-dashboard';
+const DASHBOARD_URL = 'https://talent.strategicfinancecareers.com/candidate-dashboard';
 const FROM_ADDR = 'SFC Talent <noreply@strategicfinancecareers.com>';
 
 const VALID_ACTIONS = new Set(['approve', 'reject', 'reactivate', 'deactivate']);

@@ -12,7 +12,7 @@ import { Resend } from 'resend';
 
 const RECRUITER_ROLE_ID = 'e7b112a8-8493-46e6-bc02-ab8ca66a746a';
 const ADMIN_NOTIFY_EMAIL = 'team@strategicfinancecareers.com';
-const APP_URL = 'https://sfc-recruiter-portal.vercel.app';
+const APP_URL = 'https://talent.strategicfinancecareers.com';
 const FROM_ADDR = 'SFC Talent <noreply@strategicfinancecareers.com>';
 
 const resend = new Resend(process.env.RESEND_API_KEY);

@@ -8,7 +8,7 @@ const supabase = createClient(
 );
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-const DASHBOARD_URL = 'https://sfc-recruiter-portal.vercel.app/candidate-dashboard';
+const DASHBOARD_URL = 'https://talent.strategicfinancecareers.com/candidate-dashboard';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
@@ -40,7 +40,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const html = `
 <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;color:#111">
-  <img src="https://sfc-recruiter-portal.vercel.app/logo.png" height="40" style="margin-bottom:24px" />
+  <img src="https://talent.strategicfinancecareers.com/logo.png" height="40" style="margin-bottom:24px" />
   <h2 style="color:#0F6E56;margin-bottom:4px">Welcome to your dashboard 🎉</h2>
   <p>Hi ${firstName},</p>
   <p>You're now signed in to your SFC Talent candidate dashboard. Here's what you can do:</p>

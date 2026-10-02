@@ -265,7 +265,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             : '');
 
       const yesHtml = '<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">'
-        + '<img src="https://sfc-recruiter-portal.vercel.app/logo.png" height="40" style="margin-bottom:24px" />'
+        + '<img src="https://talent.strategicfinancecareers.com/logo.png" height="40" style="margin-bottom:24px" />'
         + '<h2 style="color:#0F6E56">Great news — they\'re interested!</h2>'
         + `<p><strong>${candidateName}</strong> has accepted your introduction request for the <strong>${jobTitle}</strong> role at <strong>${company}</strong>.</p>`
         + '<div style="background:#f0faf6;border-left:4px solid #0F6E56;padding:16px;border-radius:4px;margin:24px 0">'
@@ -306,10 +306,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // revealed ONLY on acceptance. Pass = no reveal.
         subject: `${anonName} passed on the ${jobTitle} role`,
         html: '<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">'
-          + '<img src="https://sfc-recruiter-portal.vercel.app/logo.png" height="40" style="margin-bottom:24px" />'
+          + '<img src="https://talent.strategicfinancecareers.com/logo.png" height="40" style="margin-bottom:24px" />'
           + '<h2 style="color:#333">Update on your introduction request</h2>'
           + `<p><strong>${anonName}</strong> has passed on the <strong>${jobTitle}</strong> opportunity at this time.</p>`
-          + `<p>Don't worry — there are more great candidates available. <a href="https://sfc-recruiter-portal.vercel.app/browse" style="color:#0F6E56">Browse candidates</a> to find your next match.</p>`
+          + `<p>Don't worry — there are more great candidates available. <a href="https://talent.strategicfinancecareers.com/browse" style="color:#0F6E56">Browse candidates</a> to find your next match.</p>`
           + '<hr style="border:none;border-top:1px solid #eee;margin:24px 0" />'
           + '<p style="color:#999;font-size:12px">SFC Talent · strategicfinancecareers.com</p>'
           + '</div>',

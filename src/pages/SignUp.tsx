@@ -86,7 +86,7 @@ const SignUp = () => {
           // Previously this was unset → Supabase used the project Site
           // URL (app root), which gave a Home-page flash before the user
           // figured out where to sign in.
-          emailRedirectTo: 'https://sfc-recruiter-portal.vercel.app/signup?mode=signin',
+          emailRedirectTo: 'https://talent.strategicfinancecareers.com/signup?mode=signin',
         },
       });
       // An already-registered email surfaces two different ways depending on

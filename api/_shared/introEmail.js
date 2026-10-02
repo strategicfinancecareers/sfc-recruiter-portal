@@ -14,7 +14,7 @@
 // Pure JS (no .d.ts) so it imports cleanly from both .ts and .js call
 // sites; the .ts side does `// @ts-ignore` on the import.
 
-const APP_BASE = 'https://sfc-recruiter-portal.vercel.app';
+const APP_BASE = 'https://talent.strategicfinancecareers.com';
 const BRAND = '#0F6E56'; // Email brand color — kept as-is per spec; a
                          // separate pass will reconcile this with the
                          // dashboard's #008037.

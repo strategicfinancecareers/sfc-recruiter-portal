@@ -390,7 +390,7 @@ function StatusBanner({ status }: { status?: string }) {
         <p className="text-sm font-semibold text-red-900">Application not accepted</p>
         <p className="text-sm text-red-800 mt-1 leading-relaxed">
           Your application wasn't accepted at this time. If you'd like to know more or appeal,
-          email us at <a href="mailto:talent@strategicfinancecareers.com" className="underline font-medium">talent@strategicfinancecareers.com</a>.
+          email us at <a href="mailto:team@strategicfinancecareers.com" className="underline font-medium">team@strategicfinancecareers.com</a>.
         </p>
       </div>
     );
@@ -401,7 +401,7 @@ function StatusBanner({ status }: { status?: string }) {
         <p className="text-sm font-semibold text-gray-900">⏸ Profile paused</p>
         <p className="text-sm text-gray-700 mt-1 leading-relaxed">
           Your profile is paused and not visible to recruiters. Email{' '}
-          <a href="mailto:talent@strategicfinancecareers.com" className="underline font-medium">talent@strategicfinancecareers.com</a>{' '}
+          <a href="mailto:team@strategicfinancecareers.com" className="underline font-medium">team@strategicfinancecareers.com</a>{' '}
           to reactivate it.
         </p>
       </div>
@@ -413,7 +413,7 @@ function StatusBanner({ status }: { status?: string }) {
         <p className="text-sm font-semibold text-gray-900">Account not found</p>
         <p className="text-sm text-gray-700 mt-1">
           We couldn't find an active profile for your account. Please contact{' '}
-          <a href="mailto:talent@strategicfinancecareers.com" className="underline font-medium">talent@strategicfinancecareers.com</a>.
+          <a href="mailto:team@strategicfinancecareers.com" className="underline font-medium">team@strategicfinancecareers.com</a>.
         </p>
       </div>
     );

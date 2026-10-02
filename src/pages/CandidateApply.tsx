@@ -1145,7 +1145,7 @@ function LandingSection({ onStart, onSignIn }: { onStart: () => void; onSignIn: 
       {/* ── FOOTER ── */}
       <footer style={{ background: '#FFFFFF', borderTop: '1px solid #F3F4F6', padding: '32px 40px', textAlign: 'center' }}>
         <p style={{ fontSize: 13, color: '#9CA3AF', margin: 0 }}>
-          © 2025 SFC Talent · strategicfinancecareers.com · talent@strategicfinancecareers.com
+          © 2025 SFC Talent · strategicfinancecareers.com · team@strategicfinancecareers.com
         </p>
       </footer>
     </div>
@@ -3253,7 +3253,7 @@ export default function CandidateApply() {
             ) : (
               <div className="p-4 rounded-xl border border-gray-200 bg-gray-50 text-sm text-gray-600">
                 No resume on file yet. Self-serve upload is coming soon — for now, email it to{' '}
-                <a href="mailto:talent@strategicfinancecareers.com" className="text-emerald-700 underline font-medium">talent@strategicfinancecareers.com</a>.
+                <a href="mailto:team@strategicfinancecareers.com" className="text-emerald-700 underline font-medium">team@strategicfinancecareers.com</a>.
               </div>
             )}
           </div>

@@ -10,6 +10,8 @@ import { Resend } from 'resend';
 // applicant confirmation). Returns success even if emails fail —
 // the public.users row is the source of truth.
 
+import { getAdminNotifyRecipients } from './_shared/adminRecipients.js';
+
 const RECRUITER_ROLE_ID = 'e7b112a8-8493-46e6-bc02-ab8ca66a746a';
 const ADMIN_NOTIFY_EMAIL = 'team@strategicfinancecareers.com';
 const APP_URL = 'https://talent.strategicfinancecareers.com';
@@ -99,7 +101,7 @@ export default async function handler(req, res) {
       </div>`;
       const r = await resend.emails.send({
         from: FROM_ADDR,
-        to: ADMIN_NOTIFY_EMAIL,
+        to: await getAdminNotifyRecipients(supabase),
         subject: `New recruiter signup pending review: ${fullName}`,
         html: adminHtml,
       });

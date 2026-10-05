@@ -4,7 +4,9 @@ import { verifyBearerEmail } from './_shared/verifyBearerEmail.js';
 
 // Admin notify destination + sender; reuses the pattern from
 // api/recruiter-signup.js so deliverability + reply behavior match.
-const ADMIN_NOTIFY_EMAIL = 'team@strategicfinancecareers.com';
+import { getAdminNotifyRecipients } from './_shared/adminRecipients.js';
+
+const ADMIN_NOTIFY_EMAIL = 'team@strategicfinancecareers.com'; // kept for reference; sends use the fan-out below
 const FROM_ADDR = 'SFC Talent <noreply@strategicfinancecareers.com>';
 const APP_URL = 'https://talent.strategicfinancecareers.com';
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -400,7 +402,7 @@ export default async function handler(req, res) {
           </div>`;
           const r = await resend.emails.send({
             from: FROM_ADDR,
-            to: ADMIN_NOTIFY_EMAIL,
+            to: await getAdminNotifyRecipients(supabase),
             subject: `Candidate profile updated: ${displayName}`,
             html,
           });

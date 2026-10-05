@@ -2,6 +2,8 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 // @ts-ignore — ESM JS helper, no .d.ts file
 import { generateResumeSignedUrl } from './_shared/signedUrl.js';
+// @ts-ignore — ESM JS helper, no .d.ts file
+import { getAdminNotifyRecipients } from './_shared/adminRecipients.js';
 
 const supabase = createClient(
   process.env.SUPABASE_URL || '',
@@ -480,7 +482,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${RESEND_API_KEY}` },
       body: JSON.stringify({
         from: 'SFC Talent <noreply@strategicfinancecareers.com>',
-        to: [NOTIFY_EMAIL],
+        to: await getAdminNotifyRecipients(supabase),
         subject: `New Candidate Application: ${firstName} ${lastName} — ${safeRole}`,
         html: emailHtml,
       }),

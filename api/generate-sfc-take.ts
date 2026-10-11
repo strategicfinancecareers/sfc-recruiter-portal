@@ -1,6 +1,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 // @ts-ignore — ESM JS helper, no .d.ts file
+import { requireAdmin } from './_shared/requireAuth.js';
+// @ts-ignore — ESM JS helper, no .d.ts file
 import { scrubSfcTakeFields } from './_shared/scrubName.js';
 
 // POST /api/generate-sfc-take
@@ -54,7 +56,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     process.env.SUPABASE_SERVICE_ROLE_KEY || ''
   );
 
-  const { candidateId, adminUserId } = (req.body || {}) as { candidateId?: string; adminUserId?: string };
+  const { candidateId } = (req.body || {}) as { candidateId?: string };
   const internalHeader = req.headers['x-internal-call'];
   const internalCall =
     typeof internalHeader === 'string' &&
@@ -62,26 +64,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     !!process.env.INTERNAL_API_SECRET &&
     internalHeader === process.env.INTERNAL_API_SECRET;
 
-  console.log('[generate-sfc-take] entry — candidateId:', candidateId, 'internalCall:', internalCall, 'adminUserId:', adminUserId);
+  console.log('[generate-sfc-take] entry — candidateId:', candidateId, 'internalCall:', internalCall);
 
   if (!candidateId) return res.status(400).json({ error: 'candidateId required' });
 
-  // ── Auth ──────────────────────────────────────────────────────────────────
+  // ── Auth: internal call (x-internal-call secret) or verified admin bearer ──
   if (!internalCall) {
-    if (!adminUserId) return res.status(401).json({ error: 'adminUserId required (or x-internal-call header)' });
-    const { data: userRow, error: userErr } = await supabase
-      .from('users')
-      .select('id, is_active, roles ( name )')
-      .eq('id', adminUserId)
-      .maybeSingle();
-    if (userErr) {
-      console.error('[generate-sfc-take] user lookup failed:', JSON.stringify(userErr));
-      return res.status(500).json({ error: userErr.message });
-    }
-    const roleName = (userRow as any)?.roles?.name;
-    if (!userRow || (userRow as any).is_active === false || (roleName !== 'admin' && roleName !== 'owner')) {
-      console.warn('[generate-sfc-take] auth FAIL — role:', roleName);
-      return res.status(403).json({ error: 'Forbidden' });
+    const caller = await requireAdmin(req, supabase);
+    if ((caller as any).error) {
+      console.warn('[generate-sfc-take] auth FAIL:', (caller as any).error);
+      return res.status((caller as any).status).json({ error: (caller as any).error });
     }
   }
 

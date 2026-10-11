@@ -1,5 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
+// @ts-ignore — ESM JS helper, no .d.ts file
+import { getAuthedUser } from './_shared/requireAuth.js';
 
 const supabase = createClient(
   process.env.SUPABASE_URL || '',
@@ -9,9 +11,15 @@ const supabase = createClient(
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { requesterId, candidateIds } = req.query;
+  const { candidateIds } = req.query;
 
-  if (!requesterId) return res.status(400).json({ error: 'requesterId required' });
+  // Identity comes from the verified bearer token — the legacy requesterId
+  // query param is ignored (recruiter ids are not secrets).
+  const caller = await getAuthedUser(req, supabase);
+  if ((caller as any).error) {
+    return res.status((caller as any).status).json({ error: (caller as any).error });
+  }
+  const requesterId = (caller as any).userId as string;
 
   const ids = typeof candidateIds === 'string' ? candidateIds.split(',').filter(Boolean) : [];
   if (ids.length === 0) return res.status(200).json({ statuses: [] });

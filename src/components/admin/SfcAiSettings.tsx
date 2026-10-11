@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { authedFetch } from '@/integrations/supabase/authedFetch';
 
 // Two app_settings rows driven from one place:
 //   sfc_framework                — system prompt sent to Claude for Take drafting
@@ -44,7 +45,7 @@ export default function SfcAiSettings({ adminUserId }: Props) {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/admin-settings?adminUserId=${encodeURIComponent(adminUserId)}`);
+      const res = await authedFetch(`/api/admin-settings?adminUserId=${encodeURIComponent(adminUserId)}`);
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error || `Failed (${res.status})`);
       const fw = body.settings?.find((s: any) => s.key === FRAMEWORK_KEY);
@@ -66,7 +67,7 @@ export default function SfcAiSettings({ adminUserId }: Props) {
   const saveFramework = async () => {
     setSavingFw(true);
     try {
-      const res = await fetch('/api/admin-settings', {
+      const res = await authedFetch('/api/admin-settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -93,7 +94,7 @@ export default function SfcAiSettings({ adminUserId }: Props) {
     setSavingToggle(true);
     setAutoDraft(nextValue); // optimistic
     try {
-      const res = await fetch('/api/admin-settings', {
+      const res = await authedFetch('/api/admin-settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ adminUserId, key: TOGGLE_KEY, value: nextValue }),

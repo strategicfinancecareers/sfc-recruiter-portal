@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { authedFetch } from '@/integrations/supabase/authedFetch';
 
 export interface IntroductionRequest {
   id: string;
@@ -71,7 +72,7 @@ export const useIntroductionRequests = () => {
 
       if (user.role === 'recruiter') {
         // Route through service-role API to bypass RLS
-        const res = await fetch(`/api/recruiter-intros?recruiterId=${encodeURIComponent(user.id)}`);
+        const res = await authedFetch(`/api/recruiter-intros?recruiterId=${encodeURIComponent(user.id)}`);
         if (!res.ok) {
           const body = await res.json().catch(() => ({}));
           throw new Error(body.error || `API error ${res.status}`);
@@ -96,7 +97,7 @@ export const useIntroductionRequests = () => {
         // resolves through auth.users in a way that PostgREST refuses
         // without the service role. /api/admin-intros does the same
         // SELECT shape server-side and enforces admin/owner auth.
-        const res = await fetch(`/api/admin-intros?adminUserId=${encodeURIComponent(user.id)}`);
+        const res = await authedFetch(`/api/admin-intros?adminUserId=${encodeURIComponent(user.id)}`);
         if (!res.ok) {
           const body = await res.json().catch(() => ({}));
           throw new Error(body.error || `API error ${res.status}`);

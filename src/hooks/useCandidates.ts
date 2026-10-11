@@ -120,8 +120,13 @@ export function useCandidates(opts: { includeName?: boolean } = {}) {
       const columns = includeName
         ? `${RECRUITER_COLUMNS}, name`
         : RECRUITER_COLUMNS;
+      // Recruiters read the candidate_directory VIEW (safe columns only,
+      // enforced in the database — see migration
+      // 20261010_candidate_directory_and_admin_policies). Admin/owner
+      // callers (includeName=true) read the base table via the
+      // admin-only RLS policy, which is the only way to get `name`.
       const { data: candidatesData, error: candidatesError } = await supabase
-        .from('candidates')
+        .from((includeName ? 'candidates' : 'candidate_directory') as 'candidates')
         .select(`
           ${columns},
           candidate_skills!inner(

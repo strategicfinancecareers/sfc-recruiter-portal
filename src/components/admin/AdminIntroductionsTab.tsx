@@ -18,6 +18,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
+import { authedFetch } from '@/integrations/supabase/authedFetch';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -118,7 +119,7 @@ export default function AdminIntroductionsTab({ onCountChange }: AdminIntroducti
     if (!user?.id) return;
     setResending(prev => ({ ...prev, [intro.id]: true }));
     try {
-      const res = await fetch('/api/resend-intro-email', {
+      const res = await authedFetch('/api/resend-intro-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ introId: intro.id, adminUserId: user.id }),

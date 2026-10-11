@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { requireAdmin } from './_shared/requireAuth.js';
 
 /**
  * GET /api/pending-candidates?userId={uuid}
@@ -18,37 +19,13 @@ export default async function handler(req, res) {
     process.env.SUPABASE_SERVICE_ROLE_KEY
   );
 
-  const { userId, id } = req.query;
-  if (!userId) return res.status(400).json({ error: 'userId required' });
+  const { id } = req.query;
 
-  // ── Auth: userId must resolve to an admin/owner ─────────────────────────────
-  const { data: userRow, error: userErr } = await supabase
-    .from('users')
-    .select('id, is_active, roles ( name )')
-    .eq('id', userId)
-    .maybeSingle();
-
-  if (userErr) {
-    console.error('[pending-candidates] user lookup failed:', JSON.stringify({
-      message: userErr.message, code: userErr.code, details: userErr.details,
-    }));
-    return res.status(500).json({ error: userErr.message });
-  }
-
-  if (!userRow) {
-    console.warn('[pending-candidates] auth FAIL: user not found', userId);
-    return res.status(403).json({ error: 'Forbidden' });
-  }
-
-  if (userRow.is_active === false) {
-    console.warn('[pending-candidates] auth FAIL: user inactive', userId);
-    return res.status(403).json({ error: 'Forbidden' });
-  }
-
-  const roleName = userRow.roles?.name;
-  if (roleName !== 'admin' && roleName !== 'owner') {
-    console.warn('[pending-candidates] auth FAIL: role is', roleName, 'for user', userId);
-    return res.status(403).json({ error: 'Forbidden' });
+  // ── Auth: verified bearer token, admin or owner only ───────────────────────
+  const caller = await requireAdmin(req, supabase);
+  if (caller.error) {
+    console.warn('[pending-candidates] auth FAIL:', caller.error);
+    return res.status(caller.status).json({ error: caller.error });
   }
 
   // ── Single candidate path ───────────────────────────────────────────────────

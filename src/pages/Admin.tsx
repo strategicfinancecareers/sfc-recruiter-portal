@@ -22,6 +22,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import LoaderScreen from '@/components/LoaderScreen';
+import { authedFetch } from '@/integrations/supabase/authedFetch';
 
 interface User {
   id: string;
@@ -773,7 +774,7 @@ setCandidates(transformedCandidates);
   const refetchPendingCounts = async () => {
     if (!user?.id) return;
     try {
-      const res = await fetch(`/api/admin-pending-counts?adminUserId=${encodeURIComponent(user.id)}`);
+      const res = await authedFetch(`/api/admin-pending-counts?adminUserId=${encodeURIComponent(user.id)}`);
       if (!res.ok) return;
       const body = await res.json();
       setPendingRecruiterCount(body.recruiters ?? 0);
@@ -824,7 +825,7 @@ setCandidates(transformedCandidates);
     if (!user?.id) return;
     setActionLoading(true);
     try {
-      const res = await fetch('/api/review-candidate', {
+      const res = await authedFetch('/api/review-candidate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -872,7 +873,7 @@ setCandidates(transformedCandidates);
     setReviewDownloading(true);
     setReviewDownloadError(null);
     try {
-      const res = await fetch(
+      const res = await authedFetch(
         `/api/get-resume-url?candidateId=${encodeURIComponent(candidateId)}&adminUserId=${encodeURIComponent(user.id)}`
       );
       const body = await res.json().catch(() => ({}));

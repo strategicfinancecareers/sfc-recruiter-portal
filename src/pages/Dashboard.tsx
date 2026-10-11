@@ -4,6 +4,7 @@ import { Users, Handshake, CheckCircle, Clock } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Link } from "react-router-dom";
+import { authedFetch } from '@/integrations/supabase/authedFetch';
 
 interface Stats {
   totalCandidates: number | null;
@@ -64,10 +65,10 @@ const Dashboard = () => {
         // queries hit RLS 403 on introduction_requests for recruiter role.
         const [candidatesRes, introsRes] = await Promise.all([
           supabase
-            .from('candidates')
-            .select('*', { count: 'exact', head: true })
+            .from('candidate_directory' as 'candidates')
+            .select('id', { count: 'exact', head: true })
             .eq('status', 'active'),
-          fetch(`/api/recruiter-intros?recruiterId=${encodeURIComponent(user.id)}`),
+          authedFetch(`/api/recruiter-intros?recruiterId=${encodeURIComponent(user.id)}`),
         ]);
 
         if (!introsRes.ok) {

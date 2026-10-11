@@ -1,5 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
+// @ts-ignore — ESM JS helper, no .d.ts file
+import { requireAdmin } from './_shared/requireAuth.js';
 
 // /api/admin-settings — admin-only CRUD on the app_settings table.
 //
@@ -15,17 +17,10 @@ import { createClient } from '@supabase/supabase-js';
 // stamp updated_by deterministically and keep the auth check in one
 // place.
 
-async function isAdmin(supabase: any, userId: string | undefined): Promise<boolean> {
-  if (!userId) return false;
-  const { data, error } = await supabase
-    .from('users')
-    .select('id, is_active, roles ( name )')
-    .eq('id', userId)
-    .maybeSingle();
-  if (error || !data) return false;
-  if ((data as any).is_active === false) return false;
-  const roleName = (data as any).roles?.name;
-  return roleName === 'admin' || roleName === 'owner';
+async function callerIsAdmin(req: VercelRequest, supabase: any): Promise<{ ok: boolean; userId?: string }> {
+  const caller = await requireAdmin(req, supabase);
+  if ((caller as any).error) return { ok: false };
+  return { ok: true, userId: (caller as any).userId };
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -35,10 +30,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   );
 
   if (req.method === 'GET') {
-    const adminUserId = req.query.adminUserId as string | undefined;
     const key = req.query.key as string | undefined;
-    if (!(await isAdmin(supabase, adminUserId))) {
-      console.warn('[admin-settings] GET auth FAIL — adminUserId:', adminUserId);
+    const auth = await callerIsAdmin(req, supabase);
+    if (!auth.ok) {
+      console.warn('[admin-settings] GET auth FAIL');
       return res.status(403).json({ error: 'Forbidden' });
     }
 
@@ -67,13 +62,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (req.method === 'PUT') {
-    const { adminUserId, key, value } = (req.body || {}) as {
-      adminUserId?: string; key?: string; value?: unknown;
+    const { key, value } = (req.body || {}) as {
+      key?: string; value?: unknown;
     };
-    if (!(await isAdmin(supabase, adminUserId))) {
-      console.warn('[admin-settings] PUT auth FAIL — adminUserId:', adminUserId);
+    const auth = await callerIsAdmin(req, supabase);
+    if (!auth.ok) {
+      console.warn('[admin-settings] PUT auth FAIL');
       return res.status(403).json({ error: 'Forbidden' });
     }
+    const adminUserId = auth.userId;
     if (!key) return res.status(400).json({ error: 'key required' });
 
     const nowIso = new Date().toISOString();

@@ -3,6 +3,8 @@ import { createClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
 // @ts-ignore — ESM JS helper, no .d.ts file
 import { buildIntroEmail } from './_shared/introEmail.js';
+// @ts-ignore — ESM JS helper, no .d.ts file
+import { requireAdmin } from './_shared/requireAuth.js';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 const supabase = createClient(
@@ -21,6 +23,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!introId) {
     console.error('[send-intro-email] missing introId');
     return res.status(400).json({ error: 'introId required' });
+  }
+
+  // ── Auth: internal call (x-internal-call secret, used by submit-intro)
+  //    or a verified admin bearer token. Never callable anonymously —
+  //    this endpoint emails candidates.
+  const internalHeader = req.headers['x-internal-call'];
+  const internalCall =
+    typeof internalHeader === 'string' &&
+    internalHeader.length > 0 &&
+    !!process.env.INTERNAL_API_SECRET &&
+    internalHeader === process.env.INTERNAL_API_SECRET;
+  if (!internalCall) {
+    const caller = await requireAdmin(req, supabase);
+    if ((caller as any).error) {
+      console.warn('[send-intro-email] auth FAIL:', (caller as any).error);
+      return res.status((caller as any).status).json({ error: (caller as any).error });
+    }
   }
 
   // Check env vars are present

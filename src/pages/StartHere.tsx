@@ -7,6 +7,7 @@ import PricingModal, { EARLY_BIRD_CODES, PLACEMENT_FEE_STANDARD, PLACEMENT_FEE_E
 import RecruiterAgreementDialog from '../components/RecruiterAgreementDialog';
 import type { SignedRecord } from '@/lib/agreementDocument';
 import { RESPONSE_WINDOW_FOOTNOTE } from '@/lib/responseWindow';
+import { authedFetch } from '@/integrations/supabase/authedFetch';
 
 const howItWorksSteps = [
   {
@@ -116,7 +117,7 @@ const StartHere = () => {
 
     // Intro check must route through service-role API — RLS blocks direct
     // browser queries on introduction_requests for the recruiter role.
-    fetch(`/api/recruiter-intros?recruiterId=${encodeURIComponent(user.id)}`)
+    authedFetch(`/api/recruiter-intros?recruiterId=${encodeURIComponent(user.id)}`)
       .then(r => (r.ok ? r.json() : { requests: [] }))
       .then(({ requests }) => setHasIntros((requests || []).length > 0))
       .catch(err => console.error('[StartHere] intro check failed:', err));

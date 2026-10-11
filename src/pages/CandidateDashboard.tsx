@@ -449,7 +449,7 @@ function Dashboard({
   // Intros are loaded once for the badge count and the Introductions tab.
   const [intros, setIntros] = useState<IntroRequest[] | null>(null);
   useEffect(() => {
-    fetch(`/api/candidate-intros?candidateId=${encodeURIComponent(candidate.id)}`)
+    authedFetch(`/api/candidate-intros?candidateId=${encodeURIComponent(candidate.id)}`)
       .then(r => r.json())
       .then(data => setIntros(data.requests || []))
       .catch(() => setIntros([]));

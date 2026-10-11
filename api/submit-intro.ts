@@ -1,5 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
+// @ts-ignore — ESM JS helper, no .d.ts file
+import { getAuthedUser } from './_shared/requireAuth.js';
 
 const supabase = createClient(
   process.env.SUPABASE_URL || '',
@@ -9,10 +11,19 @@ const supabase = createClient(
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { requester_id, candidate_id, job_id, message } = req.body;
+  const { candidate_id, job_id, message } = req.body;
 
-  if (!requester_id || !candidate_id) {
-    return res.status(400).json({ error: 'requester_id and candidate_id required' });
+  // Requester identity comes from the verified bearer token — the legacy
+  // requester_id body field is ignored so intros cannot be forged on
+  // another recruiter's behalf.
+  const caller = await getAuthedUser(req, supabase);
+  if ((caller as any).error) {
+    return res.status((caller as any).status).json({ error: (caller as any).error });
+  }
+  const requester_id = (caller as any).userId as string;
+
+  if (!candidate_id) {
+    return res.status(400).json({ error: 'candidate_id required' });
   }
 
   try {
@@ -37,7 +48,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         `${process.env.VITE_APP_URL || 'https://talent.strategicfinancecareers.com'}/api/send-intro-email`,
         {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'x-internal-call': process.env.INTERNAL_API_SECRET || '',
+          },
           body: JSON.stringify({ introId: intro.id }),
         }
       );

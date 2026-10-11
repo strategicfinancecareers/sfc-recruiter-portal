@@ -13,6 +13,7 @@ import { CheckCircle, XCircle, Clock, Download, Mail, Phone, Loader2, MapPin, Ca
 import { useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useIntroductionRequests, type IntroductionRequest } from "../hooks/useIntroductionRequests";
+import { authedFetch } from '@/integrations/supabase/authedFetch';
 
 interface FullCandidate {
   id: string;
@@ -45,7 +46,7 @@ const IntroductionRequests = () => {
       const authParam = (user.role === 'admin' || user.role === 'owner')
         ? `adminUserId=${encodeURIComponent(user.id)}`
         : `requesterId=${encodeURIComponent(user.id)}`;
-      const res = await fetch(`/api/get-resume-url?candidateId=${encodeURIComponent(candidateId)}&${authParam}`);
+      const res = await authedFetch(`/api/get-resume-url?candidateId=${encodeURIComponent(candidateId)}&${authParam}`);
       const body = await res.json().catch(() => ({}));
       if (!res.ok || !body.url) {
         throw new Error(body.error || `Failed to generate download link (${res.status})`);
@@ -105,8 +106,11 @@ const openApprovedModal = (request: IntroductionRequest) => {
         // still resolve. No status filter: the intro is accepted, so the
         // reveal is already authorized even if the candidate was
         // deactivated afterwards.
+        // candidate_directory (not the base table): recruiter-safe columns,
+        // and its approved-intro clause keeps this row visible even if the
+        // candidate was deactivated after acceptance.
         const { data, error } = await supabase
-          .from('candidates')
+          .from('candidate_directory' as 'candidates')
           .select(`
             id, display_name, label, location, experience, education,
             highest_education_level, profile_description, primary_background,
@@ -149,7 +153,7 @@ const openApprovedModal = (request: IntroductionRequest) => {
     setDownloadingResume(true);
     setDownloadError(null);
     try {
-      const res = await fetch(
+      const res = await authedFetch(
         `/api/get-resume-url?candidateId=${encodeURIComponent(candidateId)}&requesterId=${encodeURIComponent(user.id)}`
       );
       const body = await res.json().catch(() => ({}));

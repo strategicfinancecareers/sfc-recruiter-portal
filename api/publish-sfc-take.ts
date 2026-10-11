@@ -1,6 +1,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 // @ts-ignore — ESM JS helper, no .d.ts file
+import { requireAdmin } from './_shared/requireAuth.js';
+// @ts-ignore — ESM JS helper, no .d.ts file
 import { scrubSfcTakeFields } from './_shared/scrubName.js';
 
 // POST /api/publish-sfc-take
@@ -18,29 +20,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     process.env.SUPABASE_SERVICE_ROLE_KEY || ''
   );
 
-  const { candidateId, adminUserId, unpublish } = (req.body || {}) as {
-    candidateId?: string; adminUserId?: string; unpublish?: boolean;
+  const { candidateId, unpublish } = (req.body || {}) as {
+    candidateId?: string; unpublish?: boolean;
   };
-  console.log('[publish-sfc-take] entry — candidateId:', candidateId, 'adminUserId:', adminUserId, 'unpublish:', !!unpublish);
+  console.log('[publish-sfc-take] entry — candidateId:', candidateId, 'unpublish:', !!unpublish);
 
-  if (!candidateId || !adminUserId) {
-    return res.status(400).json({ error: 'candidateId and adminUserId required' });
+  if (!candidateId) {
+    return res.status(400).json({ error: 'candidateId required' });
   }
 
-  // Auth: admin|owner only
-  const { data: userRow, error: userErr } = await supabase
-    .from('users')
-    .select('id, is_active, roles ( name )')
-    .eq('id', adminUserId)
-    .maybeSingle();
-  if (userErr) {
-    console.error('[publish-sfc-take] user lookup failed:', JSON.stringify(userErr));
-    return res.status(500).json({ error: userErr.message });
-  }
-  const roleName = (userRow as any)?.roles?.name;
-  if (!userRow || (userRow as any).is_active === false || (roleName !== 'admin' && roleName !== 'owner')) {
-    console.warn('[publish-sfc-take] auth FAIL — role:', roleName);
-    return res.status(403).json({ error: 'Forbidden' });
+  // Auth: verified bearer token, admin|owner only
+  const caller = await requireAdmin(req, supabase);
+  if ((caller as any).error) {
+    console.warn('[publish-sfc-take] auth FAIL:', (caller as any).error);
+    return res.status((caller as any).status).json({ error: (caller as any).error });
   }
 
   const nowIso = new Date().toISOString();

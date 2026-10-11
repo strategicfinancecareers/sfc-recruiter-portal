@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { requireAdmin } from './_shared/requireAuth.js';
 import { Resend } from 'resend';
 import { buildIntroEmail } from './_shared/introEmail.js';
 
@@ -30,27 +31,18 @@ export default async function handler(req, res) {
     process.env.SUPABASE_SERVICE_ROLE_KEY
   );
 
-  const { introId, adminUserId } = req.body || {};
-  console.log('[resend-intro-email] entry — introId:', introId, 'adminUserId:', adminUserId);
+  const { introId } = req.body || {};
+  console.log('[resend-intro-email] entry — introId:', introId);
 
-  if (!introId || !adminUserId) {
-    return res.status(400).json({ error: 'introId and adminUserId required' });
+  if (!introId) {
+    return res.status(400).json({ error: 'introId required' });
   }
 
-  // ── Auth: admin/owner only ────────────────────────────────────────────────
-  const { data: userRow, error: userErr } = await supabase
-    .from('users')
-    .select('id, is_active, roles ( name )')
-    .eq('id', adminUserId)
-    .maybeSingle();
-  if (userErr) {
-    console.error('[resend-intro-email] user lookup failed:', JSON.stringify(userErr));
-    return res.status(500).json({ error: userErr.message });
-  }
-  const roleName = userRow?.roles?.name;
-  if (!userRow || userRow.is_active === false || (roleName !== 'admin' && roleName !== 'owner')) {
-    console.warn('[resend-intro-email] auth FAIL — role:', roleName);
-    return res.status(403).json({ error: 'Forbidden' });
+  // ── Auth: verified bearer token, admin/owner only ───────────────────────────
+  const caller = await requireAdmin(req, supabase);
+  if (caller.error) {
+    console.warn('[resend-intro-email] auth FAIL:', caller.error);
+    return res.status(caller.status).json({ error: caller.error });
   }
 
   // ── Intro must exist and be pending ───────────────────────────────────────

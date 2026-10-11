@@ -15,6 +15,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
+import { authedFetch } from '@/integrations/supabase/authedFetch';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -108,7 +109,7 @@ export default function AdminRecruitersTab({ onCountChange }: AdminRecruitersTab
     setDetailLoading(true);
     (async () => {
       try {
-        const res = await fetch(
+        const res = await authedFetch(
           `/api/admin-recruiter-detail?recruiterUserId=${encodeURIComponent(rec.id)}&adminUserId=${encodeURIComponent(user.id)}`
         );
         const body = await res.json().catch(() => ({}));
@@ -128,7 +129,7 @@ export default function AdminRecruitersTab({ onCountChange }: AdminRecruitersTab
     if (!user?.id) return;
     setActionLoading(true);
     try {
-      const res = await fetch('/api/review-recruiter', {
+      const res = await authedFetch('/api/review-recruiter', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -209,7 +210,7 @@ export default function AdminRecruitersTab({ onCountChange }: AdminRecruitersTab
     if (!user?.id) return;
     setActionLoading(true);
     try {
-      const res = await fetch('/api/review-recruiter', {
+      const res = await authedFetch('/api/review-recruiter', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -247,7 +248,7 @@ export default function AdminRecruitersTab({ onCountChange }: AdminRecruitersTab
     }
     setActionLoading(true);
     try {
-      const res = await fetch('/api/review-recruiter', {
+      const res = await authedFetch('/api/review-recruiter', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

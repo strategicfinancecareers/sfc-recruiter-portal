@@ -10,6 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
+import { authedFetch } from '@/integrations/supabase/authedFetch';
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
@@ -136,7 +137,7 @@ export default function SfcTakeEditor({ candidate, adminUserId, onChanged }: Pro
   const runGenerate = async () => {
     setRegenerating(true);
     try {
-      const res = await fetch('/api/generate-sfc-take', {
+      const res = await authedFetch('/api/generate-sfc-take', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ candidateId: candidate.id, adminUserId }),
@@ -197,7 +198,7 @@ export default function SfcTakeEditor({ candidate, adminUserId, onChanged }: Pro
   const handleTogglePublish = async () => {
     setPublishing(true);
     try {
-      const res = await fetch('/api/publish-sfc-take', {
+      const res = await authedFetch('/api/publish-sfc-take', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

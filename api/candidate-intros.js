@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { verifyBearerEmail } from './_shared/verifyBearerEmail.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
@@ -11,6 +12,25 @@ export default async function handler(req, res) {
 
     const { candidateId } = req.query;
     if (!candidateId) return res.status(400).json({ error: 'candidateId required' });
+
+    // ── Auth: the caller's verified email must own this candidate row ──
+    const authResult = await verifyBearerEmail(req, supabase);
+    if (authResult.error) {
+      return res.status(authResult.status).json({ error: authResult.error });
+    }
+    const { data: candRow, error: candRowErr } = await supabase
+      .from('candidates')
+      .select('id, email')
+      .eq('id', candidateId)
+      .maybeSingle();
+    if (candRowErr) {
+      console.error('[candidate-intros] candidate lookup error:', candRowErr);
+      return res.status(500).json({ error: candRowErr.message });
+    }
+    if (!candRow || (candRow.email || '').toLowerCase().trim() !== authResult.email) {
+      console.warn('[candidate-intros] auth FAIL: token email does not own candidateId');
+      return res.status(403).json({ error: 'Forbidden' });
+    }
 
     const { data, error } = await supabase
       .from('introduction_requests')

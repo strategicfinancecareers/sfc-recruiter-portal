@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
+import { requireAdmin } from './_shared/requireAuth.js';
 
 // POST /api/review-candidate
 // body: { candidateId, adminUserId, action, rejectionReason? }
@@ -100,32 +101,23 @@ export default async function handler(req, res) {
     process.env.SUPABASE_SERVICE_ROLE_KEY
   );
 
-  const { candidateId, adminUserId, action, rejectionReason } = req.body || {};
-  console.log('[review-candidate] entry:', { candidateId, adminUserId, action });
+  const { candidateId, action, rejectionReason } = req.body || {};
+  console.log('[review-candidate] entry:', { candidateId, action });
 
-  if (!candidateId || !adminUserId || !action) {
-    return res.status(400).json({ error: 'candidateId, adminUserId, and action required' });
+  if (!candidateId || !action) {
+    return res.status(400).json({ error: 'candidateId and action required' });
   }
   if (!VALID_ACTIONS.has(action)) {
     return res.status(400).json({ error: `Invalid action: ${action}` });
   }
 
-  // ── Auth: admin or owner only ──────────────────────────────────────────────
-  const { data: userRow, error: userErr } = await supabase
-    .from('users')
-    .select('id, is_active, roles ( name )')
-    .eq('id', adminUserId)
-    .maybeSingle();
-
-  if (userErr) {
-    console.error('[review-candidate] user lookup failed:', JSON.stringify(userErr));
-    return res.status(500).json({ error: userErr.message });
+  // ── Auth: verified bearer token, admin or owner only ───────────────────────
+  const caller = await requireAdmin(req, supabase);
+  if (caller.error) {
+    console.warn('[review-candidate] auth FAIL:', caller.error);
+    return res.status(caller.status).json({ error: caller.error });
   }
-  const roleName = userRow?.roles?.name;
-  if (!userRow || userRow.is_active === false || (roleName !== 'admin' && roleName !== 'owner')) {
-    console.warn('[review-candidate] auth FAIL — role:', roleName);
-    return res.status(403).json({ error: 'Forbidden' });
-  }
+  const adminUserId = caller.userId;
 
   // ── Load candidate ──────────────────────────────────────────────────────────
   const { data: candidate, error: candErr } = await supabase

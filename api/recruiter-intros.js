@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { getAuthedUser } from './_shared/requireAuth.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
@@ -8,8 +9,14 @@ export default async function handler(req, res) {
     process.env.SUPABASE_SERVICE_ROLE_KEY
   );
 
-  const { recruiterId } = req.query;
-  if (!recruiterId) return res.status(400).json({ error: 'recruiterId required' });
+  // Identity comes from the verified bearer token — the legacy recruiterId
+  // query param is ignored (recruiter ids are not secrets).
+  const caller = await getAuthedUser(req, supabase);
+  if (caller.error) {
+    console.warn('[recruiter-intros] auth FAIL:', caller.error);
+    return res.status(caller.status).json({ error: caller.error });
+  }
+  const recruiterId = caller.userId;
 
   try {
     // FK hints required: introduction_requests has 2 FKs each to candidates,

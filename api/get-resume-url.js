@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { getAuthedUser } from './_shared/requireAuth.js';
 import { generateResumeSignedUrl, generateBestResumeSignedUrlForIntro } from './_shared/signedUrl.js';
 
 // Multi-resume Phase A: both GET and POST now accept an optional
@@ -18,31 +19,25 @@ export default async function handler(req, res) {
     process.env.SUPABASE_SERVICE_ROLE_KEY
   );
 
-  if (req.method === 'GET') {
-    const { candidateId, requesterId, adminUserId, resumeId } = req.query;
-    console.log('[get-resume-url] entry:', { method: 'GET', candidateId, requesterId, adminUserId, resumeId });
+  // ── Auth: identity comes from the verified bearer token, never from
+  //    requesterId / adminUserId query params (those ids are not secrets).
+  const caller = await getAuthedUser(req, supabase);
+  if (caller.error) {
+    console.warn('[get-resume-url] auth FAIL:', caller.error);
+    return res.status(caller.status).json({ error: caller.error });
+  }
+  const callerIsAdmin = caller.isActive && (caller.role === 'admin' || caller.role === 'owner');
 
-    if (!candidateId || (!requesterId && !adminUserId)) {
-      return res.status(400).json({ error: 'candidateId and (requesterId | adminUserId) required' });
+  if (req.method === 'GET') {
+    const { candidateId, resumeId } = req.query;
+    console.log('[get-resume-url] entry:', { method: 'GET', candidateId, callerId: caller.userId, admin: callerIsAdmin, resumeId });
+
+    if (!candidateId) {
+      return res.status(400).json({ error: 'candidateId required' });
     }
 
     // ── Admin path: any admin/owner can download any candidate's resume ────
-    if (adminUserId) {
-      const { data: userRow, error: userErr } = await supabase
-        .from('users')
-        .select('id, is_active, roles ( name )')
-        .eq('id', adminUserId)
-        .maybeSingle();
-
-      if (userErr) {
-        console.error('[get-resume-url] admin lookup failed:', JSON.stringify(userErr));
-        return res.status(500).json({ error: userErr.message });
-      }
-      const roleName = userRow?.roles?.name;
-      if (!userRow || userRow.is_active === false || (roleName !== 'admin' && roleName !== 'owner')) {
-        console.warn('[get-resume-url] auth FAIL (admin): user/role invalid');
-        return res.status(403).json({ error: 'Forbidden' });
-      }
+    if (callerIsAdmin) {
 
       const result = await generateBestResumeSignedUrlForIntro({
         supabase, candidateId, selectedResumeId: resumeId || null, expiresIn: 3600,
@@ -56,7 +51,7 @@ export default async function handler(req, res) {
       .from('introduction_requests')
       .select('id')
       .eq('candidate_id', candidateId)
-      .eq('requester_id', requesterId)
+      .eq('requester_id', caller.userId)
       .eq('status', APPROVED)
       .limit(1)
       .maybeSingle();
@@ -95,12 +90,13 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'introId required' });
     }
 
-    // Authorization: the intro must exist and be approved. We also
-    // read selected_resume_id so the helper can prefer the resume the
+    // Authorization: the intro must exist, be approved, and belong to the
+    // verified caller (or the caller is an admin). We also read
+    // selected_resume_id so the helper can prefer the resume the
     // candidate explicitly chose for this intro (Phase B UI).
     const { data: intro, error: introErr } = await supabase
       .from('introduction_requests')
-      .select('status, candidate_id, selected_resume_id')
+      .select('status, candidate_id, selected_resume_id, requester_id')
       .eq('id', introId)
       .maybeSingle();
 
@@ -119,6 +115,11 @@ export default async function handler(req, res) {
     if (intro.status !== APPROVED) {
       console.warn('[get-resume-url] auth FAIL (POST): intro status is', intro.status);
       return res.status(403).json({ error: 'introduction request is not approved' });
+    }
+
+    if (!callerIsAdmin && intro.requester_id !== caller.userId) {
+      console.warn('[get-resume-url] auth FAIL (POST): caller is not the intro requester');
+      return res.status(403).json({ error: 'Forbidden' });
     }
 
     const result = await generateBestResumeSignedUrlForIntro({

@@ -21,6 +21,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { JobForm } from "@/components/JobForm";
 import { useJobDraft } from "@/contexts/JobDraftContext";
 import AnonymousCandidateCard from "@/components/AnonymousCandidateCard";
+import { authedFetch } from '@/integrations/supabase/authedFetch';
 
 interface Job {
   id: string;
@@ -246,7 +247,7 @@ export default function CandidateSearch() {
       }
       try {
         const candidateIds = candidates.map(c => c.id).join(',');
-        const res = await fetch(
+        const res = await authedFetch(
           `/api/intro-statuses?requesterId=${encodeURIComponent(user.id)}&candidateIds=${encodeURIComponent(candidateIds)}`
         );
         if (!res.ok) throw new Error(`intro-statuses returned ${res.status}`);
@@ -320,7 +321,7 @@ export default function CandidateSearch() {
 
     try {
       // Route through serverless function to bypass RLS on introduction_requests
-      const response = await fetch('/api/submit-intro', {
+      const response = await authedFetch('/api/submit-intro', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

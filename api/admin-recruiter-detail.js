@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { requireAdmin } from './_shared/requireAuth.js';
 
 // GET /api/admin-recruiter-detail?recruiterUserId=X&adminUserId=Y
 //
@@ -19,26 +20,17 @@ export default async function handler(req, res) {
     process.env.SUPABASE_SERVICE_ROLE_KEY
   );
 
-  const { recruiterUserId, adminUserId } = req.query;
-  if (!recruiterUserId || !adminUserId) {
-    return res.status(400).json({ error: 'recruiterUserId and adminUserId required' });
+  const { recruiterUserId } = req.query;
+  if (!recruiterUserId) {
+    return res.status(400).json({ error: 'recruiterUserId required' });
   }
 
   try {
-    // ── Auth: admin or owner only ────────────────────────────────────────
-    const { data: adminRow, error: adminErr } = await supabase
-      .from('users')
-      .select('id, is_active, roles ( name )')
-      .eq('id', adminUserId)
-      .maybeSingle();
-    if (adminErr) {
-      console.error('[admin-recruiter-detail] admin lookup failed:', JSON.stringify(adminErr));
-      return res.status(500).json({ error: adminErr.message });
-    }
-    const roleName = adminRow?.roles?.name;
-    if (!adminRow || adminRow.is_active === false || (roleName !== 'admin' && roleName !== 'owner')) {
-      console.warn('[admin-recruiter-detail] auth FAIL — role:', roleName);
-      return res.status(403).json({ error: 'Forbidden' });
+    // ── Auth: verified bearer token, admin or owner only ─────────────────
+    const caller = await requireAdmin(req, supabase);
+    if (caller.error) {
+      console.warn('[admin-recruiter-detail] auth FAIL:', caller.error);
+      return res.status(caller.status).json({ error: caller.error });
     }
 
     // ── Recruiter profile row ────────────────────────────────────────────

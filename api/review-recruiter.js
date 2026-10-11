@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
+import { requireAdmin } from './_shared/requireAuth.js';
 
 // POST /api/review-recruiter
 // body: { recruiterUserId, adminUserId, action: 'approve'|'reject'|'deactivate'|'reactivate', rejectionReason? }
@@ -28,11 +29,11 @@ export default async function handler(req, res) {
     process.env.SUPABASE_SERVICE_ROLE_KEY
   );
 
-  const { recruiterUserId, adminUserId, action, rejectionReason } = req.body || {};
-  console.log('[review-recruiter] entry:', { recruiterUserId, adminUserId, action });
+  const { recruiterUserId, action, rejectionReason } = req.body || {};
+  console.log('[review-recruiter] entry:', { recruiterUserId, action });
 
-  if (!recruiterUserId || !adminUserId || !action) {
-    return res.status(400).json({ error: 'recruiterUserId, adminUserId, action required' });
+  if (!recruiterUserId || !action) {
+    return res.status(400).json({ error: 'recruiterUserId and action required' });
   }
   if (!['approve', 'reject', 'deactivate', 'reactivate'].includes(action)) {
     return res.status(400).json({ error: `Invalid action: ${action}` });
@@ -41,21 +42,13 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'rejectionReason required when action=reject' });
   }
 
-  // ── Auth: admin or owner only ──────────────────────────────────────────────
-  const { data: adminRow, error: adminErr } = await supabase
-    .from('users')
-    .select('id, is_active, roles ( name )')
-    .eq('id', adminUserId)
-    .maybeSingle();
-  if (adminErr) {
-    console.error('[review-recruiter] admin lookup failed:', JSON.stringify(adminErr));
-    return res.status(500).json({ error: adminErr.message });
+  // ── Auth: verified bearer token, admin or owner only ───────────────────────
+  const caller = await requireAdmin(req, supabase);
+  if (caller.error) {
+    console.warn('[review-recruiter] auth FAIL:', caller.error);
+    return res.status(caller.status).json({ error: caller.error });
   }
-  const roleName = adminRow?.roles?.name;
-  if (!adminRow || adminRow.is_active === false || (roleName !== 'admin' && roleName !== 'owner')) {
-    console.warn('[review-recruiter] auth FAIL — role:', roleName);
-    return res.status(403).json({ error: 'Forbidden' });
-  }
+  const adminUserId = caller.userId;
 
   // ── Load target recruiter ──────────────────────────────────────────────────
   const { data: recruiter, error: recErr } = await supabase

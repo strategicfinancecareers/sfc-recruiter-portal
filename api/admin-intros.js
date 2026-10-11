@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { requireAdmin } from './_shared/requireAuth.js';
 
 // GET /api/admin-intros?adminUserId={uuid}
 //   → platform-wide list of introduction_requests with embedded candidate,
@@ -20,38 +21,13 @@ export default async function handler(req, res) {
     process.env.SUPABASE_SERVICE_ROLE_KEY
   );
 
-  const { adminUserId } = req.query;
-  if (!adminUserId) return res.status(400).json({ error: 'adminUserId required' });
-
-  // ── Auth: admin or owner only ──────────────────────────────────────────────
-  const { data: userRow, error: userErr } = await supabase
-    .from('users')
-    .select('id, is_active, roles ( name )')
-    .eq('id', adminUserId)
-    .maybeSingle();
-
-  if (userErr) {
-    console.error('[admin-intros] user lookup failed:', JSON.stringify({
-      message: userErr.message, code: userErr.code, details: userErr.details,
-    }));
-    return res.status(500).json({ error: userErr.message });
+  // ── Auth: verified bearer token, admin or owner only ───────────────────────
+  const caller = await requireAdmin(req, supabase);
+  if (caller.error) {
+    console.warn('[admin-intros] auth FAIL:', caller.error);
+    return res.status(caller.status).json({ error: caller.error });
   }
-
-  if (!userRow) {
-    console.warn('[admin-intros] auth FAIL: user not found', adminUserId);
-    return res.status(403).json({ error: 'Forbidden' });
-  }
-
-  if (userRow.is_active === false) {
-    console.warn('[admin-intros] auth FAIL: user inactive', adminUserId);
-    return res.status(403).json({ error: 'Forbidden' });
-  }
-
-  const roleName = userRow.roles?.name;
-  if (roleName !== 'admin' && roleName !== 'owner') {
-    console.warn('[admin-intros] auth FAIL: role is', roleName, 'for user', adminUserId);
-    return res.status(403).json({ error: 'Forbidden' });
-  }
+  const adminUserId = caller.userId;
 
   // ── Platform-wide intros (FK hints required — see Batch 1.5 commit) ───────
   const { data, error } = await supabase

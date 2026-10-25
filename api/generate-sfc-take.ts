@@ -22,8 +22,8 @@ import { scrubSfcTakeFields } from './_shared/scrubName.js';
 // no @anthropic-ai/sdk in the repo).
 
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
-const MODEL = 'claude-opus-4-6';
-const MAX_TOKENS = 2000;
+const MODEL = 'claude-opus-5-5';
+const MAX_TOKENS = 8000;
 
 interface AnthropicMsg {
   content: Array<{ type: string; text?: string }>;
@@ -234,6 +234,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       body: JSON.stringify({
         model: MODEL,
         max_tokens: MAX_TOKENS,
+        // Editorial quality matters here; Claude Opus 5.5 defaults to medium.
+        output_config: { effort: 'high' },
         system: framework,
         messages: [{ role: 'user', content: userMessage }],
       }),
@@ -249,7 +251,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(502).json({ error: 'Anthropic fetch failed', message: err?.message || String(err) });
   }
 
-  const raw = anthropicJson.content?.[0]?.text || '';
+  // Current Claude models return a thinking block before the text block.
+  const raw = (Array.isArray(anthropicJson.content) ? anthropicJson.content.find((b: any) => b.type === 'text')?.text : null) || '';
   console.log('[generate-sfc-take] model:', MODEL, 'usage:', JSON.stringify(anthropicJson.usage || {}));
 
   // ── Parse XML tags ────────────────────────────────────────────────────────

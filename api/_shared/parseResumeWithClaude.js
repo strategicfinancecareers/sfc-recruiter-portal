@@ -45,8 +45,8 @@ export async function parseResumeWithClaude(resumeBase64) {
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 1500,
+        model: 'claude-haiku-5-5',
+        max_tokens: 3000,
         system: SYSTEM_PROMPT,
         messages: [{
           role: 'user',
@@ -59,11 +59,14 @@ export async function parseResumeWithClaude(resumeBase64) {
     });
 
     const data = await response.json();
-    if (!response.ok || !data.content?.[0]?.text) {
+    // Current Claude models return a thinking block before the text block —
+    // never read content[0] blindly.
+    const textBlock = Array.isArray(data.content) ? data.content.find((b) => b.type === 'text') : null;
+    if (!response.ok || !textBlock?.text) {
       console.error('[parseResumeWithClaude] Claude error:', JSON.stringify(data));
       return { ...EMPTY_PARSE };
     }
-    const rawText = data.content[0].text;
+    const rawText = textBlock.text;
 
     let parsed = null;
     try {

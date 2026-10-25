@@ -1,9 +1,34 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { createClient } from '@supabase/supabase-js';
+// @ts-ignore - ESM JS helpers, no .d.ts files
+import { getAuthedUser } from './_shared/requireAuth.js';
+// @ts-ignore - ESM JS helpers, no .d.ts files
+import { rateLimit } from './_shared/rateLimit.js';
+
+const supabase = createClient(
+  process.env.SUPABASE_URL || '',
+  process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+);
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { url } = req.query;
   if (!url || typeof url !== 'string') {
     return res.status(400).json({ error: 'URL required' });
+  }
+
+  // Signed-in users only (recruiters importing a job posting), with a
+  // per-user cap: this endpoint fetches an arbitrary URL server-side and
+  // spends Anthropic credits, so it must not be anonymous.
+  const caller = await getAuthedUser(req, supabase);
+  if ((caller as any).error) {
+    return res.status((caller as any).status).json({ error: (caller as any).error });
+  }
+  if (!(caller as any).isActive) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  const jobLimitOk = await rateLimit(supabase, `fetchjob:${(caller as any).userId}`, { windowSeconds: 3600, max: 20 });
+  if (!jobLimitOk) {
+    return res.status(429).json({ error: 'Too many job imports this hour. Please try again later.' });
   }
 
   let step = 'fetching url';
@@ -27,8 +52,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         'anthropic-version': '2023-06-01'
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 1000,
+        model: 'claude-haiku-5-5',
+        max_tokens: 2500,
         system: 'You are a job posting parser. Extract ALL details from this job posting text and return ONLY valid JSON with these fields: title, company, location, type (one of: full-time, part-time, contract, remote), salary_range (look carefully for any compensation, salary, pay range, or total compensation mentioned anywhere in the posting — include the full range as a string like \'$150,000 - $200,000\'), description, requirements. If salary is truly not mentioned anywhere use null. Return only valid JSON, no markdown.',
         messages: [{ role: 'user', content: `Extract job details from this text: ${text}` }]
       })
@@ -48,7 +73,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
-    const content = claudeData.content[0].text;
+    // Current Claude models return a thinking block before the text block.
+    const jobTextBlock = Array.isArray(claudeData.content)
+      ? claudeData.content.find((b: any) => b.type === 'text')
+      : null;
+    if (!jobTextBlock?.text) {
+      return res.status(500).json({ error: 'Failed', message: 'No text block in Claude response', step });
+    }
+    const content = jobTextBlock.text;
 
     step = 'parsing job JSON';
 

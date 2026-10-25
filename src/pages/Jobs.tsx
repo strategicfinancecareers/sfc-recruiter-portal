@@ -14,6 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useJobDraft, EMPTY_JOB_FORM, type JobFormData } from "@/contexts/JobDraftContext";
 import LoaderScreen from "@/components/LoaderScreen";
+import { authedFetch } from '@/integrations/supabase/authedFetch';
 
 interface Job {
   id: string;
@@ -171,7 +172,7 @@ const handleImport = async () => {
   setImportError('');
 
   try {
-    const res = await fetch(`/api/fetch-job?url=${encodeURIComponent(importUrl)}`);
+    const res = await authedFetch(`/api/fetch-job?url=${encodeURIComponent(importUrl)}`);
     if (!res.ok) throw new Error('Import failed');
     const parsed = await res.json();
     if (parsed.error) throw new Error(parsed.error);

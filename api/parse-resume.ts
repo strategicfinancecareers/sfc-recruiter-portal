@@ -1,4 +1,16 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { createClient } from '@supabase/supabase-js';
+// @ts-ignore - ESM JS helpers, no .d.ts files
+import { rateLimit, clientIp } from './_shared/rateLimit.js';
+
+const limiterClient = createClient(
+  process.env.SUPABASE_URL || '',
+  process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+);
+
+// ~6 MB of base64 is about a 4.5 MB PDF (also Vercel's body limit).
+// Resumes are a fraction of this; anything bigger is abuse or a mis-upload.
+const MAX_BASE64_CHARS = 6 * 1024 * 1024;
 
 const EMPTY_PARSE = {
   parseError: true,
@@ -27,6 +39,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (!resumeBase64) {
       return res.status(200).json(EMPTY_PARSE);
+    }
+    if (typeof resumeBase64 !== 'string' || resumeBase64.length > MAX_BASE64_CHARS) {
+      return res.status(413).json({ error: 'Resume file is too large. Please upload a PDF under 4 MB.' });
+    }
+
+    // Anti-abuse: this endpoint is public (pre-signup) and each call costs
+    // real Anthropic credits. Per-IP for individuals, a global cap as a
+    // circuit breaker against distributed abuse. Fails open on DB errors.
+    const ip = clientIp(req);
+    const [ipOk, globalOk] = await Promise.all([
+      rateLimit(limiterClient, `parse:${ip}`, { windowSeconds: 600, max: 10 }),
+      rateLimit(limiterClient, 'parse:global', { windowSeconds: 3600, max: 120 }),
+    ]);
+    if (!ipOk || !globalOk) {
+      return res.status(429).json({ error: 'Too many resume uploads right now. Please wait a few minutes and try again.' });
     }
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {

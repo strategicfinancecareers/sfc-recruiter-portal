@@ -1,4 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+// @ts-ignore - ESM JS helpers, no .d.ts files
+import { rateLimit, clientIp } from './_shared/rateLimit.js';
 import { createClient } from '@supabase/supabase-js';
 // @ts-ignore — ESM JS helper, no .d.ts file
 import { generateResumeSignedUrl } from './_shared/signedUrl.js';
@@ -15,6 +17,16 @@ const NOTIFY_EMAIL = 'team@strategicfinancecareers.com';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+  // Anti-abuse: public endpoint, and each successful submission sends
+  // emails and triggers the Opus SFC-take auto-draft (real credit spend).
+  // Per-IP cap; fails open on DB errors so a Supabase hiccup never blocks
+  // a genuine applicant.
+  const submitIp = clientIp(req);
+  const submitOk = await rateLimit(supabase, `submit:${submitIp}`, { windowSeconds: 3600, max: 5 });
+  if (!submitOk) {
+    return res.status(429).json({ error: 'Too many submissions from this network. Please try again in an hour.' });
+  }
 
   try {
     const {

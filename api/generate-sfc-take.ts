@@ -142,6 +142,42 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ error: 'sfc_framework setting is empty' });
   }
 
+  // ── Load the resume PDF itself ────────────────────────────────────────────
+  // The take must be grounded in the actual resume, not just the structured
+  // profile fields — those can be thin, stale, or (in test data) describe a
+  // different person than the uploaded document. Default candidate_resumes
+  // row first, then the deprecated candidates.resume_full_url mirror.
+  // Best-effort: any failure falls back to fields-only generation.
+  const MAX_RESUME_BYTES = 8 * 1024 * 1024;
+  let resumeBase64: string | null = null;
+  try {
+    const { data: defaultResumeRow } = await supabase
+      .from('candidate_resumes')
+      .select('storage_path')
+      .eq('candidate_id', candidateId)
+      .eq('is_default', true)
+      .maybeSingle();
+    const resumePath: string | null =
+      (defaultResumeRow as any)?.storage_path || (candidate as any).resume_full_url || null;
+    if (resumePath && /\.pdf$/i.test(resumePath)) {
+      const { data: blob, error: dlErr } = await supabase.storage.from('resumes').download(resumePath);
+      if (dlErr || !blob) {
+        console.warn('[generate-sfc-take] resume download failed:', dlErr?.message || 'no data');
+      } else {
+        const buf = Buffer.from(await blob.arrayBuffer());
+        if (buf.length > 0 && buf.length <= MAX_RESUME_BYTES) {
+          resumeBase64 = buf.toString('base64');
+        } else {
+          console.warn('[generate-sfc-take] resume skipped (size):', buf.length);
+        }
+      }
+    } else if (resumePath) {
+      console.warn('[generate-sfc-take] resume skipped (not a PDF):', resumePath);
+    }
+  } catch (err: any) {
+    console.warn('[generate-sfc-take] resume load threw:', err?.message || err);
+  }
+
   // ── Build prompt ──────────────────────────────────────────────────────────
   const c: any = candidate;
   const targetRoles = Array.isArray(c.target_roles) ? c.target_roles.join(', ') : '';
@@ -187,14 +223,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     'Bio (candidate-written):',
     c.profile_description || '(none)',
     '',
-    c.resume_full_url
-      ? `Resume on file at storage path: ${c.resume_full_url} (you cannot fetch this; use the structured fields above)`
-      : 'No resume on file.',
+    resumeBase64
+      ? 'RESUME: The candidate\'s full resume is attached as a PDF document in this message. Ground your take in the resume itself — the actual work, scope, and progression it shows. Where the structured fields or bio above disagree with the resume, trust the resume.'
+      : (c.resume_full_url
+          ? 'Resume on file but unavailable to read; use the structured fields above.'
+          : 'No resume on file.'),
     '',
     'Return your draft in this EXACT format (the XML tags are required for parsing):',
     '',
     '<sfc_take>',
-    '[120-180 word prose analysis. Confident, specific, opinionated. Identify the path (A/B/C/D-Pattern). Read for actual work, not titles.]',
+    '[120-180 word prose analysis. Confident, specific, opinionated. Identify the path (A/B/C/D-Pattern), but ALWAYS translate it for the reader: recruiters have never seen the SFC framework, so a bare label like "Path C" means nothing to them. On first mention, pair the label with a short plain-English gloss of what that path is, e.g. "Path C (started in banking, moved into operating roles early)" — and write the rest so it stands alone without the label. Read for actual work, not titles.]',
     '</sfc_take>',
     '',
     '<sfc_role_fit>',
@@ -237,7 +275,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // Editorial quality matters here; Claude Opus 5.5 defaults to medium.
         output_config: { effort: 'high' },
         system: framework,
-        messages: [{ role: 'user', content: userMessage }],
+        messages: [{
+          role: 'user',
+          content: resumeBase64
+            ? [
+                { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: resumeBase64 } },
+                { type: 'text', text: userMessage },
+              ]
+            : userMessage,
+        }],
       }),
     });
     if (!resp.ok) {

@@ -1,5 +1,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
+import { Resend } from 'resend';
+// @ts-ignore - ESM JS helper, no .d.ts file
+import { sendIntroEmailForIntro } from './_shared/sendIntroEmail.js';
 // @ts-ignore — ESM JS helper, no .d.ts file
 import { getAuthedUser } from './_shared/requireAuth.js';
 
@@ -41,27 +44,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (error) throw error;
 
-    // Send email to candidate — must be AWAITED before returning (Vercel freezes Lambda on res.json)
-    console.log('[submit-intro] calling send-intro-email for introId:', intro.id);
-    try {
-      const emailRes = await fetch(
-        `${process.env.VITE_APP_URL || 'https://talent.strategicfinancecareers.com'}/api/send-intro-email`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-internal-call': process.env.INTERNAL_API_SECRET || '',
-          },
-          body: JSON.stringify({ introId: intro.id }),
-        }
-      );
-      const emailBody = await emailRes.json().catch(() => null);
-      console.log('[submit-intro] send-intro-email response status:', emailRes.status, '| body:', JSON.stringify(emailBody));
-    } catch (emailErr: any) {
-      console.error('[submit-intro] send-intro-email fetch threw:', emailErr.message);
+    // Email the candidate IN-PROCESS (awaited — Vercel freezes the lambda
+    // after res.json). This used to be an HTTP hop to /api/send-intro-email
+    // gated on INTERNAL_API_SECRET, which was never set in Vercel, so the
+    // call 401'd and candidates silently never heard about their intros.
+    const resend = new Resend(process.env.RESEND_API_KEY);
+    const emailOutcome = await sendIntroEmailForIntro({ supabase, resend, introId: intro.id });
+    if (emailOutcome.ok) {
+      console.log('[submit-intro] candidate email sent for intro', intro.id, JSON.stringify(emailOutcome.emailResult));
+    } else {
+      console.error('[submit-intro] candidate email FAILED for intro', intro.id, '-', emailOutcome.error);
     }
 
-    return res.status(200).json({ success: true, introId: intro.id });
+    return res.status(200).json({ success: true, introId: intro.id, emailSent: emailOutcome.ok });
   } catch (error: any) {
     console.error('[submit-intro] error:', error.message, JSON.stringify(error));
     return res.status(500).json({ error: error.message });

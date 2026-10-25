@@ -66,9 +66,38 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.log('[payment-success] checkout.session.completed — recruiterId:', recruiterId, '| plan:', plan);
 
     if (recruiterId) {
+      // Pull subscription state so the Account Billing section and the
+      // customer-portal endpoint have what they need.
+      const customerId = typeof session.customer === 'string' ? session.customer : session.customer?.id || null;
+      const subscriptionId = typeof session.subscription === 'string' ? session.subscription : (session.subscription as any)?.id || null;
+      let subStatus: string | null = null;
+      let trialEnd: string | null = null;
+      let periodEnd: string | null = null;
+      if (subscriptionId) {
+        try {
+          const sub = await stripe.subscriptions.retrieve(subscriptionId);
+          subStatus = sub.status;
+          trialEnd = sub.trial_end ? new Date(sub.trial_end * 1000).toISOString() : null;
+          const item = sub.items?.data?.[0] as any;
+          const endSec = (sub as any).current_period_end ?? item?.current_period_end;
+          periodEnd = endSec ? new Date(endSec * 1000).toISOString() : null;
+        } catch (subErr: any) {
+          console.error('[payment-success] subscription retrieve failed:', subErr.message);
+        }
+      }
       const { error } = await supabase
         .from('users')
-        .update({ is_subscribed: true, updated_at: new Date().toISOString() })
+        .update({
+          is_subscribed: true,
+          stripe_customer_id: customerId,
+          stripe_subscription_id: subscriptionId,
+          subscription_plan: plan || null,
+          subscription_status: subStatus || 'active',
+          trial_end: trialEnd,
+          current_period_end: periodEnd,
+          subscribed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
         .eq('id', recruiterId);
 
       if (error) {
@@ -78,6 +107,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       console.log('[payment-success] is_subscribed set to true for user:', recruiterId);
     }
+  }
+
+  // Keep subscription state fresh; flip access off when a subscription ends.
+  // Requires the webhook endpoint in Stripe to also send
+  // customer.subscription.updated and customer.subscription.deleted.
+  if (event.type === 'customer.subscription.updated' || event.type === 'customer.subscription.deleted') {
+    const sub = event.data.object as Stripe.Subscription;
+    const ended = event.type === 'customer.subscription.deleted' || sub.status === 'canceled';
+    const item = sub.items?.data?.[0] as any;
+    const endSec = (sub as any).current_period_end ?? item?.current_period_end;
+    const { error } = await supabase
+      .from('users')
+      .update({
+        subscription_status: ended ? 'canceled' : sub.status,
+        ...(ended ? { is_subscribed: false } : {}),
+        trial_end: sub.trial_end ? new Date(sub.trial_end * 1000).toISOString() : null,
+        current_period_end: endSec ? new Date(endSec * 1000).toISOString() : null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('stripe_subscription_id', sub.id);
+    if (error) console.error('[payment-success] subscription sync failed:', error.message);
+    else console.log('[payment-success]', event.type, '— synced', sub.id, 'status:', ended ? 'canceled' : sub.status);
   }
 
   return res.status(200).json({ received: true });

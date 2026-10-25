@@ -3,7 +3,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { CheckCircle, Loader2, Tag, ShieldCheck } from 'lucide-react';
+import { CheckCircle, Loader2, Tag, ShieldCheck, X } from 'lucide-react';
+import { authedFetch } from '@/integrations/supabase/authedFetch';
 import RecruiterAgreementContent, { type AgreementSignature } from './RecruiterAgreementContent';
 import { RECRUITER_AGREEMENT_TITLE, RECRUITER_AGREEMENT_VERSION } from '@/lib/recruiterAgreement';
 
@@ -50,6 +51,10 @@ export default function PricingModal({ open, onOpenChange, userId, userEmail, de
   // exists or what it grants.
   const [promoOpen, setPromoOpen] = useState(false);
   const [promoInput, setPromoInput] = useState('');
+  const [promoApplied, setPromoApplied] = useState(false);
+  const [promoTrialDays, setPromoTrialDays] = useState(0);
+  const [promoChecking, setPromoChecking] = useState(false);
+  const [promoError, setPromoError] = useState('');
 
   // Early bird PLACEMENT FEE coupon (display only), same discreet treatment
   const [couponOpen, setCouponOpen] = useState(false);
@@ -79,6 +84,39 @@ export default function PricingModal({ open, onOpenChange, userId, userEmail, de
 
   const placementFee = couponApplied ? PLACEMENT_FEE_EARLY_BIRD : PLACEMENT_FEE_STANDARD;
 
+  // Server-side validation so the recruiter SEES the promo land (and can
+  // still add the placement code) instead of being bounced to Stripe to
+  // find out. The code list never ships in the bundle.
+  const applyPromo = async () => {
+    const code = promoInput.trim();
+    if (!code) return;
+    setPromoChecking(true);
+    setPromoError('');
+    try {
+      const res = await authedFetch('/api/validate-promo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.valid) {
+        setPromoApplied(true);
+        setPromoTrialDays(data.trialDays || 90);
+      } else {
+        setPromoApplied(false);
+        setPromoError(res.status === 429
+          ? (data.error || 'Too many attempts. Please wait a few minutes.')
+          : 'That code is not valid. Check the spelling and try again.');
+      }
+    } catch {
+      setPromoError('Could not check the code. Please try again.');
+    } finally {
+      setPromoChecking(false);
+    }
+  };
+  const removePromo = () => { setPromoApplied(false); setPromoInput(''); setPromoTrialDays(0); };
+  const removeCoupon = () => { setCouponApplied(false); setCouponInput(''); };
+
   // Recruiters normally sign the terms in Getting Started step 2, so the
   // usual path is plan -> Stripe. If the server says no signature is on
   // file yet, we fall back to signing inline here and retry.
@@ -86,14 +124,13 @@ export default function PricingModal({ open, onOpenChange, userId, userEmail, de
     setLoading(true);
     setCheckoutError('');
     try {
-      const res = await fetch('/api/create-checkout-session', {
+      const res = await authedFetch('/api/create-checkout-session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           plan: billing,
-          userId,
-          userEmail,
-          promoCode: promoInput.trim() || undefined,
+          promoCode: promoApplied ? promoInput.trim() : undefined,
+          placementCode: couponApplied ? couponInput.trim() : undefined,
           ...(sig ? {
             initialsFee: sig.initialsFee,
             initialsComms: sig.initialsComms,
@@ -178,17 +215,32 @@ export default function PricingModal({ open, onOpenChange, userId, userEmail, de
                 ))}
               </ul>
 
-              {/* Subscription promo code — revealed on request only */}
-              {promoOpen ? (
+              {/* Subscription promo code — validated on Apply, nothing navigates */}
+              {promoApplied ? (
+                <div className="flex items-center justify-between gap-2 rounded-lg border border-[#008037]/30 bg-[#008037]/5 px-3 py-2">
+                  <p className="text-xs text-[#006a2d]">
+                    <span className="font-semibold">{promoInput.trim().toUpperCase()}</span> applied — first {promoTrialDays} days free, then {billing === 'monthly' ? '$150/mo' : '$1,200/yr'}.
+                  </p>
+                  <button type="button" onClick={removePromo} aria-label="Remove promo code" className="text-gray-400 hover:text-red-500 shrink-0">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ) : promoOpen ? (
                 <div>
-                  <Input
-                    value={promoInput}
-                    onChange={e => { setPromoInput(e.target.value); setCheckoutError(''); }}
-                    placeholder="Promo code"
-                    autoFocus
-                    className="h-9 text-sm"
-                  />
-                  <p className="text-[11px] text-muted-foreground mt-1">Applied at checkout.</p>
+                  <div className="flex gap-2">
+                    <Input
+                      value={promoInput}
+                      onChange={e => { setPromoInput(e.target.value); setPromoError(''); setCheckoutError(''); }}
+                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); applyPromo(); } }}
+                      placeholder="Promo code"
+                      autoFocus
+                      className="h-9 text-sm"
+                    />
+                    <Button type="button" variant="outline" className="h-9" onClick={applyPromo} disabled={!promoInput.trim() || promoChecking}>
+                      {promoChecking ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Apply'}
+                    </Button>
+                  </div>
+                  {promoError && <p className="text-xs text-red-600 mt-1.5">{promoError}</p>}
                 </div>
               ) : (
                 <button
@@ -199,20 +251,6 @@ export default function PricingModal({ open, onOpenChange, userId, userEmail, de
                   Have a promo code?
                 </button>
               )}
-
-              {checkoutError && (
-                <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{checkoutError}</p>
-              )}
-
-              <Button
-                className="w-full bg-[#008037] hover:bg-[#006a2d]"
-                onClick={() => startCheckout()}
-                disabled={loading}
-              >
-                {loading
-                  ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Opening checkout…</>
-                  : 'Get Started'}
-              </Button>
             </div>
 
             {/* Placement fee: clear and upfront, never a footnote */}
@@ -264,10 +302,53 @@ export default function PricingModal({ open, onOpenChange, userId, userEmail, de
                 </button>
               ))}
               {couponApplied && (
-                <p className="text-xs text-[#006a2d]">
-                  Early bird rate locked in: {fmtUsd(PLACEMENT_FEE_EARLY_BIRD)} per placement instead of {fmtUsd(PLACEMENT_FEE_STANDARD)}.
-                </p>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs text-[#006a2d]">
+                    Early bird rate locked in: {fmtUsd(PLACEMENT_FEE_EARLY_BIRD)} per placement instead of {fmtUsd(PLACEMENT_FEE_STANDARD)}.
+                  </p>
+                  <button type="button" onClick={removeCoupon} aria-label="Remove promotion code" className="text-gray-400 hover:text-red-500 shrink-0">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               )}
+            </div>
+
+            {/* Order summary + the ONLY path to Stripe */}
+            <div className="rounded-xl border-2 border-gray-200 p-4 space-y-2">
+              <p className="text-sm font-semibold text-gray-900">Summary</p>
+              <div className="flex justify-between text-sm text-gray-700">
+                <span>{billing === 'monthly' ? 'Monthly membership' : 'Annual membership'}</span>
+                <span className="font-medium">{billing === 'monthly' ? '$150/mo' : '$1,200/yr'}</span>
+              </div>
+              {promoApplied && (
+                <div className="flex justify-between text-sm text-[#006a2d]">
+                  <span>{promoInput.trim().toUpperCase()} — free trial</span>
+                  <span className="font-medium">first {promoTrialDays} days $0</span>
+                </div>
+              )}
+              <div className="flex justify-between text-sm text-gray-700">
+                <span>Placement fee (on successful hire)</span>
+                <span className="font-medium">{fmtUsd(placementFee)}{couponApplied ? ' (early bird)' : ''}</span>
+              </div>
+              <p className="text-xs text-muted-foreground pt-1">
+                {promoApplied
+                  ? 'Due today: $0. Your card is only charged when the trial ends.'
+                  : `Due today: ${billing === 'monthly' ? '$150' : '$1,200'}.`}
+              </p>
+
+              {checkoutError && (
+                <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{checkoutError}</p>
+              )}
+
+              <Button
+                className="w-full bg-[#008037] hover:bg-[#006a2d]"
+                onClick={() => startCheckout()}
+                disabled={loading}
+              >
+                {loading
+                  ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Opening checkout…</>
+                  : 'Continue to checkout'}
+              </Button>
             </div>
           </>
         ) : (

@@ -1,5 +1,6 @@
 
 import { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +13,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useCandidates } from "../hooks/useCandidates";
 import { supabase } from "@/integrations/supabase/client";
 import TermsDialog from "../components/TermsDialog";
+import PricingModal from "../components/PricingModal";
+import RequestIntroFlow, { type IntroFlowCandidate } from "../components/RequestIntroFlow";
 import LoaderScreen from "../components/LoaderScreen";
 import { authedFetch } from '@/integrations/supabase/authedFetch';
 
@@ -28,12 +31,32 @@ const Favorites = () => {
   const { candidates: allCandidates, loading, toggleFavorite: toggleCandidateFavorite } = useCandidates({
     includeName: user?.role === 'admin' || user?.role === 'owner',
   });
+  const navigate = useNavigate();
   const [localState, setLocalState] = useState<Record<string, LocalCandidate>>({});
   const [selectMode, setSelectMode] = useState(false);
   const [selectedCandidate, setSelectedCandidate] = useState<any>(null);
   const [showTermsDialog, setShowTermsDialog] = useState(false);
   const [pendingIntroductions, setPendingIntroductions] = useState<string[]>([]);
+  const [isSubscribed, setIsSubscribed] = useState(false);
+  const [showPricingModal, setShowPricingModal] = useState(false);
+  // Shared job-pick + submit flow (RequestIntroFlow). Non-null = open.
+  const [introFlowCandidates, setIntroFlowCandidates] = useState<IntroFlowCandidate[] | null>(null);
+  // Candidate(s) parked while the terms / pricing gates resolve.
+  const [gatedCandidates, setGatedCandidates] = useState<IntroFlowCandidate[] | null>(null);
   const [completedIntroductions, setCompletedIntroductions] = useState<string[]>([]);
+
+  // Same subscription gate as /browse — intros require an active membership.
+  useEffect(() => {
+    if (!user?.id) return;
+    supabase
+      .from('users')
+      .select('is_subscribed')
+      .eq('id', user.id)
+      .single()
+      .then(({ data }) => {
+        if (data?.is_subscribed) setIsSubscribed(true);
+      });
+  }, [user?.id]);
 
   // Filter to only show favorited candidates (memoized to stabilize reference)
   const favoriteCandidates = useMemo(
@@ -102,7 +125,6 @@ const Favorites = () => {
   };
 
   const handleIntroduceMe = (candidate: any) => {
-    // Check if user is admin
     if ((user?.role === 'admin' || user?.role === 'owner')) {
       toast({
         title: "Cannot Request Introductions",
@@ -111,63 +133,87 @@ const Favorites = () => {
       });
       return;
     }
-
     if (!user?.has_accepted_terms) {
+      setGatedCandidates([candidate]);
       setShowTermsDialog(true);
       return;
     }
-    
-    // Add to pending introductions
-    setPendingIntroductions(prev => [...prev, candidate.id]);
-    
-    toast({
-      title: "Introduction request sent",
-      description: "Thank you for your interest. Candidates agree to respond within 48 hours, though response times are not guaranteed. We will email you as soon as the candidate accepts or declines.",
-    });
+    if (!isSubscribed) {
+      setGatedCandidates([candidate]);
+      setShowPricingModal(true);
+      return;
+    }
+    setIntroFlowCandidates([candidate]);
   };
 
   const handleBulkIntroduce = () => {
-    const selectedCandidateIds = Object.keys(localState).filter(id => localState[id]?.isSelected);
-    if (selectedCandidateIds.length === 0) return;
-
+    const selectedIds = Object.keys(localState).filter(id => localState[id]?.isSelected);
+    if (selectedIds.length === 0) return;
+    if ((user?.role === 'admin' || user?.role === 'owner')) {
+      toast({
+        title: "Cannot Request Introductions",
+        description: "You are an admin, you cannot request introductions",
+        variant: "destructive",
+      });
+      return;
+    }
+    const picked = favoriteCandidates.filter(c => selectedIds.includes(c.id));
     if (!user?.has_accepted_terms) {
+      setGatedCandidates(picked);
       setShowTermsDialog(true);
       return;
     }
-
-    selectedCandidateIds.forEach(candidateId => {
-      setPendingIntroductions(prev => [...prev, candidateId]);
-    });
-
-    // Deselect all
-    setLocalState({});
-    setSelectMode(false);
-
-    toast({
-      title: "Introduction requests sent",
-      description: `Sent introduction requests for ${selectedCandidateIds.length} candidates. You'll receive updates via email.`,
-    });
+    if (!isSubscribed) {
+      setGatedCandidates(picked);
+      setShowPricingModal(true);
+      return;
+    }
+    setIntroFlowCandidates(picked);
   };
 
   const handleAcceptTerms = () => {
     setShowTermsDialog(false);
-    // Here you would typically update the user's terms acceptance status
-    toast({
-      title: "Terms accepted",
-      description: "You can now request introductions to candidates.",
-    });
+    if (gatedCandidates) {
+      if (!isSubscribed) {
+        setShowPricingModal(true);
+      } else {
+        setIntroFlowCandidates(gatedCandidates);
+        setGatedCandidates(null);
+      }
+    }
   };
 
   return (
     <>
-      <TermsDialog 
-        open={showTermsDialog} 
+      <TermsDialog
+        open={showTermsDialog}
         onOpenChange={(open) => {
           setShowTermsDialog(open);
-          if (!open) {
-            // Handle when dialog is closed without accepting
-          }
+          if (!open) setGatedCandidates(null);
         }}
+        onAccept={handleAcceptTerms}
+      />
+
+      <PricingModal
+        open={showPricingModal}
+        onOpenChange={(open) => {
+          setShowPricingModal(open);
+          if (!open) setGatedCandidates(null);
+        }}
+        userId={user?.id}
+        userEmail={user?.email}
+      />
+
+      {/* Shared job-pick + submit flow (same component as /browse). */}
+      <RequestIntroFlow
+        candidates={introFlowCandidates}
+        onClose={() => setIntroFlowCandidates(null)}
+        onSubmitted={(ids) => {
+          setPendingIntroductions(prev => [...prev, ...ids]);
+          setLocalState({});
+          setSelectMode(false);
+        }}
+        onAddJob={() => navigate('/jobs')}
       />
       
       <div className="flex-1 overflow-auto">

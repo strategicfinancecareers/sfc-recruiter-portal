@@ -1,5 +1,7 @@
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import AnonymousCandidateCard from '@/components/AnonymousCandidateCard';
+import RequestIntroFlow from '@/components/RequestIntroFlow';
+import { useState } from 'react';
 
 // DEV-ONLY visual harness: renders the recruiter browse modal with fixture
 // data so card/tooltip changes can be eyeballed on localhost without an
@@ -38,10 +40,21 @@ const FIXTURE_TAKE = {
 };
 
 export default function DevCardPreview() {
+  const [flowOpen, setFlowOpen] = useState(true);
   return (
     <div className="min-h-screen bg-gray-200 p-6">
       <p className="text-sm text-gray-600 mb-2">DEV harness — recruiter browse modal with fixture data (not in prod builds).</p>
-      <Dialog open onOpenChange={() => {}}>
+      <RequestIntroFlow
+        candidates={flowOpen ? [{ id: 'dev-fixture', display_name: 'Finance Professional F-42' }] : null}
+        onClose={() => setFlowOpen(false)}
+        onSubmitted={() => setFlowOpen(false)}
+        onAddJob={() => {}}
+        fixtureJobs={[
+          { id: 'job-1', title: 'Strategic Finance Manager', company: 'Acme SaaS' },
+          { id: 'job-2', title: 'Director of FP&A', company: 'Globex Fintech' },
+        ]}
+      />
+      <Dialog open={!flowOpen} onOpenChange={() => {}}>
         <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden p-0">
           <AnonymousCandidateCard
             candidate={FIXTURE as never}

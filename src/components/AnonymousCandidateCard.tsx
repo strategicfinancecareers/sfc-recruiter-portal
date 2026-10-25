@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { MapPin, Handshake, Shield, ChevronDown, ChevronUp, Eye, GraduationCap, Mail, Phone, Linkedin, Download, Loader2, CheckCircle2 } from 'lucide-react';
+import { MapPin, Handshake, Shield, ChevronDown, ChevronUp, Eye, GraduationCap, Mail, Phone, Linkedin, Download, Loader2, CheckCircle2, Info } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Button } from '@/components/ui/button';
 import EmailCandidateBlock from './EmailCandidateBlock';
 
@@ -78,12 +79,7 @@ interface RecruiterModeProps {
   // SFC's Take — the editorial, admin-published analysis. Parent gates
   // on sfc_take_published_at; when absent the section is hidden
   // entirely (no auto-generated fallback copy).
-  sfcTake?: {
-    take: string;
-    roleFit?: string[] | null;
-    strengths?: string[] | null;
-    considerations?: string[] | null;
-  } | null;
+  sfcTake?: { take: string } | null;
   onRequestIntro?: () => void;
   introCtaLabel?: string;          // "Request Introduction" | "Intro Requested" | "Intro Complete"
   introCtaDisabled?: boolean;
@@ -106,13 +102,8 @@ interface RevealedModeProps {
   resumeDownloading?: boolean;
   resumeError?: string | null;
   onDownloadResume?: () => void;
-  // SFC Take (already-published only — parent gates on published_at).
-  sfcTake?: {
-    take: string;
-    roleFit?: string[] | null;
-    strengths?: string[] | null;
-    considerations?: string[] | null;
-  } | null;
+  // SFC's Take (already-published only — parent gates on published_at).
+  sfcTake?: { take: string } | null;
 }
 
 type Props = { candidate: AnonymousCandidateCardData } & (RecruiterModeProps | PreviewModeProps | RevealedModeProps);
@@ -299,25 +290,26 @@ export default function AnonymousCandidateCard(props: Props) {
             recruiter mode (pre-intro: this IS the sell) and revealed mode;
             preview never shows it. Entirely hidden until published. */}
         {sfcTake?.take && (
-          <div className="border-t border-gray-100 pt-4 space-y-4">
-            <div>
-              <p className="text-[10px] uppercase tracking-wider font-semibold text-[#006a2d] italic mb-1.5">SFC's Take</p>
-              <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">{sfcTake.take}</p>
+          <div className="border-t border-gray-100 pt-4">
+            <div className="flex items-center gap-1.5 mb-1.5">
+              <p className="text-[10px] uppercase tracking-wider font-semibold text-[#006a2d] italic">SFC's Take</p>
+              <TooltipProvider delayDuration={150}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button type="button" aria-label="How SFC classifies candidate paths" className="text-gray-400 hover:text-[#006a2d]">
+                      <Info className="w-3.5 h-3.5" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-xs text-left">
+                    <p className="font-semibold mb-1.5">How SFC classifies candidate paths</p>
+                    <p className="mb-1"><span className="font-semibold">Path A — Pedigree:</span> trained in a rigorous analytical environment (investment banking, consulting, private equity). Strong modeling horsepower; building operating experience.</p>
+                    <p className="mb-1"><span className="font-semibold">Path B — Operator:</span> did the strategic finance work inside operating companies. Strong business judgment and real P&L partnership.</p>
+                    <p><span className="font-semibold">Path C — Both:</span> pedigree foundation plus operating experience. The rarest profile and SFC's top tier.</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
-            {([
-              { title: 'Role fit', items: sfcTake.roleFit },
-              { title: 'Strengths', items: sfcTake.strengths },
-              { title: 'Considerations', items: sfcTake.considerations },
-            ] as Array<{ title: string; items?: string[] | null }>).filter(s => s.items && s.items.length > 0).map(s => (
-              <div key={s.title}>
-                <p className="text-xs uppercase tracking-wide text-gray-400 font-medium mb-1.5">{s.title}</p>
-                <div className="flex flex-wrap gap-1">
-                  {s.items!.map((item, i) => (
-                    <span key={`${s.title}-${i}`} className="px-2.5 py-1 rounded-full text-xs font-medium border border-[#008037]/25 bg-[#008037]/5 text-[#005a26]">{item}</span>
-                  ))}
-                </div>
-              </div>
-            ))}
+            <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">{sfcTake.take}</p>
           </div>
         )}
 

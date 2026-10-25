@@ -282,12 +282,7 @@ const openApprovedModal = (request: IntroductionRequest) => {
                 onDownloadResume={handleDownloadResume}
                 sfcTake={
                   approvedModal.request?.candidate?.sfc_take_published_at && approvedModal.request?.candidate?.sfc_take
-                    ? {
-                        take: approvedModal.request.candidate.sfc_take,
-                        roleFit: approvedModal.request.candidate.sfc_role_fit,
-                        strengths: approvedModal.request.candidate.sfc_strengths,
-                        considerations: approvedModal.request.candidate.sfc_considerations,
-                      }
+                    ? { take: approvedModal.request.candidate.sfc_take }
                     : null
                 }
               />

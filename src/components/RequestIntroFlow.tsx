@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { supabase } from '@/integrations/supabase/client';
 import { authedFetch } from '@/integrations/supabase/authedFetch';
 import { useAuth } from '@/contexts/AuthContext';
@@ -50,6 +51,7 @@ export default function RequestIntroFlow({ candidates, onClose, onSubmitted, onA
   const [jobs, setJobs] = useState<Job[]>([]);
   const [jobsLoading, setJobsLoading] = useState(false);
   const [selectedJobId, setSelectedJobId] = useState('');
+  const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -74,6 +76,7 @@ export default function RequestIntroFlow({ candidates, onClose, onSubmitted, onA
 
   const close = () => {
     setSelectedJobId('');
+    setNote('');
     onClose();
   };
 
@@ -87,7 +90,7 @@ export default function RequestIntroFlow({ candidates, onClose, onSubmitted, onA
         const res = await authedFetch('/api/submit-intro', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ candidate_id: c.id, job_id: selectedJobId }),
+          body: JSON.stringify({ candidate_id: c.id, job_id: selectedJobId, message: note.trim() || null }),
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data.error || `Failed (${res.status})`);
@@ -169,6 +172,21 @@ export default function RequestIntroFlow({ candidates, onClose, onSubmitted, onA
                   <p className="text-sm text-destructive">A job must be selected in order to request an introduction.</p>
                 </div>
               )}
+              <div className="space-y-2">
+                <Label htmlFor="intro-note">
+                  {single ? 'Add a note for the candidate' : 'Add a note for the candidates'}{' '}
+                  <span className="text-muted-foreground font-normal">(optional)</span>
+                </Label>
+                <Textarea
+                  id="intro-note"
+                  value={note}
+                  onChange={(e) => setNote(e.target.value.slice(0, 500))}
+                  rows={3}
+                  placeholder="A short personal note — why this role could be a great fit, what caught your eye on their profile…"
+                  className="text-sm"
+                />
+                <p className="text-xs text-muted-foreground text-right">{note.length}/500</p>
+              </div>
             </div>
           )}
         </div>

@@ -736,7 +736,7 @@ export default function CandidateSearch() {
                       const display = isExpanded || !isLong ? safe : safe.slice(0, TRUNCATE).trimEnd() + '…';
                       return (
                         <div className="border-t pt-3 mt-1">
-                          <p className="text-[10px] uppercase tracking-wider font-semibold text-[#006a2d] italic mb-1.5">SFC Take</p>
+                          <p className="text-[10px] uppercase tracking-wider font-semibold text-[#006a2d] italic mb-1.5">SFC's Take</p>
                           <p className="text-xs text-foreground leading-relaxed">
                             {display}
                             {isLong && (
@@ -753,15 +753,6 @@ export default function CandidateSearch() {
                               </button>
                             )}
                           </p>
-                          {candidate.sfc_role_fit && candidate.sfc_role_fit.length > 0 && (
-                            <div className="flex flex-wrap gap-1 mt-2">
-                              {candidate.sfc_role_fit.map((rf, i) => (
-                                <Badge key={`${rf}-${i}`} variant="outline" className="text-[10px] border-[#008037]/25 bg-[#008037]/5 text-[#005a26]">
-                                  {rf}
-                                </Badge>
-                              ))}
-                            </div>
-                          )}
                         </div>
                       );
                     })()}

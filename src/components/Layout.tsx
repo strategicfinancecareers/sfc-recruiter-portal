@@ -12,8 +12,13 @@ const Layout = () => {
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
+  // Start Here is onboarding: once a recruiter is subscribed (terms are
+  // necessarily signed by then — checkout enforces it) the page has done
+  // its job and disappears from the nav; the route also redirects.
   const navigation = [
-    { name: 'Start Here', href: '/start-here', icon: Sparkles },
+    ...(!(user as any)?.is_subscribed
+      ? [{ name: 'Start Here', href: '/start-here', icon: Sparkles }]
+      : []),
     { name: 'Browse Candidates', href: '/browse', icon: Users },
     { name: 'Jobs', href: '/jobs', icon: Briefcase },
     { name: 'Favorites', href: '/favorites', icon: Heart },

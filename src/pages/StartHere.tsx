@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Search, Handshake, CalendarCheck, BadgeCheck, ShieldCheck, ArrowRight, Clock, AlertCircle, CheckCircle2, Circle, Loader2 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import PricingModal, { EARLY_BIRD_CODES, PLACEMENT_FEE_STANDARD, PLACEMENT_FEE_EARLY_BIRD, fmtUsd } from '../components/PricingModal';
@@ -122,6 +122,12 @@ const StartHere = () => {
       .then(({ requests }) => setHasIntros((requests || []).length > 0))
       .catch(err => console.error('[StartHere] intro check failed:', err));
   }, [user?.id]);
+
+  // Subscribed recruiters never need this page again - straight to Browse.
+  // (Covers direct links and the post-password-reset landing path.)
+  if ((user as any)?.is_subscribed || isSubscribed) {
+    return <Navigate to="/browse" replace />;
+  }
 
   const openPricingModal = (plan: 'monthly' | 'annual') => {
     setPricingPlan(plan);

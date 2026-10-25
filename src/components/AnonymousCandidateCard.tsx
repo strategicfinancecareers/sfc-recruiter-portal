@@ -75,10 +75,15 @@ export interface AnonymousCandidateCardData {
 
 interface RecruiterModeProps {
   mode: 'recruiter';
-  // Insight bullets are computed by the parent (CandidateSearch caches
-  // across opens). Pass undefined to render the "no insights yet" state.
-  insightBullets?: string[];
-  insightLoading?: boolean;
+  // SFC's Take — the editorial, admin-published analysis. Parent gates
+  // on sfc_take_published_at; when absent the section is hidden
+  // entirely (no auto-generated fallback copy).
+  sfcTake?: {
+    take: string;
+    roleFit?: string[] | null;
+    strengths?: string[] | null;
+    considerations?: string[] | null;
+  } | null;
   onRequestIntro?: () => void;
   introCtaLabel?: string;          // "Request Introduction" | "Intro Requested" | "Intro Complete"
   introCtaDisabled?: boolean;
@@ -139,14 +144,14 @@ export default function AnonymousCandidateCard(props: Props) {
     : (Array.isArray(c.detailed_experience) ? c.detailed_experience : []);
   const areas = areasSource.filter(Boolean);
 
-  // Insight bullets only render in recruiter mode (preview and revealed
-  // both suppress the entire "Why This Candidate Stands Out" section).
   const recruiterProps = props.mode === 'recruiter' ? props : null;
   const revealedProps = props.mode === 'revealed' ? props : null;
   const isRevealed = props.mode === 'revealed';
-  const insightLoading = recruiterProps?.insightLoading ?? false;
-  const insightBullets = recruiterProps?.insightBullets ?? [];
   const isAdmin = recruiterProps?.isAdmin ?? false;
+  // SFC's Take renders in recruiter mode (pre-intro, the editorial sell)
+  // and revealed mode (post-acceptance). Preview never shows it. Hidden
+  // entirely when the candidate has no published take.
+  const sfcTake = recruiterProps?.sfcTake || revealedProps?.sfcTake || null;
 
   return (
     <div className="flex flex-col lg:flex-row h-full max-h-[90vh]">
@@ -290,47 +295,19 @@ export default function AnonymousCandidateCard(props: Props) {
           </div>
         )}
 
-        {/* Why This Candidate Stands Out — recruiter mode only.
-            Preview and revealed modes suppress entirely. */}
-        {recruiterProps && (
-          <div>
-            <h3 className="text-sm font-semibold text-gray-900 mb-3">Why This Candidate Stands Out ✦</h3>
-            {insightLoading ? (
-              <div className="space-y-2">
-                {[80, 65, 90].map(w => (
-                  <div key={w} className="flex items-center gap-2">
-                    <div className="w-1.5 h-1.5 rounded-full bg-gray-200 shrink-0" />
-                    <div className="h-3.5 bg-gray-100 rounded animate-pulse" style={{ width: `${w}%` }} />
-                  </div>
-                ))}
-              </div>
-            ) : insightBullets.length > 0 ? (
-              <ul className="space-y-2">
-                {insightBullets.map((b, i) => (
-                  <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
-                    <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-[#008037] shrink-0" />
-                    {b}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-sm text-gray-400 italic">Upload complete profile to generate insights.</p>
-            )}
-          </div>
-        )}
-
-        {/* SFC Take — revealed mode only (post-acceptance full reveal).
-            Recruiter mode surfaces its own insights; preview never shows it. */}
-        {isRevealed && revealedProps?.sfcTake?.take && (
+        {/* SFC's Take — the editorial, admin-published analysis. Renders in
+            recruiter mode (pre-intro: this IS the sell) and revealed mode;
+            preview never shows it. Entirely hidden until published. */}
+        {sfcTake?.take && (
           <div className="border-t border-gray-100 pt-4 space-y-4">
             <div>
-              <p className="text-[10px] uppercase tracking-wider font-semibold text-[#006a2d] italic mb-1.5">SFC Take</p>
-              <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">{revealedProps.sfcTake.take}</p>
+              <p className="text-[10px] uppercase tracking-wider font-semibold text-[#006a2d] italic mb-1.5">SFC's Take</p>
+              <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">{sfcTake.take}</p>
             </div>
             {([
-              { title: 'Role fit', items: revealedProps.sfcTake.roleFit },
-              { title: 'Strengths', items: revealedProps.sfcTake.strengths },
-              { title: 'Considerations', items: revealedProps.sfcTake.considerations },
+              { title: 'Role fit', items: sfcTake.roleFit },
+              { title: 'Strengths', items: sfcTake.strengths },
+              { title: 'Considerations', items: sfcTake.considerations },
             ] as Array<{ title: string; items?: string[] | null }>).filter(s => s.items && s.items.length > 0).map(s => (
               <div key={s.title}>
                 <p className="text-xs uppercase tracking-wide text-gray-400 font-medium mb-1.5">{s.title}</p>

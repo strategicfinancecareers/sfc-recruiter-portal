@@ -18,7 +18,7 @@ import { scrubSfcTakeFields } from './_shared/scrubName.js';
 // auto-draft hook in submit-candidate).
 //
 // Direct fetch to api.anthropic.com (matches the pattern of
-// parse-resume.ts / fetch-job.ts / generate-candidate-insight.ts —
+// parse-resume.ts / fetch-job.ts —
 // no @anthropic-ai/sdk in the repo).
 
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';

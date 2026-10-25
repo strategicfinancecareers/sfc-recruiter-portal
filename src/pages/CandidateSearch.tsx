@@ -89,9 +89,6 @@ export default function CandidateSearch() {
 
   // Profile dialog extras
   const [showFullBio, setShowFullBio] = useState(false);
-  const [insightBullets, setInsightBullets] = useState<string[]>([]);
-  const [insightLoading, setInsightLoading] = useState(false);
-  const insightCache = useRef<Map<string, string[]>>(new Map());
 
   // Check ?subscribed=true after Stripe redirect
   useEffect(() => {
@@ -118,33 +115,9 @@ export default function CandidateSearch() {
       });
   }, [user?.id]);
 
-  // Generate AI insight when profile dialog opens
+  // Reset bio expansion when the dialog closes / switches candidate.
   useEffect(() => {
-    if (!selectedCandidate) { setInsightBullets([]); setShowFullBio(false); return; }
-    const cached = insightCache.current.get(selectedCandidate.id);
-    if (cached) { setInsightBullets(cached); return; }
-    setInsightBullets([]);
-    setInsightLoading(true);
-    const bio = selectedCandidate.profile_description?.split('\n\n')[0] || '';
-    authedFetch('/api/generate-candidate-insight', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        role: selectedCandidate.label,
-        bio,
-        skills: selectedCandidate.skills.map(s => s.skill),
-        experience: selectedCandidate.experience,
-        education: selectedCandidate.education,
-      }),
-    })
-      .then(r => r.json())
-      .then(data => {
-        const bullets = data.bullets || [];
-        insightCache.current.set(selectedCandidate.id, bullets);
-        setInsightBullets(bullets);
-      })
-      .catch(() => setInsightBullets([]))
-      .finally(() => setInsightLoading(false));
+    if (!selectedCandidate) setShowFullBio(false);
   }, [selectedCandidate?.id]);
 
   // Filters
@@ -982,8 +955,12 @@ export default function CandidateSearch() {
               <AnonymousCandidateCard
                 candidate={c}
                 mode="recruiter"
-                insightBullets={insightBullets}
-                insightLoading={insightLoading}
+                sfcTake={c.sfc_take && c.sfc_take_published_at ? {
+                  take: c.sfc_take,
+                  roleFit: c.sfc_role_fit,
+                  strengths: c.sfc_strengths,
+                  considerations: c.sfc_considerations,
+                } : null}
                 isAdmin={(user?.role === 'admin' || user?.role === 'owner')}
                 introCtaDisabled={pending || complete}
                 introCtaLabel={pending ? 'Intro Requested' : complete ? 'Intro Complete' : 'Request Introduction'}

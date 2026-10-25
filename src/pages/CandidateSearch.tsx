@@ -126,7 +126,7 @@ export default function CandidateSearch() {
     setInsightBullets([]);
     setInsightLoading(true);
     const bio = selectedCandidate.profile_description?.split('\n\n')[0] || '';
-    fetch('/api/generate-candidate-insight', {
+    authedFetch('/api/generate-candidate-insight', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

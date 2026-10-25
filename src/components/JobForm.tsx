@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useJobDraft, EMPTY_JOB_FORM } from "@/contexts/JobDraftContext";
+import { authedFetch } from '@/integrations/supabase/authedFetch';
 
 interface JobFormData {
   title: string;
@@ -115,7 +116,7 @@ export function JobForm({ open, onOpenChange, onJobCreated, editingJob }: JobFor
     setImportError('');
 
     try {
-      const res = await fetch(`/api/fetch-job?url=${encodeURIComponent(importUrl)}`);
+      const res = await authedFetch(`/api/fetch-job?url=${encodeURIComponent(importUrl)}`);
       if (!res.ok) throw new Error('Import failed');
       const parsed = await res.json();
       if (parsed.error) throw new Error(parsed.error);

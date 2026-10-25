@@ -1,4 +1,14 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { createClient } from '@supabase/supabase-js';
+// @ts-ignore - ESM JS helpers, no .d.ts files
+import { getAuthedUser } from './_shared/requireAuth.js';
+// @ts-ignore - ESM JS helpers, no .d.ts files
+import { rateLimit } from './_shared/rateLimit.js';
+
+const supabase = createClient(
+  process.env.SUPABASE_URL || '',
+  process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+);
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
@@ -8,6 +18,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (!role && !bio) {
       return res.status(200).json({ bullets: [] });
+    }
+
+    // Signed-in users only (recruiters browsing), with a per-user cap -
+    // each call spends Anthropic credits.
+    const caller = await getAuthedUser(req, supabase);
+    if ((caller as any).error) {
+      return res.status((caller as any).status).json({ error: (caller as any).error });
+    }
+    const insightLimitOk = await rateLimit(supabase, `insight:${(caller as any).userId}`, { windowSeconds: 3600, max: 100 });
+    if (!insightLimitOk) {
+      return res.status(429).json({ error: 'Too many requests this hour. Please try again later.' });
     }
 
     const userMsg = [
@@ -26,15 +47,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 400,
+        model: 'claude-haiku-5-5',
+        max_tokens: 1500,
         system: 'You are a talent analyst. Based on this candidate profile, generate exactly 3-4 concise bullet points explaining why this candidate stands out to a recruiter. Focus on impact, seniority, and unique value. Keep each bullet under 15 words. No fluff. Return ONLY a JSON array of strings, e.g. ["bullet 1","bullet 2","bullet 3"]. No markdown, no explanation.',
         messages: [{ role: 'user', content: userMsg }],
       }),
     });
 
     const data = await response.json();
-    const raw = data.content?.[0]?.text || '[]';
+    // Current Claude models return a thinking block before the text block.
+    const raw = (Array.isArray(data.content) ? data.content.find((b: any) => b.type === 'text')?.text : null) || '[]';
 
     let bullets: string[] = [];
     try {

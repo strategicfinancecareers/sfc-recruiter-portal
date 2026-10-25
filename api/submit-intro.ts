@@ -36,7 +36,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         requester_id,
         candidate_id,
         job_id: job_id || null,
-        message: message || null,
+        message: typeof message === 'string' && message.trim() ? message.trim().slice(0, 1000) : null,
         status: 'pending',
       })
       .select()

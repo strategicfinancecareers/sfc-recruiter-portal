@@ -93,6 +93,7 @@ interface IntroRequest {
   id: string;
   created_at: string;
   status: string;
+  message?: string | null;
   jobs?: {
     title: string | null;
     company: string | null;
@@ -816,6 +817,18 @@ function IntroductionsTab({
                         </a>
                       </p>
                     )}
+                  </div>
+                )}
+
+                {req.message && (
+                  <div
+                    className="mb-2 rounded-lg px-3 py-2 text-xs leading-relaxed"
+                    style={{ background: 'rgba(0,128,55,.05)', border: '1px solid rgba(0,128,55,.15)', color: 'rgba(14,14,13,.75)' }}
+                  >
+                    <span className="font-medium" style={{ color: INK }}>
+                      Note from {recruiterName || 'the recruiter'}:
+                    </span>{' '}
+                    <span className="italic">“{req.message}”</span>
                   </div>
                 )}
 

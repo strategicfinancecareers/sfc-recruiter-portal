@@ -955,12 +955,7 @@ export default function CandidateSearch() {
               <AnonymousCandidateCard
                 candidate={c}
                 mode="recruiter"
-                sfcTake={c.sfc_take && c.sfc_take_published_at ? {
-                  take: c.sfc_take,
-                  roleFit: c.sfc_role_fit,
-                  strengths: c.sfc_strengths,
-                  considerations: c.sfc_considerations,
-                } : null}
+                sfcTake={c.sfc_take && c.sfc_take_published_at ? { take: c.sfc_take } : null}
                 isAdmin={(user?.role === 'admin' || user?.role === 'owner')}
                 introCtaDisabled={pending || complete}
                 introCtaLabel={pending ? 'Intro Requested' : complete ? 'Intro Complete' : 'Request Introduction'}

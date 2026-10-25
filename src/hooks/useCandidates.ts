@@ -56,9 +56,6 @@ export interface Candidate {
   // SFC Take (Batch 2) — recruiters see these ONLY when sfc_take_published_at is non-null.
   // Filter happens at render time, not in the SELECT, so the hook can stay shared with admin views.
   sfc_take?: string | null;
-  sfc_role_fit?: string[] | null;
-  sfc_strengths?: string[] | null;
-  sfc_considerations?: string[] | null;
   sfc_take_published_at?: string | null;
   // Admin-only: real name is included in the payload ONLY when
   // includeName=true is passed to useCandidates by an admin/owner
@@ -103,9 +100,6 @@ const RECRUITER_COLUMNS = [
   'is_sfc_alum',
   'sfc_take',
   'sfc_take_published_at',
-  'sfc_role_fit',
-  'sfc_strengths',
-  'sfc_considerations',
 ].join(', ');
 
 export function useCandidates(opts: { includeName?: boolean } = {}) {

@@ -229,29 +229,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           ? 'Resume on file but unavailable to read; use the structured fields above.'
           : 'No resume on file.'),
     '',
-    'Return your draft in this EXACT format (the XML tags are required for parsing):',
+    'Return your draft in this EXACT format (the XML tag is required for parsing). The Take paragraph is the ONLY output — do not produce role-fit, strengths, or considerations sections:',
     '',
     '<sfc_take>',
-    '[120-180 word prose analysis. Confident, specific, opinionated. Identify the path (A/B/C/D-Pattern), but ALWAYS translate it for the reader: recruiters have never seen the SFC framework, so a bare label like "Path C" means nothing to them. On first mention, pair the label with a short plain-English gloss of what that path is, e.g. "Path C (started in banking, moved into operating roles early)" — and write the rest so it stands alone without the label. Read for actual work, not titles.]',
+    '[120-180 word prose analysis. Confident, specific, opinionated. Identify the path (A/B/C/D-Pattern), but ALWAYS translate it for the reader: recruiters have never seen the SFC framework, so a bare label like "Path C" means nothing to them. On first mention, pair the label with a short plain-English gloss of what that path is, e.g. "Path C (started in banking, moved into operating roles early)" — and write the rest so it stands alone without the label. Read for actual work, not titles. Fold the strongest evidence, the clearest role-fit instinct, and any honest pre-sell INTO this one paragraph.]',
     '</sfc_take>',
-    '',
-    '<sfc_role_fit>',
-    '- [Specific role + company stage match]',
-    '- [...]',
-    '- [3-5 entries]',
-    '</sfc_role_fit>',
-    '',
-    '<sfc_strengths>',
-    '- [Evidence-grounded strength]',
-    '- [...]',
-    '- [3-5 entries]',
-    '</sfc_strengths>',
-    '',
-    '<sfc_considerations>',
-    '- [Honest pre-sell, framed as positioning info]',
-    '- [...]',
-    '- [1-3 entries]',
-    '</sfc_considerations>',
   ].filter(Boolean).join('\n');
 
   // ── Call Anthropic ────────────────────────────────────────────────────────
@@ -301,44 +283,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const raw = (Array.isArray(anthropicJson.content) ? anthropicJson.content.find((b: any) => b.type === 'text')?.text : null) || '';
   console.log('[generate-sfc-take] model:', MODEL, 'usage:', JSON.stringify(anthropicJson.usage || {}));
 
-  // ── Parse XML tags ────────────────────────────────────────────────────────
+  // ── Parse XML tag ─────────────────────────────────────────────────────────
+  // The Take paragraph is the whole product now — the role-fit /
+  // strengths / considerations sections were retired (clunky to edit,
+  // slowed the workflow). Legacy columns stay in the DB untouched.
   const takeText = extractTag(raw, 'sfc_take');
-  const roleFitBlock = extractTag(raw, 'sfc_role_fit');
-  const strengthsBlock = extractTag(raw, 'sfc_strengths');
-  const considBlock = extractTag(raw, 'sfc_considerations');
 
-  if (!takeText || !roleFitBlock || !strengthsBlock || !considBlock) {
+  if (!takeText) {
     console.error('[generate-sfc-take] parse FAIL — raw output:', raw);
     return res.status(500).json({
-      error: 'Failed to parse Anthropic response — missing one or more XML tags',
+      error: 'Failed to parse Anthropic response — missing <sfc_take> tag',
       rawPreview: raw.slice(0, 800),
     });
   }
 
-  const sfc_role_fit_raw = parseBullets(roleFitBlock);
-  const sfc_strengths_raw = parseBullets(strengthsBlock);
-  const sfc_considerations_raw = parseBullets(considBlock);
-
   // ── Real-name scrub (safety net) ──────────────────────────────────────────
   // The prompt instructs the model NOT to use the real name; this is
-  // the belt-and-suspenders pass that guarantees the persisted take +
-  // bullet arrays never contain it. After this point the DB row is
-  // safe to ship to recruiters without the client having to know the
-  // real name (and the recruiter SELECT no longer includes `name`).
+  // the belt-and-suspenders pass that guarantees the persisted take
+  // never contains it.
   const scrubbed = scrubSfcTakeFields(
-    {
-      sfc_take: takeText,
-      sfc_role_fit: sfc_role_fit_raw,
-      sfc_strengths: sfc_strengths_raw,
-      sfc_considerations: sfc_considerations_raw,
-    },
+    { sfc_take: takeText, sfc_role_fit: [], sfc_strengths: [], sfc_considerations: [] },
     c.name,
     c.display_name
   );
   const scrubbedTake = scrubbed.sfc_take;
-  const sfc_role_fit = scrubbed.sfc_role_fit;
-  const sfc_strengths = scrubbed.sfc_strengths;
-  const sfc_considerations = scrubbed.sfc_considerations;
 
   // ── Persist (do NOT touch sfc_take_published_at) ──────────────────────────
   const nowIso = new Date().toISOString();
@@ -346,9 +314,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     .from('candidates')
     .update({
       sfc_take: scrubbedTake,
-      sfc_role_fit,
-      sfc_strengths,
-      sfc_considerations,
       sfc_take_draft_generated_at: nowIso,
       sfc_take_model: MODEL,
       updated_at: nowIso,
@@ -363,9 +328,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     success: true,
     candidateId,
     sfc_take: scrubbedTake,
-    sfc_role_fit,
-    sfc_strengths,
-    sfc_considerations,
     sfc_take_draft_generated_at: nowIso,
     sfc_take_model: MODEL,
     usage: anthropicJson.usage || null,

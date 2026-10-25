@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { MapPin, Handshake, Shield, ChevronDown, ChevronUp, Eye, GraduationCap, Mail, Phone, Linkedin, Download, Loader2, CheckCircle2, Info } from 'lucide-react';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
 import EmailCandidateBlock from './EmailCandidateBlock';
 
@@ -293,21 +293,19 @@ export default function AnonymousCandidateCard(props: Props) {
           <div className="border-t border-gray-100 pt-4">
             <div className="flex items-center gap-1.5 mb-1.5">
               <p className="text-[10px] uppercase tracking-wider font-semibold text-[#006a2d] italic">SFC's Take</p>
-              <TooltipProvider delayDuration={150}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button type="button" aria-label="How SFC classifies candidate paths" className="text-gray-400 hover:text-[#006a2d]">
-                      <Info className="w-3.5 h-3.5" />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top" className="max-w-xs text-left">
-                    <p className="font-semibold mb-1.5">How SFC classifies candidate paths</p>
-                    <p className="mb-1"><span className="font-semibold">Path A — Pedigree:</span> trained in a rigorous analytical environment (investment banking, consulting, private equity). Strong modeling horsepower; building operating experience.</p>
-                    <p className="mb-1"><span className="font-semibold">Path B — Operator:</span> did the strategic finance work inside operating companies. Strong business judgment and real P&L partnership.</p>
-                    <p><span className="font-semibold">Path C — Both:</span> pedigree foundation plus operating experience. The rarest profile and SFC's top tier.</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button type="button" aria-label="How SFC classifies candidate paths" className="text-gray-400 hover:text-[#006a2d] cursor-pointer">
+                    <Info className="w-3.5 h-3.5" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent side="top" align="start" collisionPadding={12} className="w-80 text-xs leading-relaxed">
+                  <p className="font-semibold mb-1.5">How SFC classifies candidate paths</p>
+                  <p className="mb-1"><span className="font-semibold">Path A — Pedigree:</span> trained in a rigorous analytical environment (investment banking, consulting, private equity). Strong modeling horsepower; building operating experience.</p>
+                  <p className="mb-1"><span className="font-semibold">Path B — Operator:</span> did the strategic finance work inside operating companies. Strong business judgment and real P&L partnership.</p>
+                  <p><span className="font-semibold">Path C — Both:</span> pedigree foundation plus operating experience. The rarest profile and SFC's top tier.</p>
+                </PopoverContent>
+              </Popover>
             </div>
             <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">{sfcTake.take}</p>
           </div>

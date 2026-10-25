@@ -19,6 +19,7 @@ import Jobs from "./pages/Jobs";
 import Favorites from "./pages/Favorites";
 import Admin from "./pages/Admin";
 import IntroductionRequests from "./pages/IntroductionRequests";
+import DevCardPreview from "./pages/DevCardPreview";
 import StartHere from "./pages/StartHere";
 import Layout from "./components/Layout";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -44,6 +45,8 @@ const App = () => (
             <Route path="/reset-password" element={<ResetPasswordProfessional />} />
             <Route path="/recruiter/reset-password" element={<ResetPasswordRecruiter />} />
             <Route path="/apply" element={<CandidateApply />} />
+            {/* DEV-only visual harness — route exists only in dev builds. */}
+            {import.meta.env.DEV && <Route path="/__dev/card" element={<DevCardPreview />} />}
             <Route path="/candidate-dashboard" element={<CandidateDashboard />} />
             <Route path="/" element={
               <ProtectedRoute>

@@ -20,6 +20,7 @@ import Favorites from "./pages/Favorites";
 import Admin from "./pages/Admin";
 import IntroductionRequests from "./pages/IntroductionRequests";
 import DevCardPreview from "./pages/DevCardPreview";
+import DevPricingPreview from "./pages/DevPricingPreview";
 import StartHere from "./pages/StartHere";
 import Layout from "./components/Layout";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -47,6 +48,7 @@ const App = () => (
             <Route path="/apply" element={<CandidateApply />} />
             {/* DEV-only visual harness — route exists only in dev builds. */}
             {import.meta.env.DEV && <Route path="/__dev/card" element={<DevCardPreview />} />}
+            {import.meta.env.DEV && <Route path="/__dev/pricing" element={<DevPricingPreview />} />}
             <Route path="/candidate-dashboard" element={<CandidateDashboard />} />
             <Route path="/" element={
               <ProtectedRoute>

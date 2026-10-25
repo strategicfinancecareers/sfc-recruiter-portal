@@ -285,6 +285,21 @@ const StartHere = () => {
           )}
 
           <div className="max-w-xl mx-auto space-y-4">
+            {isSubscribed ? (
+              <div className="border border-gray-200 rounded-xl p-6 bg-white text-sm text-gray-600 space-y-3">
+                <p>
+                  Your membership is active — pricing no longer applies to you.
+                  Manage your plan, payment method, and receipts any time.
+                </p>
+                <a
+                  href="/account"
+                  className="inline-block px-4 py-2 rounded-lg bg-[#008037] hover:bg-[#006a2d] text-white font-semibold text-sm transition-colors"
+                >
+                  Go to Billing
+                </a>
+              </div>
+            ) : (
+            <>
             {/* Billing toggle */}
             <div className="grid grid-cols-2 rounded-lg border border-gray-200 p-1 bg-gray-50">
               {(['monthly', 'annual'] as const).map(b => (
@@ -405,6 +420,8 @@ const StartHere = () => {
                 </p>
               )}
             </div>
+            </>
+            )}
           </div>
         </div>
 

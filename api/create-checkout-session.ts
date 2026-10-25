@@ -1,6 +1,10 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import Stripe from 'stripe';
 import { createClient } from '@supabase/supabase-js';
+// @ts-ignore - ESM JS helpers, no .d.ts files
+import { getAuthedUser } from './_shared/requireAuth.js';
+// @ts-ignore - ESM JS helpers, no .d.ts files
+import { FREE_MONTHS_CODES, FREE_TRIAL_DAYS, PLACEMENT_FEE_CODES, normalizeCode } from './_shared/promoCodes.js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '');
 const supabase = createClient(
@@ -22,28 +26,30 @@ const PLANS = {
   },
 };
 
-// Promo codes granting a 90-day free trial (both billing modes: monthly
-// bills $150/mo starting month 4; annual bills $1,200 at day 90).
-// Server-side only, so codes are not visible in the client bundle.
-// Edit this list to add or retire codes.
-const FREE_MONTHS_CODES = ['SFCLAUNCH'];
-const FREE_TRIAL_DAYS = 90;
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { plan, userId, userEmail, initialsFee, initialsComms, signature, termsVersion, promoCode } = req.body as {
+  const { plan, initialsFee, initialsComms, signature, termsVersion, promoCode, placementCode } = req.body as {
     plan: 'monthly' | 'annual';
-    userId?: string;
-    userEmail?: string;
     initialsFee?: string;
     initialsComms?: string;
     signature?: string;
     termsVersion?: string;
     promoCode?: string;
+    placementCode?: string;
   };
+
+  // Identity comes from the verified bearer token - the legacy body userId
+  // let anyone record an agreement signature on another user's row.
+  const caller = await getAuthedUser(req, supabase);
+  if ((caller as any).error) {
+    return res.status((caller as any).status).json({ error: 'Sign in required before payment.' });
+  }
+  const userId = (caller as any).userId as string;
+  const userEmail = (caller as any).email as string;
 
   if (!plan || !PLANS[plan]) {
     return res.status(400).json({ error: 'Invalid plan. Must be "monthly" or "annual".' });
@@ -60,10 +66,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // VERIFY a signature already exists. If the caller supplies a signature
   // block inline (the in-checkout signing fallback, used when someone
   // reaches payment without having signed yet) we record it first.
-  if (!userId) {
-    return res.status(400).json({ error: 'Sign in required before payment.' });
-  }
-
   const feeInit = (initialsFee || '').trim();
   const commsInit = (initialsComms || '').trim();
   const signed = (signature || '').trim();
@@ -109,7 +111,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Valid code -> 90-day trial on the subscription. An INVALID non-empty
   // code is rejected rather than silently ignored, so nobody expecting
   // free months gets charged immediately.
-  const promoClean = (promoCode || '').trim().toUpperCase();
+  const promoClean = normalizeCode(promoCode);
   let trialDays: number | undefined;
   if (promoClean) {
     if (FREE_MONTHS_CODES.includes(promoClean)) {
@@ -117,6 +119,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     } else {
       return res.status(400).json({ error: 'That promo code is not valid.', invalidPromo: true });
     }
+  }
+
+  // ── Placement-fee code: validate + RECORD the locked rate ───────────────
+  // The fee is invoiced off-platform months later, so the account row is
+  // the system of record for what rate this recruiter locked in.
+  const placementClean = normalizeCode(placementCode);
+  let placementFeeUsd: number | undefined;
+  if (placementClean) {
+    const fee = (PLACEMENT_FEE_CODES as Record<string, number>)[placementClean];
+    if (!fee) {
+      return res.status(400).json({ error: 'That promotion code is not valid.', invalidPlacementCode: true });
+    }
+    placementFeeUsd = fee;
+  }
+
+  const { error: codeRecordErr } = await supabase
+    .from('users')
+    .update({
+      ...(promoClean ? { promo_code_used: promoClean } : {}),
+      ...(placementClean ? { placement_fee_code: placementClean, placement_fee_usd: placementFeeUsd } : {}),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', userId);
+  if (codeRecordErr) {
+    console.error('[create-checkout-session] code record failed:', codeRecordErr.message);
   }
 
   const origin = req.headers.origin || 'https://talent.strategicfinancecareers.com';
@@ -148,6 +175,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         userId: userId || '',
         plan,
         ...(promoClean ? { promoCode: promoClean } : {}),
+        ...(placementClean ? { placementCode: placementClean, placementFeeUsd: String(placementFeeUsd) } : {}),
       },
     });
 

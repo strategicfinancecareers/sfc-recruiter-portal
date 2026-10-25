@@ -15,6 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import TermsDialog from "../components/TermsDialog";
 import LoaderScreen from "../components/LoaderScreen";
 import PricingModal from "../components/PricingModal";
+import RequestIntroFlow, { type IntroFlowCandidate } from "../components/RequestIntroFlow";
 import { useCandidates, type Candidate } from "../hooks/useCandidates";
 import { AREA_GROUPS, ALL_AREA_TAGS } from "@/lib/areasOfExpertise";
 import { supabase } from "@/integrations/supabase/client";
@@ -74,12 +75,10 @@ export default function CandidateSearch() {
   const [selectedCandidates, setSelectedCandidates] = useState<string[]>([]);
   // Per-card "Read more" expansion for the SFC Take preview (Batch 2).
   const [expandedTakes, setExpandedTakes] = useState<Set<string>>(new Set());
-  const [showJobSelectionDialog, setShowJobSelectionDialog] = useState(false);
+  // Shared job-pick + submit flow (RequestIntroFlow). Non-null = open.
+  const [introFlowCandidates, setIntroFlowCandidates] = useState<IntroFlowCandidate[] | null>(null);
   const [currentCandidateForIntro, setCurrentCandidateForIntro] = useState<Candidate | null>(null);
-  const [userJobs, setUserJobs] = useState<Job[]>([]);
-  const [selectedJobId, setSelectedJobId] = useState<string>('');
   const [showAdminWarningDialog, setShowAdminWarningDialog] = useState(false);
-  const [isSubmittingIntro, setIsSubmittingIntro] = useState(false);
   // NEW-job popup open state lives in JobDraftContext so the popup (and
   // its draft) survives sidebar navigation between Browse and Jobs.
   const { formOpen: showJobForm, setFormOpen: setShowJobForm } = useJobDraft();
@@ -133,34 +132,12 @@ export default function CandidateSearch() {
   const [areasFilter, setAreasFilter] = useState<string[]>([]);
   const [areasPickerOpen, setAreasPickerOpen] = useState(false);
 
-  // Fetch user's jobs
-  const fetchUserJobs = async () => {
-    if (!user?.id) return;
-    
-    try {
-      const { data, error } = await supabase
-        .from('jobs')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('status', 'active')
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      setUserJobs((data as Job[]) || []);
-    } catch (error) {
-      console.error('Error fetching user jobs:', error);
-    }
-  };
-
-  const handleJobCreated = (newJob: Job) => {
-    setUserJobs(prev => [newJob, ...prev]);
-    setSelectedJobId(newJob.id);
+  const handleJobCreated = (_newJob: Job) => {
     setShowJobForm(false);
+    // Reopen the intro flow — it refetches jobs on open, so the new
+    // posting is immediately selectable.
+    if (currentCandidateForIntro) setIntroFlowCandidates([currentCandidateForIntro]);
   };
-
-  useEffect(() => {
-    fetchUserJobs();
-  }, [user?.id]);
 
   useEffect(() => {
     let filtered = candidates.filter(() => true); // All candidates are "open to opportunities"
@@ -273,7 +250,7 @@ export default function CandidateSearch() {
 
     // Subscribed — go straight to job selection
     setCurrentCandidateForIntro(candidate);
-    setShowJobSelectionDialog(true);
+    setIntroFlowCandidates([candidate]);
   };
 
   const handleTermsAccepted = () => {
@@ -282,76 +259,27 @@ export default function CandidateSearch() {
       if (!isSubscribed) {
         setShowPricingModal(true);
       } else {
-        setShowJobSelectionDialog(true);
+        setIntroFlowCandidates([currentCandidateForIntro]);
       }
-    }
-  };
-
-  const submitIntroductionRequest = async () => {
-    if (!currentCandidateForIntro || !user?.id || !selectedJobId) return;
-
-    setIsSubmittingIntro(true);
-
-    try {
-      // Route through serverless function to bypass RLS on introduction_requests
-      const response = await authedFetch('/api/submit-intro', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          requester_id: user.id,
-          candidate_id: currentCandidateForIntro.id,
-          job_id: selectedJobId,
-        }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Failed to submit introduction request');
-
-      console.log('[submitIntro] success — introId:', data.introId);
-
-      // Add to pending introductions
-      setPendingIntroductions(prev => [...prev, currentCandidateForIntro.id]);
-      
-      // Reset states
-      setShowJobSelectionDialog(false);
-      setCurrentCandidateForIntro(null);
-      setSelectedJobId('');
-      
-      toast({
-        title: "Introduction request sent",
-        description: "Thank you for your interest. Candidates agree to respond within 48 hours, though response times are not guaranteed. We will email you as soon as the candidate accepts or declines.",
-      });
-    } catch (error) {
-      console.error('Error submitting introduction request:', error);
-      toast({
-        title: "Error",
-        description: "Failed to submit introduction request. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSubmittingIntro(false);
     }
   };
 
   const handleBulkIntroduce = () => {
     if (selectedCandidates.length === 0) return;
-
+    if ((user?.role === 'admin' || user?.role === 'owner')) {
+      setShowAdminWarningDialog(true);
+      return;
+    }
     if (!user?.has_accepted_terms) {
       setShowTermsDialog(true);
       return;
     }
-
-    selectedCandidates.forEach(candidateId => {
-      setPendingIntroductions(prev => [...prev, candidateId]);
-    });
-
-    // Clear selections
-    setSelectedCandidates([]);
-    setSelectMode(false);
-
-    toast({
-      title: "Introduction requests sent",
-      description: `Sent introduction requests for ${selectedCandidates.length} candidates. You'll receive updates via email.`,
-    });
+    if (!isSubscribed) {
+      setShowPricingModal(true);
+      return;
+    }
+    const picked = candidates.filter(c => selectedCandidates.includes(c.id));
+    if (picked.length > 0) setIntroFlowCandidates(picked);
   };
 
   const clearFilters = () => {
@@ -975,95 +903,21 @@ export default function CandidateSearch() {
         </DialogContent>
       </Dialog>
 
-      {/* Job Selection Dialog */}
-      <Dialog open={showJobSelectionDialog} onOpenChange={(open) => {
-        if (!open) {
-          setShowJobSelectionDialog(false);
+      {/* Shared job-pick + submit flow (also used by /favorites). */}
+      <RequestIntroFlow
+        candidates={introFlowCandidates}
+        onClose={() => {
+          setIntroFlowCandidates(null);
           setCurrentCandidateForIntro(null);
-          setSelectedJobId('');
-        }
-      }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Select Job Position</DialogTitle>
-            {userJobs.length > 0 && (
-              <DialogDescription>
-                Choose which job position you want to introduce {currentCandidateForIntro?.display_name} for.
-              </DialogDescription>
-            )}
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            {userJobs.length === 0 ? (
-              <div className="space-y-4">
-                <p className="text-sm text-muted-foreground">
-                  You don't have any active job postings.
-                </p>
-                <div className="bg-destructive/10 border border-destructive/20 p-3 rounded-lg">
-                  <p className="text-sm text-destructive">
-                    A job must be selected in order to request an introduction.
-                  </p>
-                </div>
-                <Button 
-                  onClick={() => setShowJobForm(true)}
-                  className="w-full"
-                >
-                  Add New Job
-                </Button>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="job-select">Job Position</Label>
-                  <Select value={selectedJobId} onValueChange={setSelectedJobId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a job position" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {userJobs.map((job) => (
-                        <SelectItem key={job.id} value={job.id}>
-                          {job.title} - {job.company}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                {!selectedJobId && (
-                  <div className="bg-destructive/10 border border-destructive/20 p-3 rounded-lg">
-                    <p className="text-sm text-destructive">
-                      A job must be selected in order to request an introduction.
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-          <DialogFooter>
-            <Button 
-              variant="outline" 
-              onClick={() => {
-                setShowJobSelectionDialog(false);
-                setCurrentCandidateForIntro(null);
-                setSelectedJobId('');
-              }}
-            >
-              Cancel
-            </Button>
-            <Button 
-              onClick={() => submitIntroductionRequest()}
-              disabled={!selectedJobId || isSubmittingIntro}
-            >
-              {isSubmittingIntro ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Submitting...
-                </>
-              ) : (
-                'Send Introduction Request'
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        }}
+        onSubmitted={(ids) => {
+          setPendingIntroductions(prev => [...prev, ...ids]);
+          setSelectedCandidates([]);
+          setSelectMode(false);
+          setCurrentCandidateForIntro(null);
+        }}
+        onAddJob={() => setShowJobForm(true)}
+      />
 
       {/* Job Form Dialog */}
       <JobForm
